@@ -88,6 +88,35 @@ class TestVenusLink(unittest.TestCase):
             self.assertLessEqual(len(output), 800)
 
 
+    def test_thoth_sourced_requests_are_drained(self):
+        """Federation: the operator kernel can dispatch repair sweeps."""
+        from mind import daemon
+        orig = daemon.cmd_net
+        daemon.cmd_net = lambda root, state, loop=0: print("net sweep ok")
+        try:
+            eid = self.bus.publish("venus.request",
+                                   {"action": "net", "args": {}},
+                                   source="thoth")
+            summary = drain(self.root, self.state, execute=True,
+                            bus=self.bus)
+        finally:
+            daemon.cmd_net = orig
+        self.assertEqual(summary["executed"], 1)
+        archived = json.loads(
+            Path(self.bus.archive, f"{eid['id'] if isinstance(eid, dict) else eid}.json")
+            .read_text(encoding="utf-8"))
+        self.assertEqual(archived["status"], "done")
+
+    def test_consent_gates_apply_to_thoth_source_too(self):
+        """A thoth-sourced release is still refused without consent."""
+        eid = self.bus.publish("venus.request",
+                               {"action": "release", "args": {}},
+                               source="thoth")
+        drain(self.root, self.state, execute=True, bus=self.bus)
+        archived = json.loads(Path(self.bus.archive, f"{eid}.json").read_text(encoding="utf-8"))
+        self.assertEqual(archived["status"], "failed")
+        self.assertIn("refused", archived["result"]["output"])
+
+
 if __name__ == "__main__":
     unittest.main()
-

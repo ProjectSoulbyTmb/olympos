@@ -18,7 +18,7 @@ import {
 } from './design.js';
 import { deriveIdeas, draftChangelogFromGit, buildTheme } from './creative.js';
 import { explainFile, findSymbol, conventions } from './intel.js';
-import { fleetStatus, incidents } from './federation.js';
+import { fleetStatus, incidents, reconcileIncidents } from './federation.js';
 
 async function complianceScanner() {
   const root = process.cwd();
@@ -133,16 +133,36 @@ export function buildTools() {
     {
       name: 'incidents',
       klass: 'L0',
-      summary: 'Correlated cross-system incidents, most urgent first.',
-      usage: 'thoth incidents',
-      run() {
+      summary: 'Correlated cross-system incidents with MTTR memory (--all adds resolved).',
+      usage: 'thoth incidents [--all]',
+      run(engine, args) {
+        const showAll = /\b--all\b/.test(String(args || ''));
         const report = incidents(process.cwd());
-        if (!report.count) return 'No open incidents across the fleet.';
+        const ledger = reconcileIncidents(process.cwd(), report);
+        if (!report.count)
+          return 'No open incidents across the fleet.'
+            + (ledger.mttr
+                ? `\nMTTR so far: median ${ledger.mttr.medianMinutes}m `
+                  + `over ${ledger.mttr.count} resolved`
+                  + ` (worst ${ledger.mttr.worstMinutes}m).`
+                : '');
         const lines = report.incidents.map(
           incident => `[${incident.severity}] ${incident.system}:\n`
             + incident.items.map(item => `  - ${item}`).join('\n')
         );
-        return `Incidents (${report.count}):\n${lines.join('\n')}`;
+        let mttrLine = '';
+        if (ledger.mttr)
+          mttrLine = `\n\nMTTR: median ${ledger.mttr.medianMinutes}m over `
+            + `${ledger.mttr.count} resolved (worst ${ledger.mttr.worstMinutes}m).`;
+        let closedLine = '';
+        if (showAll && ledger.recentlyClosed.length)
+          closedLine = '\n\nRecently closed:\n'
+            + ledger.recentlyClosed.map(
+                r => `  - [resolved ${r.mttrMinutes}m] ${r.system}: `
+                  + r.items.join('; ')
+              ).join('\n');
+        return `Incidents (${report.count}):\n${lines.join('\n')}`
+          + mttrLine + closedLine;
       },
     },
     {

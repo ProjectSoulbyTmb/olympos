@@ -77,10 +77,19 @@ def _run_action(root, state, action, args):
         return False, _tail(combined + ("\n" + detail if detail else ""))
 
 
-def drain(root, state, execute=False, bus=None):
-    """Process pending venus.request envelopes. Returns a summary dict."""
+def drain(root, state, execute=False, bus=None,
+          sources=("venus", "thoth")):
+    """Process pending venus.request envelopes. Returns a summary dict.
+
+    Sources: "venus" always; "thoth" lets the operator kernel dispatch
+    repair actions (fleet incidents -> concrete sweeps) through the same
+    conservative consent gates - elevated actions still require explicit
+    flags inside the payload, whatever source they arrive from."""
     bus = bus or EventBus(root)
-    reqs = bus.pending(type_="venus.request", source="venus")
+    reqs = []
+    for src in sources:
+        reqs += bus.pending(type_="venus.request", source=src)
+    reqs.sort(key=lambda e: e.get("id", ""))
     summary = {"pending": len(reqs), "executed": 0, "results": []}
     if not execute:
         return summary
