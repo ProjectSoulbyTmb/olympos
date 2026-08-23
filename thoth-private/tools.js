@@ -18,6 +18,7 @@ import {
 } from './design.js';
 import { deriveIdeas, draftChangelogFromGit, buildTheme } from './creative.js';
 import { explainFile, findSymbol, conventions } from './intel.js';
+import { fleetStatus, incidents } from './federation.js';
 
 async function complianceScanner() {
   const root = process.cwd();
@@ -102,6 +103,46 @@ export function buildTools() {
           `focus: ${state.focusSession ? 'active' : 'idle'}`,
           'store: reachable (this reply proves it)',
         ].join('\n');
+      },
+    },
+
+    {
+      name: 'fleet',
+      klass: 'L0',
+      summary: 'Fleet rollup: every sibling system MIND or git manages, with network posture.',
+      usage: 'thoth fleet',
+      run() {
+        const fleet = fleetStatus(process.cwd());
+        if (!fleet.managed && !fleet.attention) {
+          return `Fleet: ${fleet.systems} system(s), none MIND-managed. `;
+        }
+        const rows = fleet.entries.map(entry => {
+          const net = entry.net
+            ? `net ${entry.net.healthy ?? '?'} ok / ${entry.net.down} down`
+            : (entry.kinds.join('+') || 'unknown');
+          const flag = entry.attention.length ? ' !' : '';
+          return `- ${entry.name}${flag}: ${net}`;
+        });
+        return [
+          `Fleet: ${fleet.systems} systems, ${fleet.managed} MIND-managed, `
+            + `${fleet.attention} need attention.`,
+          ...rows,
+        ].join('\n');
+      },
+    },
+    {
+      name: 'incidents',
+      klass: 'L0',
+      summary: 'Correlated cross-system incidents, most urgent first.',
+      usage: 'thoth incidents',
+      run() {
+        const report = incidents(process.cwd());
+        if (!report.count) return 'No open incidents across the fleet.';
+        const lines = report.incidents.map(
+          incident => `[${incident.severity}] ${incident.system}:\n`
+            + incident.items.map(item => `  - ${item}`).join('\n')
+        );
+        return `Incidents (${report.count}):\n${lines.join('\n')}`;
       },
     },
     {

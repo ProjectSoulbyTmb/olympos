@@ -54,6 +54,8 @@ osrs mind update-data                 # refresh GE/wiki ground truth
 osrs mind release --level minor       # automated version bump + build + zip
 osrs mind release --dry-run           # preview only
 osrs mind install-tasks               # register Windows scheduled tasks
+osrs mind venus                     # preview queued Venus companion requests
+osrs mind venus --execute          # run them (status/patrol/heal/net/...)
 ```
 
 Every action is logged to `runs/mind_log.jsonl`; latest state in
@@ -72,6 +74,7 @@ Every action is logged to `runs/mind_log.jsonl`; latest state in
 | Scheduler | `mind/scheduler.py` | interval job table (`schedule add/tick`) |
 | Metrics | `mind/metrics.py` | snapshots + score trends (`runs/metrics.jsonl`) |
 | Sentinel | `mind/sentinel.py` | anomaly alerts (score collapse, stale exe) onto bus |
+| Venus Link | `mind/venus_link.py` | drains venus.request envelopes from the desktop companion; results archive back on the bus |
 | Network | `mind/network.py` | endpoint/DNS/latency sweeps, rolling baselines, offline-mode detection, net alerts onto bus |
 
 One command runs the whole loop:
@@ -149,3 +152,4 @@ See `docs/README-pvp-rl.md`.
 - PvP training resumes fully (model+optimizer+pool): `--resume` on the same `--name`.
 - The snippet sandbox blocks imports/file/network in executed strategy code —
   accident-proofing, not a security boundary.
+

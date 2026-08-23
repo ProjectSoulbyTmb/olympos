@@ -253,6 +253,17 @@ def cmd_relay_pump(root, state, timeout=1800, execute=False):
     return 0
 
 
+def cmd_venus(root, state, execute=False):
+    from mind import venus_link
+    summary = venus_link.drain(root, state, execute=execute)
+    mode = "executed" if execute else "preview"
+    print(f"venus link ({mode}): {summary['pending']} pending, "
+          f"{summary['executed']} executed")
+    for r in summary["results"]:
+        print(f"  {r['id']} {r['action']} ok={r['ok']}")
+    return 0
+
+
 def cmd_heal(root, state, dry_run=False, verify=False):
     from mind import healer
     result = healer.heal(root, dry_run=dry_run, verify=verify,
@@ -426,6 +437,111 @@ def cmd_autonomic(root, state, dry_run=False, no_release=False):
     return 0 if (tr["ok"] and critical == 0) else 1
 
 
+def _net_policy(root):
+    from mind.net.policy import NetPolicy
+    return NetPolicy(root)
+
+
+def cmd_net_serve(root, state, port=5731, host="127.0.0.1"):
+    from mind.net.channel import MindChannelServer
+    server = MindChannelServer(root, host=host, port=port,
+                               policy=_net_policy(root))
+    actual = server.start()
+    state.log("net", "channel-listening", f"{host}:{actual}")
+    print(f"MIND channel listening on {host}:{actual} "
+          f"(Ctrl+C to stop)")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.stop()
+        print("channel stopped")
+    return 0
+
+
+def cmd_net_send(root, state, host, port, type_, payload_json=None):
+    import json as _json
+    payload = {}
+    if payload_json:
+        try:
+            payload = _json.loads(payload_json)
+        except _json.JSONDecodeError as e:
+            print(f"bad json: {e}")
+            return 2
+    from mind.net.channel import ChannelClient
+    client = ChannelClient(host, port)
+    try:
+        evt = client.send(type_, payload)
+        print(f"sent {evt['id']}")
+        return 0
+    finally:
+        client.close()
+
+
+def cmd_net_gym(root, state, port=43594, host="127.0.0.1"):
+    from mind.net.gym import GymServer
+    server = GymServer(host=host, port=port, policy=_net_policy(root))
+    actual = server.start()
+    state.log("net", "gym-listening", f"{host}:{actual}")
+    print(f"PvP gym serving {host}:{actual} (wire: RelayPlugin-compatible)")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.stop()
+        print("gym stopped")
+    return 0
+
+
+def cmd_net_policy(root, state, args_line):
+    policy = _net_policy(root)
+    sub = args_line[0] if args_line else "show"
+    if sub == "show":
+        print(json.dumps(policy.config, indent=1))
+        return 0
+    if sub == "allow" and len(args_line) >= 2:
+        host = args_line[1]
+        port = int(args_line[2]) if len(args_line) > 2 \
+            and args_line[2] != "*" else "*"
+        if len(args_line) > 3 and args_line[3] == "listen":
+            policy.allow_listener(host, port)
+        else:
+            policy.allow_outbound(host, port)
+        print(f"allowed {host}:{port}")
+        return 0
+    if sub == "deny" and len(args_line) >= 2:
+        policy.deny_outbound(args_line[1])
+        print(f"denied outbound {args_line[1]}")
+        return 0
+    print("usage: net policy show|allow <host> [port|*] [listen]|"
+          "deny <host>")
+    return 2
+
+
+def cmd_net_sources(root, state, name="all"):
+    from mind.net import sources
+    policy = _net_policy(root)
+    if name == "all":
+        results = sources.pull_all(root, policy,
+                                   log=lambda m: state.log("net", "pull", m))
+    else:
+        results = {name: sources.pull(root, policy, name,
+                                      log=lambda m: state.log(
+                                          "net", "pull", m))}
+    ok = all(r.get("ok") for r in results.values())
+    for src, r in results.items():
+        status = "OK" if r.get("ok") else f"ERR {r.get('error')}"
+        print(f"  {status:<40} {src}")
+    rev = sources.revision_from_runelite(root)
+    if rev:
+        print(f"current OSRS revision via runelite: {rev}")
+    return 0 if ok else 1
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     root = root_arg(argv)
@@ -486,6 +602,30 @@ def main(argv=None):
     if cmd == "autonomic":
         return cmd_autonomic(root, state, dry_run=a.dry_run,
                              no_release=a.no_build)
+    if cmd == "net":
+        sub = rest[0] if rest else "policy"
+        rest = rest[1:]
+        if sub == "serve":
+            return cmd_net_serve(root, state)
+        if sub == "gym":
+            return cmd_net_gym(root, state)
+        if sub == "send" and len(rest) >= 3:
+            return cmd_net_send(root, state, rest[0], int(rest[1]),
+                                rest[2], rest[3] if len(rest) > 3 else None)
+        if sub == "policy":
+            return cmd_net_policy(root, state, rest)
+        if sub == "sources":
+            return cmd_net_sources(root, state,
+                                   rest[0] if rest else "all")
+        print("usage: net serve|gym|send <host> <port> <type> [json]|"
+              "policy ...|sources [name|all]")
+        return 2
+    if cmd == "venus":
+        ap4 = argparse.ArgumentParser(prog="osrs mind venus")
+        ap4.add_argument("--execute", action="store_true",
+                         help="drain and run queued venus requests")
+        a4, _ = ap4.parse_known_args(rest)
+        return cmd_venus(root, state, execute=a4.execute)
     if cmd == "relay":
         sub = rest[0] if rest else "status"
         rest = rest[1:]
@@ -505,8 +645,8 @@ def main(argv=None):
         print(f"unknown relay subcommand '{sub}' - use status|pump|publish")
         return 2
     print(f"unknown command '{cmd}' - use status|patrol|update-data|"
-          "release|install-tasks|heal|build|revise|metrics|net|schedule|"
-          "autonomic|relay")
+          "release|install-tasks|heal|build|revise|metrics|schedule|"
+          "autonomic|relay|net")
     return 2
 
 

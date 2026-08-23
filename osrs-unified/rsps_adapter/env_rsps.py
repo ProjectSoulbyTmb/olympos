@@ -14,6 +14,8 @@ class RspsPvpEnv:
         import numpy as np
         self.np = np
         self.host = host
+        self._mask_a = None
+        self._mask_b = None
         self.sock = self._connect(host, port, timeout)
         self.opp_sock = (self._connect(host, opp_port, timeout)
                          if opp_port else None)
@@ -43,21 +45,26 @@ class RspsPvpEnv:
     def reset(self):
         self.sock.sendall(b"RESET\n")
         obs_a, mask_a, _, _ = self._parse(self._recv_line(
-            self.sock.makefile()))
+            self.sock.makefile("rb")))
+        self._mask_a = mask_a
         if self.opp_sock is None:
+            self._mask_b = mask_a
             return obs_a, obs_a
         obs_b, mask_b, _, _ = self._parse(self._recv_line(
-            self.opp_sock.makefile()))
+            self.opp_sock.makefile("rb")))
+        self._mask_b = mask_b
         return obs_a, obs_b
 
     def legal_mask(self):
-        raise NotImplementedError(
-            "masks arrive with each step/reset; cache them instead")
+        if self._mask_a is None or self._mask_b is None:
+            raise RuntimeError("no masks cached yet - call reset() first")
+        return self._mask_a, self._mask_b
 
     def step(self, act_a, act_b):
-        fa = self.sock.makefile()
+        fa = self.sock.makefile("rb")
         self.sock.sendall(f"STEP,{int(act_a)}\n".encode())
         obs_a, mask_a, r_a, done = self._parse(self._recv_line(fa))
+        self._mask_a = mask_a
         r_b = -r_a
         outcome = 1 if done and r_a > 0 else (2 if done and r_a < 0 else 0)
         return obs_a, obs_a, r_a, r_b, outcome, done
