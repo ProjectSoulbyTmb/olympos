@@ -375,11 +375,14 @@ ARMOUR_BONUS_MIN = 4
 
 def t_live_updater():
     sys.path.insert(0, HERE)
+    import tempfile
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "osrs_updater", os.path.join(HERE, "osrs_updater.py"))
     up = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(up)
+    # never clobber the production snapshot: fake-fetch into a sandbox dir
+    up.LIVE_DIR = tempfile.mkdtemp()
     fake = {
         up.PRICES_URL: {"data": {"123": {"high": 994, "low": 1149}}},
         up.MAPPING_URL: [{"id": 123, "name": "Black axe", "limit": 40}],
@@ -400,6 +403,57 @@ def t_live_updater():
     g = GameSDK(World())
     assert g.ge_price("Black axe")["low"] == 1149
     return "offline fetch -> snapshot -> market+SDK lookups ok"
+
+
+def t_live_stream():
+    import tempfile
+    from game.livewatch import LiveStream
+    tmp = tempfile.mkdtemp()
+    stream = LiveStream(live_dir=tmp)
+    assert stream.poll() == []
+    src = os.path.join(HERE, "osrs_updater.py")
+    # seed a snapshot
+    p = os.path.join(tmp, "ge_prices.json")
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump({"fetched": 1, "items": {"Iron ore": {"high": 90}}}, fh)
+    changes = stream.poll()
+    assert len(changes) == 1 and changes[0]["file"] == "ge_prices.json"
+    assert stream.poll() == []                      # no mtime change
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump({"fetched": 2, "items": {"Iron ore": {"high": 95}}}, fh)
+    st = os.stat(p)
+    os.utime(p, (st.st_atime + 5, st.st_mtime + 5))  # force new mtime
+    changes = stream.poll()
+    assert len(changes) == 1 and changes[0]["data"]["fetched"] == 2
+
+    # server wiring: live cache + version bump + wire lookup
+    from server.rsps_server import GameServer
+    from server.client import RemoteGameSDK
+    srv = GameServer(port=43977, live_poll_s=0.5)
+    srv._live_stream = LiveStream(live_dir=tmp)
+    srv.start_async()
+    time.sleep(1.6)
+    try:
+        c = RemoteGameSDK(name="trader", port=43977)
+        v1 = c.live(items=["Iron ore"])
+        assert v1["version"] >= 1
+        assert v1["prices"][0]["item"] == "Iron ore"
+        assert v1["prices"][0]["high"] == 95
+        # bump the snapshot -> version must move
+        p2 = os.path.join(tmp, "game_updates.json")
+        with open(p2, "w", encoding="utf-8") as fh:
+            json.dump({"fetched": 3, "updates": [
+                {"title": "Update: X", "timestamp": "t"}]}, fh)
+        st2 = os.stat(p2)
+        os.utime(p2, (st2.st_atime + 5, st2.st_mtime + 5))
+        time.sleep(1.4)
+        v2 = c.live()
+        assert v2["version"] > v1["version"], (v1["version"], v2["version"])
+        c.close()
+        return (f"stream detect + server v{v1['version']}->v{v2['version']}"
+                f" + wire price lookup ok")
+    finally:
+        srv.stop()
 
 
 def t_rsps_socket():
@@ -506,6 +560,7 @@ for name, fn in [
     ("SOCKET: RL checkpoint integrity", t_rl_checkpoint),
     ("DATA: OSRS ground-truth KB", t_knowledge),
     ("DATA: continuous live updater", t_live_updater),
+    ("DATA: live stream + server wiring", t_live_stream),
     ("SOCKET: LLM endpoint (ollama)", t_llm_endpoint),
     ("APP: OsrsLab.exe", t_dashboard_exe),
     ("APP: easy runner wiring", t_runner),

@@ -37,8 +37,26 @@ def manual_mode(task_name, code_path, tick_budget, uim=False,
 
     world = World(seed=1337, tick_budget=tick_budget, uim=uim)
     if resume:
-        with open(resume, "r", encoding="utf-8") as f:
-            world.load_snapshot(json.load(f))
+        try:
+            with open(resume, "r", encoding="utf-8") as f:
+                snap = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            bad = resume + ".corrupt-%d" % int(time.time())
+            os.replace(resume, bad)
+            print(f"AUTOFIX: session corrupt ({e}) - moved to {bad}, "
+                  "starting fresh")
+            snap = None
+        if snap is not None:
+            try:
+                world.load_snapshot(snap)
+            except Exception as e:
+                bad = resume + ".incompatible-%d" % int(time.time())
+                os.replace(resume, bad)
+                print(f"AUTOFIX: snapshot incompatible ({e}) - moved to "
+                      f"{bad}, starting fresh")
+            else:
+                print(f"resumed session at tick {world.tick} "
+                      f"({world.ticks_left} ticks left)")
         print(f"resumed session at tick {world.tick} "
               f"({world.ticks_left} ticks left)")
 
@@ -47,8 +65,10 @@ def manual_mode(task_name, code_path, tick_budget, uim=False,
     session_path = os.path.join(session_dir, "session.json")
 
     def autosave(tick):
-        with open(session_path, "w", encoding="utf-8") as f:
+        tmp = session_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(world.save(), f)
+        os.replace(tmp, session_path)
 
     if save_every > 0:
         world.on_tick = lambda t: (autosave(t) if t % save_every == 0 else None)

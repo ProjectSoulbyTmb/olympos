@@ -53,9 +53,17 @@ prices.runescape.wiki + oldschool.runescape.wiki API
         v
 knowledge/live/{ge_prices,game_updates,status}.json
         |
-game/market.py -> sdk.ge_price(item)   (degrades to None when stale)
+game/livewatch.LiveStream  (mtime change detection)
+        |-- server/rsps_server.py: poller thread folds snapshots into
+        |    a versioned cache; clients call {"cmd":"live"} /
+        |    RemoteGameSDK.live(items=[...]) -> play_rsps.py GE ticker
+        |-- game/market.py -> sdk.ge_price(item)  (None when stale)
+        `-- assistant/plugins/ge.js  (Venus: "ge <item>")
 tools/update_knowledge.py -> knowledge/raw/* -> knowledge/digest.md (/digest command)
 ```
+
+Tests must never write into `knowledge/live/` - use a temp dir via
+LiveStream(live_dir=...) or module-level LIVE_DIR override.
 
 ## Conventions
 

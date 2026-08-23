@@ -63,8 +63,15 @@ class MIND:
             pass
 
     def emit(self, event, **data):
+        errors = []
         for fn in list(self._handlers.get(event, ())):
-            fn(**data)
+            try:
+                fn(**data)
+            except Exception as e:
+                errors.append("%s: %s: %s" % (
+                    getattr(fn, "__name__", fn), type(e).__name__, e))
+        if errors and event != "handler_error":
+            self.emit("handler_error", source_event=event, errors=errors)
 
     def schedule(self, delay_ticks, fn):
         if self.world is None:

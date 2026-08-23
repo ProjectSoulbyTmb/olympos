@@ -52,6 +52,11 @@ export const knowledge = {
       reply:
         'Administrators can arm session-scoped elevation so elevated operations run without per-call confirmation - but arming requires an active administrator authorization, every elevated run takes an automatic safety backup first, each use is persisted and relay-audited, and the mode dies with the admin session. Outside that window nothing changes: destructive tools stay refused.',
     },
+    thothAdultWellness: {
+      title: 'Adult wellness and control',
+      reply:
+        'Adult capability ships with matched controls: Private session mode suppresses taste-record writes at the main-process choke point while on; a configurable session limit reports elapsed minutes and remaining headroom through "thoth adult"; and Ctrl+Shift+X is an instant panic exit that pauses media, closes the adult session, and returns to the dashboard. All of it stays local, revocable, and behind the existing triple gate.',
+    },
   },
   rules: [
     {
@@ -85,6 +90,10 @@ export const knowledge = {
     {
       id: 'thothCode',
       re: /\b(thoth\s+code|code\s+(?:explain|find)|conventions)\b/i,
+    },
+    {
+      id: 'thothAdultWellness',
+      re: /\b(adult\s+(?:wellness|private|session\s+limit|panic)|private\s+session\s+mode)\b/i,
     },
     {
       id: 'thothAdmin',

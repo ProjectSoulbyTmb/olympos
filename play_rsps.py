@@ -121,6 +121,7 @@ class Game:
         if os.environ.get("RSPS_CLIENT_FRAMES"):
             self.frames_left = int(os.environ["RSPS_CLIENT_FRAMES"])
         self._sync_render_pos(True)
+        self.ticker, self._ticker_v, self._last_live_poll = [], -1, 0.0
 
     # ---------- helpers ----------
 
@@ -667,6 +668,38 @@ class Game:
             self.screen.blit(img, (8, y))
             y += 16
 
+    WATCHLIST = ("Abyssal whip", "Rune pickaxe", "Iron ore", "Cowhide")
+
+    def poll_live(self):
+        now = time.time()
+        if now - self._last_live_poll < 10:
+            return
+        self._last_live_poll = now
+        try:
+            live = self.sdk.live(items=list(self.WATCHLIST))
+        except Exception:
+            return
+        v = live.get("version", 0)
+        if v != self._ticker_v:
+            self._ticker_v = v
+            self.ticker = [(p["item"], p.get("high"), p.get("low"))
+                           for p in live.get("prices", [])]
+
+    def draw_ticker(self):
+        if not self.ticker:
+            return
+        x = 8
+        y = GRID * TILE - 18
+        for item, hi, lo in self.ticker:
+            txt = f"{item[:14]} {('buy ' + format(hi, ',')) if hi else '-'}"
+            img = self.small.render(txt, True, COLORS["good"])
+            self.screen.blit(img, (x, y))
+            x += img.get_width() + 6
+            txt2 = f"sell {format(lo, ',')}" if lo else "-"
+            img2 = self.small.render(txt2, True, COLORS["bad"])
+            self.screen.blit(img2, (x, y))
+            x += img2.get_width() + 14
+
     # ---------- loop ----------
 
     def run(self):
@@ -743,10 +776,12 @@ class Game:
                     if e.pos[0] < GRID * TILE:
                         self.click_world(*e.pos)
             self._sync_render_pos()
+            self.poll_live()
             self.screen.fill(COLORS["panel"])
             self.draw_world()
             self.draw_panel()
             self.draw_buy_hints()
+            self.draw_ticker()
             self.draw_overlays()
             self.pg.display.flip()
             self.clock.tick(FPS)

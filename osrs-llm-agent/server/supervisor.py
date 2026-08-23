@@ -49,6 +49,8 @@ class MindSupervisor:
         self.last_health = "unknown"
         self.last_content_hash = None
         self.last_knowledge_refresh = 0.0
+        self.restart_times = []
+        self.flapping_until = 0.0
         self.status_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             "..", "runs", "server_status.json")
@@ -74,6 +76,13 @@ class MindSupervisor:
             return False
 
     def _restart(self, reason):
+        now = time.time()
+        self.restart_times.append(now)
+        self.restart_times = [t for t in self.restart_times
+                              if now - t < 300]
+        if len(self.restart_times) >= 5:
+            self.flapping_until = now + 60
+            self.last_health = "flapping"
         self.restart_count += 1
         self.last_error = reason
         try:
@@ -134,7 +143,10 @@ class MindSupervisor:
         }
         try:
             os.makedirs(os.path.dirname(self.status_path), exist_ok=True)
-            json.dump(payload, open(self.status_path, "w"))
+            tmp = self.status_path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(payload, f)
+            os.replace(tmp, self.status_path)
         except OSError:
             pass
 
@@ -148,6 +160,10 @@ class MindSupervisor:
         self.started_at = time.time()
         self._spawn()
         while self.running:
+            if time.time() < self.flapping_until:
+                self.last_health = "flapping (cooldown)"
+                time.sleep(1)
+                continue
             try:
                 alive = bool(self.server and self.server.running)
                 healthy = alive and self._probe()

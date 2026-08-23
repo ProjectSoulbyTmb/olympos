@@ -528,6 +528,36 @@ export function buildTools() {
       },
     },
     {
+      name: 'adult',
+      klass: 'L0',
+      summary: 'Adult session wellness: private mode, elapsed minutes, limit headroom.',
+      usage: 'thoth adult [limit <min>|private on|off]',
+      async run(engine, args) {
+        const raw = String(args || '').toLowerCase().trim();
+        const status = await window?.soul?.adultSessionStatus?.();
+        const cfg = engine.state.assistant || {};
+        void cfg;
+        if (raw.startsWith('limit')) {
+          return 'Session limits are set in Settings (Adult session limit). THOTH reports; you decide.';
+        }
+        if (raw.startsWith('private')) {
+          return 'Private mode toggles in Settings > Companion (adultPrivateMode). When ON, taste records are suppressed at the main-process choke point.';
+        }
+        const s = typeof window === 'undefined' ? null : status;
+        if (!s) {
+          return 'Session telemetry unavailable outside the desktop runtime.';
+        }
+        return [
+          `session ${s.active ? 'ACTIVE' : 'idle'} - ${s.minutes} min elapsed`,
+          s.limitMin ? `limit ${s.limitMin} min | remaining ${s.remaining}` : 'no limit set',
+          `private mode ${s.privateMode ? 'ON (taste writes suppressed)' : 'OFF'}`,
+          s.overLimit ? 'OVER LIMIT - consider a break.' : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+      },
+    },
+    {
       name: 'master',
       klass: 'L2',
       summary: 'Administrator pause/resume for the whole kernel.',

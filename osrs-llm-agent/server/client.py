@@ -128,6 +128,16 @@ class RemoteGameSDK:
     def set_run(self, on):
         return self._call("set_run", bool(on))
 
+    def live(self, items=None):
+        """Live updater stream: version + optional GE price lookups."""
+        payload = {"cmd": "live"}
+        if items:
+            payload["items"] = list(items)
+        resp = self._request(payload)
+        if not resp.get("ok"):
+            raise RspsError(resp.get("error", "live failed"))
+        return resp["live"]
+
     def npcs(self):
         return self._call("npcs")
 
