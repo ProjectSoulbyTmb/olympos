@@ -5,5 +5,5 @@ build/
 dist/
 .venv/
 .pytest_cache/
-runs/*/session.json.tmp
-runs/mind_log.jsonl
+.mind_state.json
+runs/
