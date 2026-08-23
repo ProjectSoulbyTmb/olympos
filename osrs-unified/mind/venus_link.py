@@ -18,7 +18,9 @@ forged envelope cannot ship code.
 """
 import contextlib
 import io
+import json
 import os
+import time
 
 from mind.bus import EventBus
 
@@ -28,6 +30,24 @@ MAX_OUTPUT_CHARS = 800
 def _tail(text, limit=MAX_OUTPUT_CHARS):
     text = (text or "").strip()
     return text[-limit:] if len(text) > limit else text
+
+
+def policy_consent(root, action):
+    """Growth-Gate auto-consent: a TTL-bounded policy block published by the
+    THOTH growth gate (runs/growth_policy.json) pre-consents SAFE actions
+    (status/patrol/update-data/heal/net/metrics). Release/autonomic are
+    never in that set - they stay human-gated. Expired policy = no consent."""
+    path_ = os.path.join(root, "runs", "growth_policy.json")
+    try:
+        with open(path_, encoding="utf-8") as f:
+            pol = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not pol.get("enabled"):
+        return False
+    if float(pol.get("expires", 0)) < time.time():
+        return False
+    return action in pol.get("actions", [])
 
 
 def _run_action(root, state, action, args):
@@ -103,6 +123,24 @@ def drain(root, state, execute=False, bus=None,
             continue
         state.log("venus", "request-start",
                   f"{evt['id']} action={action}")
+        # Source-aware gate (Growth Gate): thoth-sourced requests run only
+        # read-only verbs, actions pre-consented by the published policy,
+        # or requests carrying explicit elevation.
+        if evt.get("from") == "thoth" \
+                and action not in ("status", "metrics") \
+                and not policy_consent(root, action) \
+                and not args.get("elevated_ok"):
+            refusal = (f"refused: thoth-sourced '{action}' needs "
+                       "growth-gate policy or args.elevated_ok=true")
+            bus.complete(evt["id"],
+                         {"ok": False, "action": action,
+                          "output": refusal}, ok=False)
+            state.log("venus", "refused",
+                      f"{evt['id']} {action} (outside growth policy)")
+            summary["executed"] += 1
+            summary["results"].append({"id": evt["id"],
+                                       "action": action, "ok": False})
+            continue
         ok, output = _run_action(root, state, action, args)
         bus.complete(evt["id"], {"ok": ok, "action": action,
                                  "output": output}, ok=ok)

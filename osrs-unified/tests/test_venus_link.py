@@ -94,18 +94,25 @@ class TestVenusLink(unittest.TestCase):
         orig = daemon.cmd_net
         daemon.cmd_net = lambda root, state, loop=0: print("net sweep ok")
         try:
+            # Bare request -> refused by the source-aware gate.
             eid = self.bus.publish("venus.request",
                                    {"action": "net", "args": {}},
                                    source="thoth")
+            drain(self.root, self.state, execute=True, bus=self.bus)
+            archived = json.loads(Path(self.bus.archive, f"{eid}.json").read_text(encoding="utf-8"))
+            self.assertEqual(archived["status"], "failed")
+            # Explicit elevation -> runs.
+            eid2 = self.bus.publish("venus.request",
+                                    {"action": "net",
+                                     "args": {"elevated_ok": True}},
+                                    source="thoth")
             summary = drain(self.root, self.state, execute=True,
                             bus=self.bus)
         finally:
             daemon.cmd_net = orig
         self.assertEqual(summary["executed"], 1)
-        archived = json.loads(
-            Path(self.bus.archive, f"{eid['id'] if isinstance(eid, dict) else eid}.json")
-            .read_text(encoding="utf-8"))
-        self.assertEqual(archived["status"], "done")
+        ok_archived = json.loads(Path(self.bus.archive, f"{eid2}.json").read_text(encoding="utf-8"))
+        self.assertEqual(ok_archived["status"], "done")
 
     def test_consent_gates_apply_to_thoth_source_too(self):
         """A thoth-sourced release is still refused without consent."""
@@ -116,6 +123,52 @@ class TestVenusLink(unittest.TestCase):
         archived = json.loads(Path(self.bus.archive, f"{eid}.json").read_text(encoding="utf-8"))
         self.assertEqual(archived["status"], "failed")
         self.assertIn("refused", archived["result"]["output"])
+
+
+    def test_thoth_source_gated_by_growth_policy(self):
+        """Growth Gate automation: policy file pre-consents safe actions."""
+        import time as time_mod
+        runs = Path(self.root, "runs")
+        runs.mkdir(exist_ok=True)
+        # No policy yet: thoth-sourced patrol is refused...
+        eid = self.bus.publish("venus.request",
+                               {"action": "patrol", "args": {}},
+                               source="thoth")
+        drain(self.root, self.state, execute=True, bus=self.bus)
+        archived = json.loads(Path(self.bus.archive, f"{eid}.json").read_text(encoding="utf-8"))
+        self.assertEqual(archived["status"], "failed")
+        # ...policy published by the growth gate pre-consents it...
+        (runs / "growth_policy.json").write_text(json.dumps({
+            "profile": "growth", "enabled": True,
+            "actions": ["patrol", "net", "heal"],
+            "expires": time_mod.time() + 3600}), encoding="utf-8")
+        from mind import daemon
+        orig = daemon.cmd_patrol
+        daemon.cmd_patrol = lambda root, state, loop=0, llm=False, skip_tests=False: print("patrolled")
+        try:
+            eid2 = self.bus.publish("venus.request",
+                                    {"action": "patrol", "args": {}},
+                                    source="thoth")
+            drain(self.root, self.state, execute=True, bus=self.bus)
+        finally:
+            daemon.cmd_patrol = orig
+        ok_archived = json.loads(Path(self.bus.archive, f"{eid2}.json").read_text(encoding="utf-8"))
+        self.assertEqual(ok_archived["status"], "done")
+
+    def test_expired_growth_policy_refuses_thoth(self):
+        import time as time_mod
+        runs = Path(self.root, "runs")
+        runs.mkdir(exist_ok=True)
+        (runs / "growth_policy.json").write_text(json.dumps({
+            "profile": "growth", "enabled": True,
+            "actions": ["patrol"], "expires": time_mod.time() - 10}),
+            encoding="utf-8")
+        eid = self.bus.publish("venus.request",
+                               {"action": "patrol", "args": {}},
+                               source="thoth")
+        drain(self.root, self.state, execute=True, bus=self.bus)
+        archived = json.loads(Path(self.bus.archive, f"{eid}.json").read_text(encoding="utf-8"))
+        self.assertEqual(archived["status"], "failed")
 
 
 if __name__ == "__main__":
