@@ -8,7 +8,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mind import builder, engineer, healer, knowledge_engine, metrics
-from mind import moderator, releaser, scheduler  # noqa: E402
+from mind import moderator, network, releaser, scheduler  # noqa: E402
 from mind.sentinel import Sentinel  # noqa: E402
 from mind.state import MindState  # noqa: E402
 
@@ -277,6 +277,26 @@ def cmd_build(root, state, exe=True):
     return 0 if ok else 1
 
 
+def cmd_net(root, state, loop=0, timeout=5.0):
+    while True:
+        report = network.sweep(root, state, bus=_relay(root),
+                               timeout=timeout)
+        suggestions = network.heal_suggestions(report)
+        for s in suggestions:
+            state.log("network", "suggestion", s)
+        print(f"network sweep: healthy={report['healthy']} "
+              f"degraded={report['degraded']} down={report['down']}")
+        for e in report["endpoints"]:
+            lat = f"{e['latency_ms']}ms" if e.get("latency_ms") is not None \
+                else "-"
+            print(f"  {e['name']:<16} {e['status']:<9} {lat:>8}  "
+                  f"{e.get('role', '')}")
+        if not loop:
+            return 0 if report["down"] == 0 and \
+                report["healthy"] > 0 else 1
+        time.sleep(loop * 60)
+
+
 def cmd_revise(root, state, fetch=True):
     status = knowledge_engine.revision_status(root, fetch=fetch)
     print(f"revision parity: xp_ok={status['xp_parity_ok']} "
@@ -324,6 +344,8 @@ def cmd_schedule(root, state, args_line):
                 cmd_patrol(root, state, loop=0)
             elif name == "knowledge-refresh":
                 cmd_update_data(root, state)
+            elif name == "network-check":
+                cmd_net(root, state)
             elif name == "metrics-snapshot":
                 cmd_metrics(root, state)
         return 0
@@ -363,6 +385,17 @@ def cmd_autonomic(root, state, dry_run=False, no_release=False):
     alerts = Sentinel(root, state).sweep()
     steps["sentinel_alerts"] = alerts
     plan.append(f"sentinel alerts: {len(alerts)}")
+
+    net = network.sweep(root, state, bus=_relay(root))
+    steps["network"] = {"healthy": net["healthy"],
+                        "degraded": net["degraded"],
+                        "down": net["down"],
+                        "offline_mode": net["healthy"] == 0}
+    plan.append(f"network: {net['healthy']} healthy, "
+                f"{net['degraded']} degraded, {net['down']} down")
+    if net["healthy"] == 0:
+        plan.append("network: offline mode - deferring release/build")
+        no_release = True
 
     dirty = releaser.git_dirty(root)
     green = tr["ok"] and critical == 0 and not dry_run
@@ -442,6 +475,12 @@ def main(argv=None):
                           not in extra)
     if cmd == "metrics":
         return cmd_metrics(root, state)
+    if cmd == "net":
+        ap3 = argparse.ArgumentParser(prog="osrs mind net")
+        ap3.add_argument("--loop", type=int, default=0, metavar="MINUTES")
+        ap3.add_argument("--timeout", type=float, default=5.0)
+        a3, _ = ap3.parse_known_args(rest)
+        return cmd_net(root, state, loop=a3.loop, timeout=a3.timeout)
     if cmd == "schedule":
         return cmd_schedule(root, state, rest)
     if cmd == "autonomic":
@@ -466,7 +505,7 @@ def main(argv=None):
         print(f"unknown relay subcommand '{sub}' - use status|pump|publish")
         return 2
     print(f"unknown command '{cmd}' - use status|patrol|update-data|"
-          "release|install-tasks|heal|build|revise|metrics|schedule|"
+          "release|install-tasks|heal|build|revise|metrics|net|schedule|"
           "autonomic|relay")
     return 2
 

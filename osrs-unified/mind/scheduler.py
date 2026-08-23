@@ -4,6 +4,7 @@ import time
 DEFAULT_JOBS = [
     {"name": "patrol", "every_minutes": 60},
     {"name": "knowledge-refresh", "every_minutes": 60},
+    {"name": "network-check", "every_minutes": 15},
     {"name": "metrics-snapshot", "every_minutes": 1440},
 ]
 

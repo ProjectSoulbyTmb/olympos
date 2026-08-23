@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.2.0 (2026-08-23)
+## Unreleased
+
+- MIND gains a Network engineering engine (mind/network.py, osrs mind net): endpoint registry with per-install overrides, DNS + HTTPS reachability probes with retry/backoff, rolling latency baselines with healthy/slow/spike/degraded/down classification, proxy-aware egress detection, offline-mode detection that defers releases in the autonomic loop, heal suggestions, and mind.net.status / mind.net.alert events onto the Thoth bus. Scheduled automatically every 15 minutes.
 
 - osrs-unified: document MIND engineering engines in README
 - chore(osrs-unified): stop tracking live mind-daemon runtime state

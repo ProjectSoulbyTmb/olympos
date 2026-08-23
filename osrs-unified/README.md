@@ -72,10 +72,12 @@ Every action is logged to `runs/mind_log.jsonl`; latest state in
 | Scheduler | `mind/scheduler.py` | interval job table (`schedule add/tick`) |
 | Metrics | `mind/metrics.py` | snapshots + score trends (`runs/metrics.jsonl`) |
 | Sentinel | `mind/sentinel.py` | anomaly alerts (score collapse, stale exe) onto bus |
+| Network | `mind/network.py` | endpoint/DNS/latency sweeps, rolling baselines, offline-mode detection, net alerts onto bus |
 
 One command runs the whole loop:
 
 ```powershell
+osrs mind net                  # endpoint/DNS/latency sweep + alerts
 osrs mind autonomic            # patrol -> heal -> parity -> tests ->
                                # sentinel -> release-if-green
 osrs mind autonomic --dry-run  # plan only
