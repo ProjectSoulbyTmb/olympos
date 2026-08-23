@@ -1,0 +1,8 @@
+{
+  "user_agent": "OsrsLab local sandbox - knowledge refresher",
+  "timeout_s": 15,
+  "retries": 3,
+  "backoff_s": 2.0,
+  "prices_enabled": true,
+  "updates_enabled": true
+}

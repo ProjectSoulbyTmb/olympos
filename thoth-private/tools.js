@@ -1,0 +1,706 @@
+// SPDX-FileCopyrightText: 2026 Soul Consciousness Studios
+// SPDX-License-Identifier: LicenseRef-Eidovara-Source-Available-1.0
+/**
+ * THOTH tool registry. Every handler sticks to the engine's public methods;
+ * nothing here reaches into core internals. Handlers return a reply string.
+ */
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { SOURCE_VERSION, INSTALLER_NAME } from '../../core/release.js';
+import {
+  auditNow,
+  startWatch,
+  stopWatch,
+  goalsStatus,
+  nextActions,
+  trends,
+  regressionReport,
+} from './design.js';
+import { deriveIdeas, draftChangelogFromGit, buildTheme } from './creative.js';
+import { explainFile, findSymbol, conventions } from './intel.js';
+
+async function complianceScanner() {
+  const root = process.cwd();
+  const url = new URL(`file:///${root.split(path.sep).join("/")}/scripts/compliance-scan.mjs`);
+  return import(url.href);
+}
+
+const clip = (text, max = 1600) => String(text).slice(0, max);
+const list = items => (items.length ? items.map(item => `- ${item}`).join('\n') : '(none)');
+
+function providerKind(engine) {
+  const name = engine?.provider?.constructor?.name || 'unknown';
+  return name.replace(/Provider$/, '').toLowerCase();
+}
+
+function netSummary(engine) {
+  const opts = engine?.internetOptions || {};
+  return `internet: ${Object.keys(opts).length ? JSON.stringify(opts) : 'defaults'}`;
+}
+
+export function buildTools() {
+  const tools = [
+    {
+      name: 'help',
+      klass: 'L0',
+      summary: 'List THOTH commands and the grant each one needs.',
+      usage: 'thoth help [command]',
+      run(engine, args, ctx, all) {
+        const wanted = String(args || '').toLowerCase().trim();
+        if (wanted && wanted !== 'all') {
+          const tool = all.get(wanted);
+          if (!tool) return `No such command: ${wanted}`;
+          return `${tool.name} (${tool.klass}) - ${tool.summary}\nusage: ${tool.usage}`;
+        }
+        const lines = [...all.values()].map(
+          tool => `${tool.name.padEnd(10)} ${tool.klass}  ${tool.summary}`
+        );
+        return [
+          'THOTH operator console - local only, nothing is sent anywhere.',
+          'Classes: L0 read-only | L1 needs standing grant | L2 admin-session per call.',
+          '',
+          ...lines,
+          '',
+          'Grants: "thoth grant <name> L1" via the admin panel; revoke with "thoth grant <name>" cleared.',
+        ].join('\n');
+      },
+    },
+    {
+      name: 'status',
+      klass: 'L0',
+      summary: 'Kernel snapshot: modules, focus, funnel, scratchpad presence.',
+      usage: 'thoth status',
+      run(engine) {
+        const snap = engine.kernelStatus();
+        return clip(JSON.stringify(snap, null, 2));
+      },
+    },
+    {
+      name: 'version',
+      klass: 'L0',
+      summary: 'Exact release facts compiled into this installation.',
+      usage: 'thoth version',
+      run() {
+        return `Eidovara source v${SOURCE_VERSION}; installer ${INSTALLER_NAME}. THOTH kernel attached. Local facts only.`;
+      },
+    },
+    {
+      name: 'doctor',
+      klass: 'L0',
+      summary: 'Aggregate health: provider, internet options, backups, memory counts.',
+      usage: 'thoth doctor',
+      run(engine) {
+        const state = engine.snapshot();
+        const backups = engine.listBackups();
+        const memories = Array.isArray(state.memories) ? state.memories.length : 0;
+        const conversations = Array.isArray(state.conversations) ? state.conversations.length : 0;
+        return [
+          `provider: ${providerKind(engine)}`,
+          netSummary(engine),
+          `memories: ${memories} | conversations: ${conversations} | backups: ${backups.length}`,
+          `scratchpad: ${state.scratchpad ? `${String(state.scratchpad).length} chars` : 'empty'}`,
+          `focus: ${state.focusSession ? 'active' : 'idle'}`,
+          'store: reachable (this reply proves it)',
+        ].join('\n');
+      },
+    },
+    {
+      name: 'net',
+      klass: 'L0',
+      summary: 'Show the network options this session will honor.',
+      usage: 'thoth net',
+      run(engine) {
+        return `Outbound policy for this session:\n${netSummary(engine)}\nConversations never leave this PC unless you connected a provider yourself.`;
+      },
+    },
+    {
+      name: 'search',
+      klass: 'L0',
+      summary: 'Search the local workspace (modules, notes, memories).',
+      usage: 'thoth search <query>',
+      run(engine, args) {
+        const query = String(args || '').trim();
+        if (!query) return 'Give me something to search: "thoth search backup".';
+        const hits = engine.searchWorkspace(query) || {};
+        const flat = [];
+        for (const [key, value] of Object.entries(hits)) {
+          const count = Array.isArray(value) ? value.length : value ? 1 : 0;
+          if (count) flat.push(`${key}: ${count}`);
+        }
+        return flat.length
+          ? `Workspace hits for "${query}":\n${flat.join('\n')}`
+          : `Nothing in the workspace matches "${query}".`;
+      },
+    },
+    {
+      name: 'palette',
+      klass: 'L0',
+      summary: 'Command palette entries, optionally filtered.',
+      usage: 'thoth palette [query]',
+      run(engine, args) {
+        const query = String(args || '').trim();
+        const items = engine.paletteItems(query) || [];
+        return clip(`Palette${query ? ` ~ "${query}"` : ''}:\n${list(items.slice(0, 12).map(i => i.label || i.id || String(i)))}`);
+      },
+    },
+    {
+      name: 'explain',
+      klass: 'L0',
+      summary: 'Explain the last assistant reply (routing + knowledge used).',
+      usage: 'thoth explain',
+      run(engine) {
+        try {
+          const why = engine.explainLastReply();
+          return clip(JSON.stringify(why, null, 2));
+        } catch {
+          return 'Nothing to explain yet - send a message first.';
+        }
+      },
+    },
+    {
+      name: 'backups',
+      klass: 'L0',
+      summary: 'List stored profile backups.',
+      usage: 'thoth backups',
+      run(engine) {
+        const rows = (engine.listBackups() || []).map(b =>
+          typeof b === 'string' ? b : `${b.name || b.file} (${b.bytes ?? '?'} bytes)`
+        );
+        return `Backups:\n${list(rows)}`;
+      },
+    },
+    {
+      name: 'remember',
+      klass: 'L1',
+      summary: 'Save a durable memory into the local profile.',
+      usage: 'thoth remember <text>',
+      run(engine, args) {
+        const text = String(args || '').trim();
+        if (!text) return 'Usage: thoth remember <text>';
+        engine.remember(text, { source: 'thoth' });
+        return `Remembered locally: "${clip(text, 120)}"`;
+      },
+    },
+    {
+      name: 'forget',
+      klass: 'L2',
+      summary: 'Delete matching memories (elevated).',
+      usage: 'thoth forget <id-or-text>',
+      run(engine, args) {
+        const target = String(args || '').trim();
+        if (!target) return 'Usage: thoth forget <id-or-text>';
+        engine.forget(target);
+        return `Forget requested for "${clip(target, 80)}".`;
+      },
+    },
+    {
+      name: 'scratch',
+      klass: 'L1',
+      summary: 'Replace the scratchpad text.',
+      usage: 'thoth scratch <text>',
+      run(engine, args) {
+        const text = String(args || '');
+        if (!text.trim()) return 'Usage: thoth scratch <text> ("capture" archives instead)';
+        engine.saveScratchpad(text);
+        return 'Scratchpad saved.';
+      },
+    },
+    {
+      name: 'capture',
+      klass: 'L1',
+      summary: 'Archive the current scratchpad into memory.',
+      usage: 'thoth capture',
+      run(engine) {
+        engine.captureScratchpad({ source: 'thoth' });
+        return 'Scratchpad captured into memory.';
+      },
+    },
+    {
+      name: 'focus',
+      klass: 'L1',
+      summary: 'Start or stop a focus session.',
+      usage: 'thoth focus start [minutes] | thoth focus stop',
+      run(engine, args) {
+        const parts = String(args || '').toLowerCase().split(/\s+/).filter(Boolean);
+        const verb = parts[0] || 'start';
+        if (verb === 'stop') {
+          engine.stopFocusSession();
+          return 'Focus session stopped.';
+        }
+        const minutes = Number(parts[1]) > 0 ? Number(parts[1]) : undefined;
+        engine.startFocusSession(minutes ? { minutes } : {});
+        return `Focus session started${minutes ? ` for ${minutes} min` : ''}.`;
+      },
+    },
+    {
+      name: 'backup',
+      klass: 'L1',
+      summary: 'Create a profile backup now.',
+      usage: 'thoth backup now',
+      run(engine, args) {
+        if (String(args || '').toLowerCase().trim() !== 'now') {
+          return 'Usage: thoth backup now';
+        }
+        const created = engine.createBackup();
+        return `Backup created: ${typeof created === 'string' ? created : created?.name || 'ok'}`;
+      },
+    },
+    {
+      name: 'restore',
+      klass: 'L2',
+      summary: 'Restore a named backup over the live profile (elevated).',
+      usage: 'thoth restore <name>',
+      run(engine, args) {
+        const name = String(args || '').trim();
+        if (!name) return 'Usage: thoth restore <name> (see "thoth backups")';
+        engine.restoreBackup(name);
+        return `Restore completed from "${name}".`;
+      },
+    },
+    {
+      name: 'mood',
+      klass: 'L1',
+      summary: 'Media mix for a mood.',
+      usage: 'thoth mood <focus|unwind|...>',
+      run(engine, args) {
+        const mood = String(args || '').trim().toLowerCase();
+        if (!mood) return 'Usage: thoth mood <mood>';
+        const mix = engine.moodMix(mood) || [];
+        return clip(`Mood mix "${mood}":\n${list(mix.slice(0, 8).map(t => t.title || t.name || String(t)))}`);
+      },
+    },
+    {
+      name: 'pin',
+      klass: 'L1',
+      summary: 'Pin a workspace widget by id.',
+      usage: 'thoth pin <widget-id>',
+      run(engine, args) {
+        const id = String(args || '').trim();
+        if (!id) return 'Usage: thoth pin <widget-id>';
+        engine.pinWidget(id);
+        return `Widget pinned: ${id}`;
+      },
+    },
+    {
+      name: 'unpin',
+      klass: 'L1',
+      summary: 'Unpin a workspace widget by id.',
+      usage: 'thoth unpin <widget-id>',
+      run(engine, args) {
+        const id = String(args || '').trim();
+        if (!id) return 'Usage: thoth unpin <widget-id>';
+        engine.unpinWidget(id);
+        return `Widget unpinned: ${id}`;
+      },
+    },
+    {
+      name: 'reset',
+      klass: 'L2',
+      summary: 'Reset the whole local profile (elevated, destructive).',
+      usage: 'thoth reset confirm',
+      run(engine, args) {
+        if (String(args || '').toLowerCase().trim() !== 'confirm') {
+          return 'This erases the local profile. Run "thoth reset confirm" to proceed.';
+        }
+        engine.reset();
+        return 'Profile reset. THOTH re-attached to the fresh state.';
+      },
+    },
+    {
+      name: 'self',
+      klass: 'L0',
+      summary: 'Kernel self-report: uptime, grants, watch state, safety backups.',
+      usage: 'thoth self',
+      run(engine, _args, _ctx, all, kernel) {
+        const m = kernel.meta();
+        const mins = Math.max(1, Math.round((Date.now() - m.attachedAt) / 60000));
+        const grantLine = Object.entries(m.grants)
+          .map(([t, c]) => `${t}:${c}`)
+          .join(', ');
+        return [
+          `THOTH attached ${mins} min ago | master ${m.masterEnabled ? 'ON' : 'OFF'} | watch ${m.watch ? 'ON' : 'OFF'}`,
+          `tools: ${all.size} | standing grants: ${grantLine || '(none)'}`,
+          `last design audit: ${m.lastAuditAt || 'never'}`,
+          `last auto safety backup: ${m.lastSafetyBackupAt ? new Date(m.lastSafetyBackupAt).toISOString() : 'none'}`,
+          'Local-only operator surface; conversations and findings never leave this PC.',
+        ].join('\n');
+      },
+    },
+    {
+      name: 'memory',
+      klass: 'L0',
+      summary: 'Memory analytics: counts, age spread, sources.',
+      usage: 'thoth memory',
+      run(engine) {
+        const snap = engine.snapshot();
+        const mems = Array.isArray(snap.memories) ? snap.memories : [];
+        if (!mems.length) return 'Memory is empty.';
+        const times = mems.map(m => m.createdAt || m.at || 0).filter(Boolean);
+        const oldest = times.length ? new Date(Math.min(...times)).toISOString().slice(0, 10) : '?';
+        const newest = times.length ? new Date(Math.max(...times)).toISOString().slice(0, 10) : '?';
+        const sources = {};
+        for (const m of mems) {
+          const s = m.source || m.opts?.source || 'app';
+          sources[s] = (sources[s] || 0) + 1;
+        }
+        return [
+          `memories: ${mems.length} (span ${oldest} to ${newest})`,
+          `by source: ${Object.entries(sources).map(([k, v]) => `${k}=${v}`).join(', ')}`,
+        ].join('\n');
+      },
+    },
+    {
+      name: 'conversations',
+      klass: 'L0',
+      summary: 'Recent conversation inventory (ids and sizes only).',
+      usage: 'thoth conversations [n]',
+      run(engine, args) {
+        const n = Math.min(Math.max(Number(args) || 5, 1), 20);
+        const convos = Array.isArray(engine.snapshot().conversations) ? engine.snapshot().conversations : [];
+        if (!convos.length) return 'No conversations stored yet.';
+        const rows = convos.slice(-n).map(c => {
+          const turns = Array.isArray(c.messages) ? c.messages.length : c.turnCount ?? '?';
+          return `- ${(c.id || 'id?').slice(0, 12)} turns=${turns}${c.startedAt ? ` at ${new Date(c.startedAt).toISOString().slice(0, 16)}` : ''}`;
+        });
+        return `Recent conversations (${rows.length}/${convos.length}):\n${rows.join('\n')}`;
+      },
+    },
+    {
+      name: 'widgets',
+      klass: 'L0',
+      summary: 'Current dashboard widget layout order.',
+      usage: 'thoth widgets',
+      run(engine) {
+        const snap = engine.snapshot();
+        const order = snap.widgets?.order || snap.widgetOrder || [];
+        return order.length
+          ? `Widget order:\n${order.map((w, i) => `${i + 1}. ${typeof w === 'string' ? w : w.id || '?'}`).join('\n')}`
+          : 'No custom widget order set.';
+      },
+    },
+    {
+      name: 'funnel',
+      klass: 'L0',
+      summary: 'Onboarding funnel progress snapshot.',
+      usage: 'thoth funnel',
+      run(engine) {
+        const f = engine.snapshot().funnel;
+        if (!f || typeof f !== 'object') return 'Funnel not started.';
+        return `Funnel: ${JSON.stringify(f)}`;
+      },
+    },
+    {
+      name: 'repo',
+      klass: 'L0',
+      summary: 'Local git posture of the connected repository (read-only).',
+      usage: 'thoth repo [branch|status|log]',
+      run(engine, args) {
+        const sub = String(args || '').toLowerCase().trim() || 'status';
+        const rootGuess = process.cwd();
+        const cmds = {
+          branch: ['git', ['rev-parse', '--abbrev-ref', 'HEAD']],
+          status: ['git', ['status', '--porcelain']],
+          log: ['git', ['log', '--oneline', '-5']],
+        };
+        const entry = cmds[sub];
+        if (!entry) return `Unknown repo view "${sub}". Use branch | status | log.`;
+        return new Promise(resolve => {
+          execFile(
+            entry[0],
+            entry[1],
+            { cwd: rootGuess, timeout: 8000, windowsHide: true, maxBuffer: 200_000 },
+            (err, stdout) => {
+              if (err && !stdout) {
+                resolve(`git ${sub} unavailable here (${String(err.message).split('\n')[0].slice(0, 60)}).`);
+                return;
+              }
+              const out = String(stdout || '').trim();
+              if (sub === 'status') {
+                resolve(out ? `${out.split('\n').length} uncommitted file(s):\n${out.slice(0, 400)}` : 'Working tree clean.');
+                return;
+              }
+              resolve(out ? out.slice(0, 900) : `(no output)`);
+            }
+          );
+        });
+      },
+    },
+    {
+      name: 'code',
+      klass: 'L0',
+      summary: 'Advanced codebase knowledge: explain files, find symbols, conventions.',
+      usage: 'thoth code explain <file> | find <symbol> | conventions',
+      run(_engine, args) {
+        const raw = String(args || '').trim();
+        const [verb, ...rest] = raw.split(/\s+/);
+        const target = rest.join(' ');
+        if (verb === 'explain' && target) return explainFile(target);
+        if ((verb === 'find' || verb === 'symbol') && target) return findSymbol(target);
+        if (verb === 'conventions' || !verb) return conventions();
+        return `Unknown code view "${verb}". Use explain | find | conventions.`;
+      },
+    },
+    {
+      name: 'ideate',
+      klass: 'L0',
+      summary: 'Generate design proposals from the live audit and goal documents.',
+      usage: 'thoth ideate',
+      async run(engine, _args, _ctx, _all, kernel) {
+        const { report } = await auditNow(engine, kernel?.relay);
+        const ideas = deriveIdeas(report).map((idea, i) => ({ ...idea, n: i + 1 }));
+        const box = engine.state.thoth?.creative;
+        if (box) {
+          box.ideas = [...ideas.map(i => ({ ...i, at: Date.now() })), ...(box.ideas || [])].slice(0, 20);
+        }
+        engine.store.save(engine.state);
+        kernel?.relay?.emit?.('creation', { kind: 'ideas', count: ideas.length });
+        return ideas.length
+          ? `Proposals (advisory - nothing applied):\n${ideas.map(i => `${i.n}. [${i.severityHint}] ${i.title}`).join('\n')}\nSay "thoth creations" for full bodies.`
+          : 'Clean audit; no proposals warranted. THOTH invents only from evidence.';
+      },
+    },
+    {
+      name: 'creations',
+      klass: 'L0',
+      summary: 'Browse the creative inbox: ideas, drafts, generated themes.',
+      usage: 'thoth creations [n]',
+      run(engine) {
+        const c = engine.state.thoth?.creative || {};
+        const parts = [];
+        if (c.ideas?.length) {
+          parts.push(`Ideas (${c.ideas.length}):`);
+          for (const i of c.ideas.slice(0, 3)) parts.push(`  - ${i.title}`);
+        }
+        if (c.drafts?.length) parts.push(`Changelog drafts: ${c.drafts.length} (latest ${c.drafts[0]?.at ? new Date(c.drafts[0].at).toISOString().slice(0, 10) : ''})`);
+        if (c.themes?.length) parts.push(`Themes: ${c.themes.map(t => t.name).join(', ')}`);
+        return parts.join('\n') || 'Creative inbox is empty. Try "thoth ideate" or "thoth changelog".';
+      },
+    },
+    {
+      name: 'changelog',
+      klass: 'L1',
+      summary: 'Draft changelog entries from git history since the last tag.',
+      usage: 'thoth changelog [n]',
+      run(engine, args, _ctx, _all, kernel) {
+        const rootGuess = process.cwd();
+        const n = Math.min(Math.max(Number(args) || 20, 5), 60);
+        return new Promise(resolve => {
+          execFile(
+            'git',
+            ['log', '--oneline', `-n`, String(n)],
+            { cwd: rootGuess, timeout: 8000, windowsHide: true, maxBuffer: 200_000 },
+            (err, stdout) => {
+              if (err && !stdout) {
+                resolve(`Git history unavailable here. Run from a repository clone.`);
+                return;
+              }
+              const draft = draftChangelogFromGit(String(stdout));
+              const box = engine.state.thoth?.creative;
+              if (draft && box) {
+                box.drafts = [{ at: Date.now(), text: draft }, ...(box.drafts || [])].slice(0, 10);
+                engine.store.save(engine.state);
+                kernel?.relay?.emit?.('creation', { kind: 'changelog' });
+              }
+              resolve(draft ? 'Draft stored in the creative inbox:\n' + draft : 'Nothing changelog-worthy found.');
+            }
+          );
+        });
+      },
+    },
+    {
+      name: 'theme',
+      klass: 'L0',
+      summary: 'Compose an accessible dark theme variant into the creative inbox.',
+      usage: 'thoth theme <name> [hue]',
+      run(engine, args) {
+        const parts = String(args || '').trim().split(/\s+/);
+        const name = (parts[0] || '').replace(/[^a-z0-9-]/gi, '');
+        const hue = Math.min(Math.max(Number(parts[1]) || 145, 0), 359);
+        if (!name) return 'Usage: thoth theme <name> [hue 0-359]';
+        const theme = buildTheme(name, hue);
+        const c = engine.state.thoth.creative;
+        c.themes = [{ ...theme, at: Date.now() }, ...(c.themes || []).filter(t => t.name !== name)].slice(0, 8);
+        engine.store.save(engine.state);
+        return (
+          `Theme "${name}" composed (WCAG-checked ink per surface).\n` +
+          `Preview/apply it from the THOTH relay panel on the dashboard.`
+        );
+      },
+    },
+    {
+      name: 'master',
+      klass: 'L2',
+      summary: 'Administrator pause/resume for the whole kernel.',
+      usage: 'thoth master on|off',
+      run() {
+        return 'Handled by the kernel gate directly.';
+      },
+    },
+    {
+      name: 'ai',
+      klass: 'L0',
+      summary: 'Probe the local model bridge (Ollama): version, models, loaded state.',
+      usage: 'thoth ai [models|loaded]',
+      async run(_engine, args) {
+        const view = String(args || '').toLowerCase().trim() || 'models';
+        const base = 'http://127.0.0.1:11434';
+        try {
+          if (view === 'loaded') {
+            const ps = await (await fetch(`${base}/api/ps`)).json();
+            const rows = (ps.models || []).map(
+              m => `${m.name} - vram ${(m.size_vram / 1073741824).toFixed(2)} GB`
+            );
+            return rows.length ? `Loaded models:\n${rows.join('\n')}` : 'No models loaded right now.';
+          }
+          const tags = await (await fetch(`${base}/api/tags`)).json();
+          const names = (tags.models || []).map(m => m.name);
+          return names.length ? `Local models:\n${names.map(n => `- ${n}`).join('\n')}` : 'Bridge is up but no models are installed.';
+        } catch (err) {
+          return `Local model bridge unreachable (${String(err.message).split('.')[0]}). Start Ollama and retry.`;
+        }
+      },
+    },
+    {
+      name: 'sync',
+      klass: 'L0',
+      summary: 'Dev-only guidance: how to reconcile installed kernel with canonical.',
+      usage: 'thoth sync',
+      run() {
+        return [
+          'Kernel sync is a repository command (audited path):',
+          '  npm run thoth:sync    canonical -> installed',
+          '  npm run thoth:push    installed -> canonical',
+          'Packaged installs ship the kernel already current; no runtime sync needed.',
+        ].join('\n');
+      },
+    },
+    {
+      name: 'trends',
+      klass: 'L0',
+      summary: 'Design findings over time: direction, best-ever, recent series.',
+      usage: 'thoth trends',
+      run(engine) {
+        const d = engine.state.thoth?.design || {};
+        return trends({ ...d.lastAudit, history: d.lastAudit?.history });
+      },
+    },
+    {
+      name: 'regress',
+      klass: 'L0',
+      summary: 'Regression report: last audit vs previous tick by category.',
+      usage: 'thoth regress',
+      run(engine) {
+        const design = engine.state.thoth?.design || {};
+        return regressionReport({ ...design.lastAudit, history: design.lastAudit?.history });
+      },
+    },
+    {
+      name: 'compliance',
+      klass: 'L0',
+      summary: 'Standards & regulations scan (supply-chain, privacy egress, CSP, a11y, safety).',
+      usage: 'thoth compliance',
+      async run(engine, _args, _ctx, _all, kernel) {
+        const { scanCompliance } = await complianceScanner();
+        const report = scanCompliance({ fix: false });
+        const c = engine.state.thoth || {};
+        c.compliance = { at: report.generatedAt, counts: report.counts, findings: report.findings.slice(0, 25) };
+        engine.store.save(engine.state);
+        kernel?.relay?.emit?.('compliance', {
+          total: report.findings.length,
+          bySeverity: report.counts,
+          announce: (report.counts.high || 0) > 0,
+          text: `Compliance scan: ${report.findings.length} finding(s).`,
+        });
+        return (
+          `Standards v${report.standardsVersion}: ${report.findings.length} finding(s)` +
+          ` (${JSON.stringify(report.counts)}).\n` +
+          report.findings
+            .slice(0, 8)
+            .map(f => `- [${f.severity}] ${f.rule}: ${f.file} - ${f.message}`)
+            .join('\n')
+        );
+      },
+    },
+    {
+      name: 'comply-fix',
+      klass: 'L2',
+      summary: 'Apply whitelisted mechanical fixes (SPDX headers). Elevated.',
+      usage: 'thoth comply-fix',
+      async run(engine, _args, _ctx, _all) {
+        const { scanCompliance } = await complianceScanner();
+        const pre = await scanCompliance({ fix: false });
+        if (!pre.fixed.length && !pre.findings.some(f => f.rule === 'spdx-header')) {
+          return 'No whitelisted auto-fixes available. All other standards items need human action.';
+        }
+        const post = await scanCompliance({ fix: true });
+        engine.state.thoth.compliance = {
+          at: post.generatedAt,
+          counts: post.counts,
+          findings: post.findings.slice(0, 25),
+        };
+        engine.store.save(engine.state);
+        return `Applied ${post.fixed.length} mechanical fix(es): ${post.fixed.join(', ')}. Remaining findings: ${post.findings.length}.`;
+      },
+    },
+    {
+      name: 'design',
+      klass: 'L0',
+      summary: 'Run the architecture scan now (cycles, seams, env, hotspots).',
+      usage: 'thoth design [map <module>]',
+      async run(engine, args, _ctx, _all, kernel) {
+        const arg = String(args || '').trim();
+        const { report, stored } = await auditNow(engine, kernel?.relay);
+        if (arg.startsWith('map')) {
+          const target = arg.slice(3).trim().toLowerCase();
+          const deps = stored.top.filter(f => f.file.toLowerCase().includes(target));
+          return deps.length
+            ? `Modules touched in findings for "${target}":\n${deps.map(d => `- ${d.file}: ${d.message}`).join('\n')}`
+            : `No findings reference "${target}". Clean module.`;
+        }
+        return (
+          `Design audit complete: ${report.modules} modules / ${report.edges} edges / ` +
+          `${report.filesScanned} files.\nFindings ${report.findings.length} ` +
+          `(byCategory ${JSON.stringify(report.counts.byCategory)}). Stored to profile; ` +
+          '"thoth next" prioritizes, "thoth goals" tracks docs.'
+        );
+      },
+    },
+    {
+      name: 'goals',
+      klass: 'L0',
+      summary: 'Goal documents this architecture must keep serving.',
+      usage: 'thoth goals',
+      run() {
+        const rows = goalsStatus().map(g => `- [${g.present ? 'x' : ' '}] ${g.goal} (${g.doc})`);
+        return ['Goal sources anchoring every design decision:', ...rows].join('\n');
+      },
+    },
+    {
+      name: 'next',
+      klass: 'L0',
+      summary: 'Deterministic priority queue from the last design audit.',
+      usage: 'thoth next',
+      run(engine) {
+        return nextActions(engine.state.thoth?.design?.lastAudit);
+      },
+    },
+    {
+      name: 'watch',
+      klass: 'L1',
+      summary: 'Continuous mode: re-audit every 30 min into the local profile.',
+      usage: 'thoth watch on|off|status',
+      run(engine, args, _ctx, _all, kernel) {
+        const arg = String(args || '').toLowerCase().trim() || 'status';
+        if (arg === 'on') {
+          const on = startWatch(engine, kernel?.relay);
+          return on ? 'Design watch enabled (30-min loop).' : 'Already watching.';
+        }
+        if (arg === 'off') return stopWatch(engine) ? 'Design watch disabled.' : 'Watch was already off.';
+        return `Design watch is ${engine.state.thoth?.design?.watch ? 'ON' : 'OFF'}.`;
+      },
+    },
+  ];
+
+  tools.sort((a, b) => a.name.localeCompare(b.name));
+  return tools;
+}
