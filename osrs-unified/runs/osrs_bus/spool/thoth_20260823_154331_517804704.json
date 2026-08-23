@@ -1,0 +1,15 @@
+{
+ "id": "thoth_20260823_154331_517804704",
+ "at": "2026-08-23T15:43:31",
+ "from": "thoth",
+ "type": "thoth.result.run",
+ "status": "queued",
+ "payload": {
+  "task": "wc_xp",
+  "rounds": 29,
+  "ok_rounds": 2,
+  "aborted": true,
+  "best_score": 25,
+  "last_error": "SyntaxError: expected ':' (<strategy>, line 97)"
+ }
+}

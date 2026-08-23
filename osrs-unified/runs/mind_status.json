@@ -1,0 +1,39 @@
+{
+ "version": "1.1.0",
+ "latest_tag": "v1.1.0",
+ "working_tree_dirty": true,
+ "findings": [],
+ "critical": 0,
+ "auto_fixed": 0,
+ "recent_events": [
+  {
+   "t": 1787516637.813,
+   "role": "releaser",
+   "event": "released",
+   "detail": "1.0.0 -> 1.1.0 zip=C:\\Users\\Earth949\\OneDrive\\Documents\\Default Project\\osrs-unified-v1.1.0-windows.zip"
+  },
+  {
+   "t": 1787516688.814,
+   "role": "moderator",
+   "event": "patrol-start"
+  },
+  {
+   "t": 1787516688.83,
+   "role": "moderator",
+   "event": "patrol-done",
+   "detail": "0 findings, 0 auto-fixed"
+  },
+  {
+   "t": 1787516688.831,
+   "role": "engineer",
+   "event": "tests-start"
+  },
+  {
+   "t": 1787516695.157,
+   "role": "engineer",
+   "event": "tests-done",
+   "detail": "ok=True ran=19 (6.3s)"
+  }
+ ],
+ "checked": 1787517226.681966
+}
