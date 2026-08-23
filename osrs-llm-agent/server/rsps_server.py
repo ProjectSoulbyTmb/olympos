@@ -132,6 +132,14 @@ class GameServer:
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         bound = False
         for attempt in range(PORT_ATTEMPTS):
+            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            probe.settimeout(0.3)
+            busy = probe.connect_ex(
+                (self.host if self.host != "0.0.0.0" else "127.0.0.1",
+                 self.port + attempt)) == 0
+            probe.close()
+            if busy:
+                continue
             try:
                 self._sock.bind((self.host, self.port + attempt))
                 if attempt:
@@ -141,6 +149,11 @@ class GameServer:
                 bound = True
                 break
             except OSError:
+                self._sock.close()
+                self._sock = socket.socket(socket.AF_INET,
+                                           socket.SOCK_STREAM)
+                self._sock.setsockopt(socket.SOL_SOCKET,
+                                      socket.SO_REUSEADDR, 1)
                 continue
         assert bound, "no free port found"
         self._sock.listen(8)
@@ -181,9 +194,10 @@ class GameServer:
                     bucket["count"] = 0
                 bucket["count"] += 1
                 if bucket["count"] > MAX_ACTIONS_PER_SECOND:
-                    resp = {"ok": False, "error": "rate limit exceeded"}
+                    resp = {"ok": False,
+                            "error": "rate limit exceeded; slow down"}
                     conn.sendall((json.dumps(resp) + "\n").encode())
-                    break
+                    continue
                 try:
                     req = json.loads(line)
                 except json.JSONDecodeError as e:

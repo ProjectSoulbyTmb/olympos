@@ -395,7 +395,7 @@ def t_live_updater():
         up.LIVE_DIR, "ge_prices.json"), encoding="utf-8"))
     assert snap["items"]["Black axe"]["high"] == 994
     from game.market import ge_price, ge_margin
-    p = ge_price("Black axe")
+    p = ge_price("Black axe", live_dir=up.LIVE_DIR)
     assert p and p["high"] == 994 and ge_margin("Black axe") == -155
     assert ge_price("nonexistent_item_xyz") is None
     from game.sdk import GameSDK

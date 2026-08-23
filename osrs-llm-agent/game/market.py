@@ -11,8 +11,9 @@ _LIVE = os.path.join(os.path.dirname(os.path.dirname(
 STALE_AFTER = 24 * 3600
 
 
-def _load():
-    path = os.path.join(_LIVE, "ge_prices.json")
+def _load(live_dir=None):
+    d = live_dir or _LIVE
+    path = os.path.join(d, "ge_prices.json")
     try:
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
@@ -20,9 +21,9 @@ def _load():
         return None
 
 
-def ge_price(item_name):
+def ge_price(item_name, live_dir=None):
     """-> {"high": n, "low": n, "limit": n} or None if unknown/stale."""
-    snap = _load()
+    snap = _load(live_dir)
     if not snap:
         return None
     import time
@@ -31,9 +32,9 @@ def ge_price(item_name):
     return snap.get("items", {}).get(item_name)
 
 
-def ge_margin(item_name):
+def ge_margin(item_name, live_dir=None):
     """-> high-low spread in coins, or None."""
-    p = ge_price(item_name)
+    p = ge_price(item_name, live_dir)
     if not p or p.get("high") is None or p.get("low") is None:
         return None
     return int(p["high"]) - int(p["low"])
