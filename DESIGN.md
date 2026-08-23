@@ -76,6 +76,10 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
 
 ## Decision log
 
+- 2026-08-23: Heart gained autonomic energy states (awake/drowsy/asleep
+  driven by command activity, sleepBpm slowdown) and pluggable critical
+  alerters; plugin `tasks:` now auto-route to heart organs when the
+  period fits one beat, else stay on addTask.
 - 2026-08-23: Venus kernel gained a Heart (`assistant/lib/heart.js`) -
   beat-paced organ cadences with quarantine/auto-revival and vitals
   telemetry. New cadenced Venus work should use `heart.addOrgan` over raw

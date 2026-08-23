@@ -457,6 +457,19 @@ def t_live_stream():
         srv.stop()
 
 
+def t_venus_heart():
+    r = subprocess.run(
+        ["node", os.path.join("assistant", "test-heart.js")],
+        cwd=HERE, timeout=60, capture_output=True)
+    assert r.returncode == 0, r.stdout[-300:] + r.stderr[-200:]
+    out = r.stdout.decode(errors="replace")
+    for phase in ("pacing", "cadence", "resuscitation", "arrest",
+                  "energy", "alerter"):
+        assert f"PASS {phase}" in out, phase
+    return ("pacing, cadence, quarantine/revival, arrest, "
+            "energy states, critical alerting - all pass")
+
+
 def t_rsps_socket():
     from server.rsps_server import GameServer
     from server.client import RemoteGameSDK
@@ -556,6 +569,7 @@ for name, fn in [
     ("PLUGIN: session snapshots", t_session_roundtrip),
     ("PLUGIN: kernel events+scheduler", t_kernel),
     ("PLUGIN: strategy snippet runner", t_strategy_runner),
+    ("VENUS: kernel heartbeat", t_venus_heart),
     ("SOCKET: RSPS server + remote SDK", t_rsps_socket),
     ("APP: playable game client", t_playable_client),
     ("SOCKET: RL checkpoint integrity", t_rl_checkpoint),
