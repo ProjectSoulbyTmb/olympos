@@ -33,3 +33,5 @@ ui-errors.log
 # --- OS ---
 .DS_Store
 Thumbs.db
+
+osrs-llm-agent/runs/
