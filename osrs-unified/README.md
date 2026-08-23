@@ -59,6 +59,28 @@ osrs mind install-tasks               # register Windows scheduled tasks
 Every action is logged to `runs/mind_log.jsonl`; latest state in
 `.mind_state.json` and `runs/mind_status.json`.
 
+## MIND engineering engines
+
+| Engine | Module | Role |
+|---|---|---|
+| Moderator | `mind/moderator.py` | world integrity, session quarantine, data freshness |
+| Engineer | `mind/engineer.py` | test runs, failure diagnosis, AI proposals |
+| Releaser | `mind/releaser.py` | semver bump, changelog, commit/tag, artifacts |
+| Builder | `mind/builder.py` | compile sweep, wheel/sdist, exe build + selftest |
+| Knowledge | `mind/knowledge_engine.py` | GE/wiki refresh, **OSRS revision parity** (XP table vs canonical, upstream update detection) |
+| Healer | `mind/healer.py` | playbook self-repair (corrupt state/dirs/tmp/sessions) with post-fix test verification |
+| Scheduler | `mind/scheduler.py` | interval job table (`schedule add/tick`) |
+| Metrics | `mind/metrics.py` | snapshots + score trends (`runs/metrics.jsonl`) |
+| Sentinel | `mind/sentinel.py` | anomaly alerts (score collapse, stale exe) onto bus |
+
+One command runs the whole loop:
+
+```powershell
+osrs mind autonomic            # patrol -> heal -> parity -> tests ->
+                               # sentinel -> release-if-green
+osrs mind autonomic --dry-run  # plan only
+```
+
 ## MIND <-> Thoth relay
 
 Durable event bus (`runs/osrs_bus/`, spool+archive) connecting this repo's
