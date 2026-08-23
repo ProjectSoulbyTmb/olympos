@@ -1,25 +1,31 @@
 {
- "checked": 1787518538.5975773,
+ "checked": 1787518570.6280916,
  "fetched": true,
  "xp_parity_ok": true,
- "latest_update_title": "TzHaar-Mej",
+ "latest_update_title": "Graphical updates",
  "previous_update_title": "TzHaar-Mej",
  "updates": [
   {
-   "title": "TzHaar-Mej"
+   "title": "Graphical updates"
   },
   {
-   "title": "TzHaar-Ket"
+   "title": "Slayer"
   },
   {
-   "title": "Entling"
+   "title": "Sailing"
   },
   {
-   "title": "Derwen"
+   "title": "Upcoming updates"
   },
   {
-   "title": "Ent (Vale Totems)"
+   "title": "Agility"
   }
  ],
- "findings": []
+ "findings": [
+  {
+   "severity": "low",
+   "area": "revision",
+   "message": "new upstream update detected: 'Graphical updates' (was 'TzHaar-Mej') - review knowledge digest"
+  }
+ ]
 }
