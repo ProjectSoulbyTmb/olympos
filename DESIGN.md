@@ -76,6 +76,10 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
 
 ## Decision log
 
+- 2026-08-23: Venus kernel gained a Heart (`assistant/lib/heart.js`) -
+  beat-paced organ cadences with quarantine/auto-revival and vitals
+  telemetry. New cadenced Venus work should use `heart.addOrgan` over raw
+  `addTask`; the OSRS verify suite gates it via `node assistant/test-heart.js`.
 - 2026-08-23: data tables consolidated into content.py after concurrent
   edits duplicated SHOP_STOCK; version control introduced workspace-wide.
 - 2026-08-23: full-automation permissions granted to Thoth
