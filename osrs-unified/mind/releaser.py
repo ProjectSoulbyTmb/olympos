@@ -181,5 +181,15 @@ def release(root, level="patch", dry_run=False, do_build=True, log=print):
          "--prefix=osrs-unified/", f"v{target}", "-o", archive],
         cwd=root, capture_output=True, text=True)
     plan["zip"] = archive if a.returncode == 0 else None
+    if plan["zip"]:
+        exe_src = os.path.join(root, "OSRS-Suite.exe")
+        if os.path.exists(exe_src):
+            import zipfile
+            with zipfile.ZipFile(archive, "a") as zf:
+                names = zf.namelist()
+                arcname = f"osrs-unified/OSRS-Suite.exe"
+                if arcname not in names:
+                    zf.write(exe_src, arcname)
+            log(f"zip: bundled OSRS-Suite.exe ({os.path.getsize(exe_src) // 1024} KB)")
     plan["committed"] = True
     return plan

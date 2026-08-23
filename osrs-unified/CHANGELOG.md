@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 (2026-08-23)
+
+- osrs-unified: document MIND engineering engines in README
+- chore(osrs-unified): stop tracking live mind-daemon runtime state
+- osrs-unified: sync live mind-daemon runtime state
+- add osrs-unified suite source and v1.0.1/v1.1.0 Windows release zips
+- docs: heart autonomic energy + alerting decision log
+- DESIGN: Venus heart decision + organ-over-task convention
+- tests: sandbox-aware live updater assertions
+- market: live_dir param for sandboxed consumers
+- gitignore runtime run-state
+- Live update stream: livewatch change detection, server live cache + wire cmd, client GE ticker, Venus ge plugin
+
+
 ## 1.1.0 (2026-08-23)
 
 - update README.md
