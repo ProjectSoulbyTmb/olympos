@@ -35,3 +35,5 @@ ui-errors.log
 Thumbs.db
 
 osrs-llm-agent/runs/
+
+osrs-llm-agent/server/saves/
