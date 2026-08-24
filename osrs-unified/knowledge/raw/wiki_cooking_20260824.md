@@ -1,7 +1,7 @@
 # Cooking
 
 Source: https://oldschool.runescape.wiki/w/Cooking
-Fetched: 2026-08-24T03:28:03+00:00
+Fetched: 2026-08-24T05:28:09+00:00
 
 Cooking is a skill that allows raw food to be made edible, healing hitpoints when eaten. To do this, the player uses a raw, cookable food on a range or fire.
 Depending on the player's Cooking level, food will sometimes burn, becoming unusable. Ranges burn food less often than fires at the same level, and some foods can only be cooked on ranges. Some ranges, such as the one in the Lumbridge Castle or in the Hosidius Kitchen, burn food less often than a normal range.

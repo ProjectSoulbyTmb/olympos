@@ -766,8 +766,8 @@ def t_trading_and_status():
         r = b._request({"cmd": "state"})
         invites = [n for n in r.get("notices", [])
                    if n.get("type") == "trade_invite"]
-        assert invites, f"invite lost: {r.get(chr(39)+chr(39))}" if False else \
-            f"invite lost: notices={r.get("notices")}"
+        notices = r.get("notices")
+        assert invites, f"invite lost: notices={notices}"
         b._request({"cmd": "trade_accept"})
         a._call("walk", "tree_1")
         for i in range(24):
@@ -804,6 +804,18 @@ def t_trading_and_status():
 
 
 
+def t_sentinel_infra():
+    r = subprocess.run([sys.executable, "-u",
+                        os.path.join(HERE, "sentinel.py"), "--doctor"],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, f"doctor: {r.stdout[-200:]}"
+    src2 = open(os.path.join(HERE, "sentinel.py"),
+                encoding="utf-8").read()
+    for marker in ("remediate", "ledger"):
+        assert marker in src2
+    return "doctor green; remediation + incident ledger wired"
+
+
 print("=" * 72)
 print("YGGDRASIL (OSRS LAB) - FULL SYSTEM VERIFICATION")
 print("=" * 72)
@@ -838,6 +850,7 @@ for name, fn in [
     ("APP: client UI systems", t_playable_client_ui),
     ("VENUS: VTuber avatar layer", t_venus_vtuber_layer),
     ("APP: packaging + runner play flow", t_packaging_and_runner),
+    ("INFRA: sentinel watchdog", t_sentinel_infra),
 ]:
     check(name, fn)
 

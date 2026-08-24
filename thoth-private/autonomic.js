@@ -11,7 +11,7 @@
  *      class right now (L0 always, L1 via live standing grant). Elevated
  *      and human-marked steps are never executed by the loop.
  *   5. idle ticks (no playbook action) hand their one permitted action to
- *      AUTO SCRIBE (scribe-write, L1) so documentation stays truthful.
+ *      the STABILIZER (stabilize-run, L1) so foundational drift self-heals.
  *
  * The loop honors the master switch exactly like manual invocation, emits
  * every decision through the relay, and is bounded: one action per tick,
@@ -90,22 +90,25 @@ export async function runTick(engine, kernel, { relay } = {}) {
     }
   }
   // Idle-tick rail: when no playbook needs this tick's single permitted
-  // action, AUTO SCRIBE may spend it - keeping every digest and doc link
-  // truthful - but only while its standing grant is live. Same one-action
-  // bound, same grant depth as everything else.
-  if (!action && granted.get('scribe-write')) {
+  // action, the STABILIZER may spend it - declared foundations (doc links,
+  // digests) applied atomically with per-point verify + byte-exact rollback,
+  // but only while stabilize-run holds an active class. Same one-action
+  // bound and grant depth as everything else.
+  if (!action && granted.get('stabilize-run')) {
     try {
-      const result = await kernel.handleCommand({ tool: 'scribe-write', args: '' }, {});
-      if (result.ok) {
+      const result = await kernel.handleCommand({ tool: 'stabilize-run', args: '' }, {});
+      // A stable tree reports work:0 - that is not an action, so the tick
+      // keeps its one-permitted-action budget for a future need.
+      if (result.ok && (result.data?.work ?? 1) > 0) {
         action = {
-          playbook: 'auto-scribe',
-          tool: 'scribe-write',
+          playbook: 'stabilize',
+          tool: 'stabilize-run',
           ok: true,
           reply: String(result.reply ?? '').slice(0, 300),
         };
       }
     } catch {
-      /* scribe failures never break the tick */
+      /* stabilizer failures never break the tick */
     }
   }
 

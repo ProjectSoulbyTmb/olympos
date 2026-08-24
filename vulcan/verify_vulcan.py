@@ -13,7 +13,7 @@ if HERE not in sys.path:
 
 from rules import RuleEngine          # noqa: E402
 from sdk import VulcanClient, VulcanSDK, wire_client  # noqa: E402
-from server import BuildingServer     # noqa: E402
+from host import BuildingServer     # noqa: E402
 from world import World               # noqa: E402
 
 import content                        # noqa: E402

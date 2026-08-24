@@ -8,6 +8,12 @@ a manifest entry carries a restart command); runaway confirmation is
 handed to the kernel so policy - alert or thunderbolt - decides.
 """
 
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
 import subprocess
 
 import content
@@ -127,19 +133,20 @@ class Sentinel:
         mem_soft = content.MEM_SOFT_MB
         for pid, info in snap.items():
             state = self._runaway.setdefault(
-                pid, {"soft": 0, "hard": 0})
+                pid, {"soft": 0, "hard": 0, "latched": False,
+                      "mem_latched": False})
             if info.cpu_pct is not None:
-                if info.cpu_pct >= hard_cpu:
-                    state["hard"] += 1
-                    state["soft"] += 1
-                elif info.cpu_pct >= soft_cpu:
-                    state["soft"] += 1
-                    state["hard"] = 0
-                else:
-                    state["soft"] = 0
-                    state["hard"] = 0
-            if state["hard"] >= max(1, content.RUNAWAY_SAMPLES // 2) \
-                    or state["soft"] >= content.RUNAWAY_SAMPLES:
+                if info.cpu_pct < soft_cpu:
+                    # Recovery disarms the latch and clears counts.
+                    state.update(soft=0, hard=0, latched=False)
+                elif not state["latched"]:
+                    if info.cpu_pct >= hard_cpu:
+                        state["hard"] += 1
+                    else:
+                        state["soft"] += 1
+            if not state["latched"] and (
+                    state["hard"] >= max(1, content.RUNAWAY_SAMPLES // 2)
+                    or state["soft"] >= content.RUNAWAY_SAMPLES):
                 action = content.ESCALATION_POLICY.get(
                     "default", "alert")
                 out.append({
@@ -151,15 +158,19 @@ class Sentinel:
                             f"sustained high CPU "
                             f"({info.cpu_pct:.0f}% now)",
                 })
-                state.update(soft=0, hard=0)
+                state.update(soft=0, hard=0, latched=True)
                 continue
-            if info.mem_mb and info.mem_mb > mem_soft:
+            if info.mem_mb and info.mem_mb > mem_soft \
+                    and not state["mem_latched"]:
                 out.append({
                     "type": "mem_pressure", "severity": "warn",
                     "pid": pid, "name": info.name,
                     "text": f"{info.name or pid} working set "
                             f"{info.mem_mb:.0f} MB over soft cap",
                 })
+                state["mem_latched"] = True
+            elif info.mem_mb and info.mem_mb <= mem_soft:
+                state["mem_latched"] = False
         return out
 
     # ---------- ports ----------

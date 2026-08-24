@@ -29,6 +29,8 @@ osrs-llm-agent/knowledge/live/
 osrs-llm-agent/server/__pycache__/
 train_console.txt
 ui-errors.log
+data/sentinel/
+zeus/data/
 
 # --- OS ---
 .DS_Store

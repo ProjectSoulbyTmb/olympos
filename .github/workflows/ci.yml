@@ -6,6 +6,25 @@ on:
   pull_request:
 
 jobs:
+  assistant:
+    runs-on: windows-latest
+    # assistant/ is a nested repo that stays out of this checkout; run
+    # only when it is present (local act runs / future submodule).
+    if: ${{ hashFiles('assistant/package.json') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax sweep (lib, plugins, tests, scripts)
+        working-directory: assistant
+        run: node scripts/syntax-check.js
+      - name: Unit tests
+        working-directory: assistant
+        env:
+          VENUS_DATA_DIR: ${{ runner.temp }}\venus-data
+        run: npm test
+
   ecosystem:
     runs-on: windows-latest
     steps:
@@ -23,6 +42,10 @@ jobs:
           npm test
       - name: Vulcan verify gate
         run: python vulcan/verify_vulcan.py
+      - name: ZEUS protection-kernel gate
+        run: python zeus/verify_zeus.py
+      - name: Doctor stabilization gate
+        run: python doctor.py --ci
       - name: Install engine deps
         run: pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
       - name: OsrsLab engine unit tests

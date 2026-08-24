@@ -1,7 +1,7 @@
 # Mining
 
 Source: https://oldschool.runescape.wiki/w/Mining
-Fetched: 2026-08-24T03:28:03+00:00
+Fetched: 2026-08-24T05:28:09+00:00
 
 Mining is a skill that allows players to obtain ores and gems from rocks. The higher a player's Mining level is the more likely they are to successfully extract ore. With ores, a player can then either smelt bars and make equipment using the Smithing skill or sell them for profit. Mining areas are identified with a regular pickaxe  icon, and mining shops are identified with a gold pickaxe  icon on the minimap and world map.
 

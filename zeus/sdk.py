@@ -85,7 +85,9 @@ class ZeusSDK:
             rows = [r for r in rows
                     if low in r["name"].lower()
                     or low in r["exe"].lower()]
-        rows.sort(key=lambda r: (-r["cpu_pct"] or 0, r["pid"]))
+        rows.sort(key=lambda r: (
+            -(r["cpu_pct"] if r["cpu_pct"] is not None else -1),
+            r["pid"]))
         return rows[:500]
 
     def watch_pid(self, pid, name=None):
@@ -103,8 +105,11 @@ class ZeusSDK:
 
     def bolt_kill(self, pid):
         import bolt as bolt_mod
-        rec = bolt_mod.discharge(int(pid),
-                                 self.kernel.sentinel.last or None)
+        try:
+            rec = bolt_mod.discharge(int(pid),
+                                     self.kernel.sentinel.last or None)
+        except bolt_mod.BoltDenied as exc:
+            raise ValueError(f"refusing: {exc}") from exc
         self.kernel.record_repair(
             "bolt", f"manual discharge pid {pid}: {rec['detail']}",
             pid=int(pid))

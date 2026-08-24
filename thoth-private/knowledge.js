@@ -97,6 +97,11 @@ export const knowledge = {
       reply:
         '"Auto Scribe" is THOTH\'s automated documentation service, covering every system the fleet sweep can see - apps, repositories, and the website docs. "thoth scribe" (read-only) inventories all first-party Markdown and audits it against machine-checked facts: unknown "thoth <command>" references and broken relative document links. "thoth scribe-write" (needs an L1 standing grant) performs the full document rewrite: it regenerates .operator/auto-scribe/<system>.md digests plus a _fleet.md index purely from verified facts - identity, scripts, documents, network posture, topology roles, and the live command registry - and applies exactly one mechanical fix class: relinking a broken link when a unique same-basename target exists. Prose is never improvised; historical version mentions stay untouched. The autonomic loop spends idle ticks on scribe-write while its grant is live.',
     },
+    thothStabilize: {
+      title: 'Stabilizer foundations',
+      reply:
+        'The stabilizer is THOTH\'s automatic-fix foundation for continuous development. Every recurring repair is a declared foundational point with a scan-apply-verify contract and byte-exact rollback: doc-links (L1, relinks broken Markdown links when a unique target exists), digests (L1, regenerates Auto Scribe fleet facts), and code-hygiene (L2, Prettier + SPDX headers with per-file syntax verification). "thoth stabilize" shows which points are stable or drifting; "thoth stabilize-run" applies the grantable points - each one atomic and independently verified, rolled back on any failure; "stabilize-full" adds the elevated point from an administrator session. Sessions append to .operator/stabilize/history.jsonl and are idempotent over a stable tree. The autonomic loop hands idle ticks to stabilize-run while its grant is live, so drift self-heals without ever chaining unverified mutations.',
+    },
     thothEngineDoctrine: {
       title: 'RSPS engine doctrine (RuneSource / Hyperion)',
       reply:
@@ -187,6 +192,10 @@ export const knowledge = {
     {
       id: 'thothScribe',
       re: /\b(auto[\s-]?scribe|scribe(?:-write)?|document(?:ation)?\s+(?:rewrite|regenerat\w*|drift|service)|(?:docs?|documents?|markdown)\s+(?:rewrit\w+|regenerat\w+|drift))\b/i,
+    },
+    {
+      id: 'thothStabilize',
+      re: /\b(stabiliz\w*|foundational?\s+(?:points?|rails?|fix(?:es)?)|auto[- ]fix\s+foundation|self[- ]heal\w*\s+(?:foundation|session))\b/i,
     },
     {
       id: 'thothEngineDoctrine',

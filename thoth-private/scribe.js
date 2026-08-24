@@ -20,7 +20,15 @@
  *     untouched - scribe corrects structure and generates truth; it does
  *     not improvise prose.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { discoverSystems, systemEntry } from './federation.js';
 import { FACTS, TOPOLOGY } from './wisdom.js';
@@ -247,10 +255,7 @@ export function scribeInventory(root = process.cwd()) {
 /** Audit every first-party Markdown document across self + siblings. */
 export function auditDocs(root = process.cwd()) {
   const inv = scribeInventory(root);
-  const knownCommands = new Set([
-    ...inv.tools.map(t => t.name),
-    ...COMMAND_ALLOWLIST,
-  ]);
+  const knownCommands = new Set([...inv.tools.map(t => t.name), ...COMMAND_ALLOWLIST]);
   const allDocPaths = new Set();
   for (const system of inv.systems) {
     for (const doc of system.docs) {

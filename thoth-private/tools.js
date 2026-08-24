@@ -31,6 +31,7 @@ import {
   scribeInventory,
   writeDigests,
 } from './scribe.js';
+import { runSession, scanFoundations, STABILIZE_VERSION } from './stabilize.js';
 
 async function complianceScanner() {
   const root = process.cwd();
@@ -40,6 +41,25 @@ async function complianceScanner() {
 
 const clip = (text, max = 1600) => String(text).slice(0, max);
 const list = items => (items.length ? items.map(item => `- ${item}`).join('\n') : '(none)');
+
+function formatSession(entry) {
+  const lines = [`Stabilizer v${entry.version} session ${entry.at} [max ${entry.maxKlass}]`];
+  for (const r of entry.results) {
+    if (r.skipped === 'elevated') lines.push(`  = ${r.id}: skipped (elevated)`);
+    else if (r.skipped === 'cooldown') lines.push(`  = ${r.id}: skipped (cooldown)`);
+    else if (r.stable) lines.push(`  = ${r.id}: stable`);
+    else if (r.rolledBack)
+      lines.push(`  ! ${r.id}: ROLLED BACK - ${(r.problems || [r.error]).join('; ')}`);
+    else if (r.error) lines.push(`  ! ${r.id}: error - ${r.error}`);
+    else lines.push(`  + ${r.id}: applied ${r.applied}${r.detail ? ` (${r.detail})` : ''}`);
+  }
+  lines.push(
+    entry.stable
+      ? 'Session stable: every point verified or nothing to do.'
+      : 'Session UNSTABLE: failed points were rolled back byte-for-byte.'
+  );
+  return clip(lines.join('\n'));
+}
 
 function providerKind(engine) {
   const name = engine?.provider?.constructor?.name || 'unknown';
@@ -316,7 +336,9 @@ export function buildTools() {
             : 'Autonomic loop was already off.';
         }
         if (verb === 'tick') {
-          const result = await runTick(engine, kernel, { relay: kernel?.relay });
+          const result = await runTick(engine, kernel, {
+            relay: kernel?.relay,
+          });
           return `Tick complete:\n${JSON.stringify(result, null, 2).slice(0, 1200)}`;
         }
         const s = autoStatus(engine);
@@ -475,7 +497,8 @@ export function buildTools() {
           digests: digests.written.length,
           changed: digests.changed.length,
           fixed: fixes.applied.length,
-          driftOpen: audit.unknownCommands.length + (audit.brokenLinks.length - fixes.applied.length),
+          driftOpen:
+            audit.unknownCommands.length + (audit.brokenLinks.length - fixes.applied.length),
         };
         engine.store.save(engine.state);
         kernel?.relay?.emit?.('scribe', {
@@ -487,10 +510,85 @@ export function buildTools() {
         });
         return [
           `Digests rewritten: ${digests.written.length} (${digests.changed.length} changed content) -> ${digests.dir}`,
-          `Mechanical link fixes applied: ${fixes.applied.length}${fixes.applied.length ? `\n${fixes.applied.slice(0, 5).map(a => `  - ${a}`).join('\n')}` : ''}`,
+          `Mechanical link fixes applied: ${fixes.applied.length}${
+            fixes.applied.length
+              ? `\n${fixes.applied
+                  .slice(0, 5)
+                  .map(a => `  - ${a}`)
+                  .join('\n')}`
+              : ''
+          }`,
           `Fixes refused (ambiguous/missing target): ${fixes.skipped.length}`,
           `Report-only drift left for a human: ${engine.state.thoth.scribe.driftOpen}`,
         ].join('\n');
+      },
+    },
+    {
+      name: 'stabilize',
+      klass: 'L0',
+      summary:
+        'STABILIZER: status of every foundational auto-fix point (doc links, digests, code hygiene).',
+      usage: 'thoth stabilize',
+      run() {
+        const rows = scanFoundations(process.cwd()).map(
+          f => `- ${f.id} [${f.klass}] ${f.work ? `${f.work} item(s) - ${f.detail}` : 'STABLE'}`
+        );
+        return [
+          `Stabilizer v${STABILIZE_VERSION} foundational points:`,
+          ...rows,
+          '"thoth stabilize-run" applies L1 points with verify+rollback; "stabilize-full" adds L2 (admin).',
+        ].join('\n');
+      },
+    },
+    {
+      name: 'stabilize-run',
+      klass: 'L1',
+      summary:
+        'STABILIZER session over grantable foundations (doc links, digests); each verified, rollback on failure.',
+      usage: 'thoth stabilize-run',
+      run(engine, _args, _ctx, _all, kernel) {
+        const pending = scanFoundations(process.cwd())
+          .filter(p => p.klass === 'L1')
+          .reduce((sum, p) => sum + p.work, 0);
+        if (!pending) {
+          return {
+            reply: 'Stable: no grantable foundation has pending work.',
+            data: { work: 0 },
+          };
+        }
+        const entry = runSession(process.cwd(), { maxKlass: 'L1' });
+        engine.state.thoth.stabilize = {
+          at: entry.at,
+          version: STABILIZE_VERSION,
+          stable: entry.stable,
+          results: entry.results,
+        };
+        engine.store.save(engine.state);
+        kernel?.relay?.emit?.('stabilize', {
+          stable: entry.stable,
+          applied: entry.results.filter(r => r.applied !== undefined).map(r => r.id),
+          announce: !entry.stable || entry.results.some(r => r.applied > 0),
+          text: `Stabilizer session ${entry.stable ? 'stable' : 'NEEDS ATTENTION'}.`,
+        });
+        return { reply: formatSession(entry), data: { work: pending } };
+      },
+    },
+    {
+      name: 'stabilize-full',
+      klass: 'L2',
+      summary:
+        'STABILIZER session including elevated code hygiene (prettier + SPDX), per-file syntax verified.',
+      usage: 'thoth stabilize-full',
+      run(engine) {
+        const entry = runSession(process.cwd(), { maxKlass: 'L2' });
+        engine.state.thoth.stabilize = {
+          at: entry.at,
+          version: STABILIZE_VERSION,
+          stable: entry.stable,
+          results: entry.results,
+        };
+        engine.store.save(engine.state);
+        return formatSession(entry);
       },
     },
     {

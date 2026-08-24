@@ -59,6 +59,7 @@ export const FACTS = {
     toolUse: '.operator/thoth_tooluse.json',
     growthAudit: '.operator/growth_audit.jsonl',
     scribeDigests: '.operator/auto-scribe/',
+    stabilizeHistory: '.operator/stabilize/history.jsonl',
     consentPolicy: 'standards/consent-policy.json',
   },
 };
@@ -119,8 +120,14 @@ export const PLAYBOOKS = [
     title: 'Fleet endpoint down',
     diagnosis: 'Identify which endpoints fail and how fresh the report is before acting.',
     steps: [
-      { text: 'Run "thoth net" for per-endpoint posture and report age.', klass: 'L0' },
-      { text: 'Re-run "thoth fleet" after remediation to confirm recovery.', klass: 'L0' },
+      {
+        text: 'Run "thoth net" for per-endpoint posture and report age.',
+        klass: 'L0',
+      },
+      {
+        text: 'Re-run "thoth fleet" after remediation to confirm recovery.',
+        klass: 'L0',
+      },
       {
         text: 'MIND-managed system: queue repair through the venus-link drain (consent-gated).',
         human: true,
@@ -138,9 +145,18 @@ export const PLAYBOOKS = [
     diagnosis:
       'All network endpoints down on a MIND system: network automation defers, local-first work continues.',
     steps: [
-      { text: 'Confirm with "thoth net" whether any endpoint recovered.', klass: 'L0' },
-      { text: 'Do NOT retry network automation until healthy; keep sweeps local.', human: true },
-      { text: 'Check the site status page from a browser once connectivity returns.', human: true },
+      {
+        text: 'Confirm with "thoth net" whether any endpoint recovered.',
+        klass: 'L0',
+      },
+      {
+        text: 'Do NOT retry network automation until healthy; keep sweeps local.',
+        human: true,
+      },
+      {
+        text: 'Check the site status page from a browser once connectivity returns.',
+        human: true,
+      },
     ],
   },
   {
@@ -149,7 +165,10 @@ export const PLAYBOOKS = [
     title: 'MIND daemon stale (>30m)',
     diagnosis: 'The sibling patrol has not written state recently.',
     steps: [
-      { text: 'Watch for auto-recovery across two sweeps via "thoth fleet".', klass: 'L0' },
+      {
+        text: 'Watch for auto-recovery across two sweeps via "thoth fleet".',
+        klass: 'L0',
+      },
       {
         text: 'Restart the MIND patrol from its own console - outside THOTH scope by design.',
         human: true,
@@ -179,7 +198,10 @@ export const PLAYBOOKS = [
         klass: 'L2',
       },
       { text: 'npx prettier --write . then npm run format:check', human: true },
-      { text: 'Commit through the guarded path; pre-push reruns lint + full tests.', human: true },
+      {
+        text: 'Commit through the guarded path; pre-push reruns lint + full tests.',
+        human: true,
+      },
     ],
   },
   {
@@ -209,7 +231,11 @@ export const ESCALATION = [
     automation: 'diagnose (L0), apply granted-L1 mechanical fixes only',
     human: 'review at next console visit',
   },
-  { severity: 'medium', automation: 'observe; fold into learning facts', human: 'batch review' },
+  {
+    severity: 'medium',
+    automation: 'observe; fold into learning facts',
+    human: 'batch review',
+  },
   { severity: 'low', automation: 'log only', human: 'none' },
 ];
 

@@ -23,6 +23,7 @@ ERROR_INVALID_PARAMETER = 87
 
 if IS_WINDOWS:
     _psapi = ctypes.WinDLL("Psapi.dll", use_last_error=True)
+    _iphlpapi = ctypes.WinDLL("Iphlpapi.dll", use_last_error=True)
     _k32 = ctypes.WinDLL("Kernel32.dll", use_last_error=True)
 
     _LPDWORD = ctypes.POINTER(ctypes.c_uint32)
@@ -81,10 +82,10 @@ if IS_WINDOWS:
     _TCP_TABLE_OWNER_PID_LISTENER = 3
     _AF_INET = 2
 
-    _psapi.GetExtendedTcpTable.argtypes = (
+    _iphlpapi.GetExtendedTcpTable.argtypes = (
         ctypes.c_void_p, _LPDWORD, ctypes.c_int, ctypes.c_uint32,
         ctypes.c_uint32, ctypes.c_uint32)
-    _psapi.GetExtendedTcpTable.restype = ctypes.c_uint32
+    _iphlpapi.GetExtendedTcpTable.restype = ctypes.c_uint32
 
 
 def _ntohs(port_be):
@@ -216,7 +217,7 @@ def tcp_listeners():
     size = ctypes.c_uint32(16 * 1024)
     for _ in range(4):
         buf = ctypes.create_string_buffer(size.value)
-        rc = _psapi.GetExtendedTcpTable(
+        rc = _iphlpapi.GetExtendedTcpTable(
             buf, ctypes.byref(size), False, _AF_INET,
             _TCP_TABLE_OWNER_PID_LISTENER, 0)
         if rc == 0:

@@ -26,7 +26,7 @@ def main():
             import cli
             cli.main()
         elif choice == "2":
-            import server
+            import host as server
             server.main()
         elif choice == "3":
             import cli

@@ -94,6 +94,26 @@ nothing leaves this PC.
 - Autonomic integration: idle ticks (no playbook action) spend their one
   permitted action on `scribe-write` while its standing grant is live.
 
+## Stabilizer foundations (v3.4.0+)
+
+- `stabilize.js` declares every recurring repair as a foundational point
+  with a scan -> apply -> verify contract and byte-exact rollback:
+
+  | point          | class | fixes                                | gate                        |
+  | -------------- | ----- | ------------------------------------ | --------------------------- |
+  | `doc-links`    | L1    | unique-target Markdown relinks       | re-audit finds zero fixable |
+  | `digests`      | L1    | regenerate Auto Scribe fleet digests | written files parse + fresh |
+  | `code-hygiene` | L2    | Prettier + SPDX headers              | per-file syntax verify      |
+
+- `thoth stabilize` (L0) prints per-point status; `thoth stabilize-run`
+  (L1) applies grantable points atomically - any failed verification rolls
+  that point back byte-for-byte; `stabilize-full` (L2) adds code hygiene.
+- Sessions append honest history to `.operator/stabilize/history.jsonl`
+  and are idempotent: a second session over a stable tree does nothing.
+- Autonomic idle ticks now spend their one permitted action on
+  `stabilize-run` (supersedes the raw scribe-write rail), so continuous
+  development self-heals declared drift without chaining unverified work.
+
 ## Update procedure
 
 1. Edit here or in `../thoth-private`, then mirror.

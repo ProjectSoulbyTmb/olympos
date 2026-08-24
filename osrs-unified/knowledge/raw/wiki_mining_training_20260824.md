@@ -1,7 +1,7 @@
 # Mining training
 
 Source: https://oldschool.runescape.wiki/w/Mining_training
-Fetched: 2026-08-24T03:28:03+00:00
+Fetched: 2026-08-24T05:28:09+00:00
 
 This article provides an overview of strategies used to train the Mining skill.
 

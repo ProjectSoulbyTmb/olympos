@@ -12,7 +12,7 @@ import { attachToEngine } from './kernel.js';
 import { knowledge } from './knowledge.js';
 import { createRelay } from './relay.js';
 
-export const THOTH_VERSION = '3.3.0';
+export const THOTH_VERSION = '3.4.0';
 
 export const thothFeature = {
   id: 'thoth',
@@ -23,9 +23,9 @@ export const thothFeature = {
     {
       id: 'thoth-console',
       title: 'THOTH console',
-      summary: `Private local operator kernel v${THOTH_VERSION}: autonomic loop, doctor, grants, backups, focus, fleet, self-learning, playbooks, auto-scribe.`,
+      summary: `Private local operator kernel v${THOTH_VERSION}: autonomic loop, doctor, grants, backups, focus, fleet, self-learning, playbooks, auto-scribe, stabilizer.`,
       intents: ['thoth'],
-      commands: ['thoth help', 'thoth status', 'thoth doctor', 'thoth backups', 'thoth scribe'],
+      commands: ['thoth help', 'thoth status', 'thoth doctor', 'thoth backups', 'thoth stabilize'],
       workspace: 'dashboard',
       ui: { view: 'dashboard' },
     },
