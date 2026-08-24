@@ -14,6 +14,9 @@ Usage:
   python tools/media_ingest.py --download            # download pending files
   python tools/media_ingest.py --download --only goth
   python tools/media_ingest.py --launch              # detached background run
+  python tools/media_ingest.py --clone-source dbnaked-riley-reid-pics \
+      --as dbnaked-other-model-pics --set-path "/models/general/O/Other-Model"
+  python tools/media_ingest.py --audit-videos        # Riley: integrity+dupes
 
 Filters:
   --hd-only           tube scenes without HD markers are skipped
@@ -64,7 +67,7 @@ HOST_DELAYS = {
 
 FEMALE_BLACKLIST = re.compile(
     r"shemale|tranny|ladyboy|transsexual|\bgay\b|\bts\b|"
-    r"crossdress|sissy|\bmale\s?(strip|dom|sub)\b", re.I)
+    r"crossdress|sissy|(?:^|[-_\s/])male(?:[-_\s/]|$)", re.I)
 
 MEDIA_EXT = re.compile(r"\.(jpe?g|png|gif|webp|mp4|m3u8|webm)$", re.I)
 
@@ -481,6 +484,9 @@ def discover_dynamic_sources(fetcher, known_paths):
     for path in sorted(found):
         if path in known_paths:
             continue
+        if not passes_female_filter(path):
+            log(f"dynamic source rejected (female-filter): {path}")
+            continue
         kind = "tube" if "/tube/" in path else "pictures"
         slug = (path.replace("/categories/", "")
                 .strip("/").replace("/", "-").lower())
@@ -745,6 +751,8 @@ def main(argv=None):
     p.add_argument("--download", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--launch", action="store_true")
+    p.add_argument("--audit-videos", action="store_true",
+                   help="run Riley's offline video audit on --out")
     p.add_argument("--hd-only", action="store_true", default=True)
     p.add_argument("--include-non-hd", dest="hd_only",
                    action="store_false")
@@ -764,6 +772,9 @@ def main(argv=None):
     if args.launch:
         cmd_launch(args)
         ran = True
+    if args.audit_videos:
+        import video_audit
+        sys.exit(video_audit.main(["--root", args.out]))
     if not ran:
         p.print_help()
 
