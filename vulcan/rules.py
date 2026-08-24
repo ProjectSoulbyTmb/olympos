@@ -16,16 +16,21 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import copy
+from collections import deque
 
 import content
 
-CONDITION_KINDS = {"zone", "device", "mode", "clock", "all", "any", "not"}
+CONDITION_KINDS = {"zone", "device", "mode", "clock", "all", "any", "not",
+                   "power", "zone_count", "trend"}
 ACTION_KINDS = {"device", "hvac", "scene", "mode", "alert", "lock_all",
-                "unlock_all", "lights_all", "hvac_all_off", "shed"}
+                "unlock_all", "lights_all", "hvac_all_off", "shed",
+                "sequence", "device_group", "log"}
 TRIGGER_TYPES = {"tick", "schedule", "event"}
 OPS = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b,
        ">": lambda a, b: a > b, ">=": lambda a, b: a >= b,
        "==": lambda a, b: a == b, "!=": lambda a, b: a != b}
+TREND_EPSILON = 0.05
+MAX_PENDING_SEQUENCES = 100
 
 
 class SafeDict(dict):
@@ -34,11 +39,19 @@ class SafeDict(dict):
 
 
 class RuleEngine:
-    def __init__(self, world):
+    def __init__(self, world, warden=True):
         self.world = world
         self.rules = []
         self._last_minute = world.clock_minutes()
         self._alert_last_tick = {}
+        self.pending = deque(maxlen=MAX_PENDING_SEQUENCES)
+        self.failures = {}
+        self.quarantined = {}
+        if warden:
+            from warden import Warden
+            self.warden_obj = Warden()
+        else:
+            self.warden_obj = None
         for spec in content.DEFAULT_RULES:
             rule = copy.deepcopy(spec)
             rule["builtin"] = True
@@ -75,18 +88,51 @@ class RuleEngine:
         if not isinstance(actions, list) or not actions:
             raise ValueError("rule needs a non-empty then: [actions]")
         for act in actions:
-            if not isinstance(act, dict) or \
-                    act.get("kind") not in ACTION_KINDS:
-                raise ValueError(f"action kinds: {sorted(ACTION_KINDS)}")
+            self._validate_action(act)
         if rule.get("else"):
             for act in rule["else"]:
-                if not isinstance(act, dict) or \
-                        act.get("kind") not in ACTION_KINDS:
-                    raise ValueError(f"action kinds: {sorted(ACTION_KINDS)}")
+                self._validate_action(act)
         rule["builtin"] = False
         rule["enabled"] = bool(rule.get("enabled", True))
+        if "priority" in rule:
+            rule["priority"] = int(rule["priority"])
+        if "max_fires" in rule:
+            mf = int(rule["max_fires"])
+            if mf < 1:
+                raise ValueError("max_fires must be >= 1")
+            rule["max_fires"] = mf
+        if "run_in_modes" in rule:
+            modes = rule["run_in_modes"]
+            bad = [m for m in modes if m not in content.MODES]
+            if bad:
+                raise ValueError(f"unknown modes: {bad}")
         self.rules.append(rule)
         return rule
+
+    def _validate_action(self, act):
+        if not isinstance(act, dict) or act.get("kind") \
+                not in ACTION_KINDS:
+            raise ValueError(f"action kinds: {sorted(ACTION_KINDS)}")
+        kind = act["kind"]
+        if kind == "sequence":
+            steps = act.get("steps")
+            if not isinstance(steps, list) or not steps:
+                raise ValueError("sequence needs non-empty steps")
+            for step in steps:
+                if not isinstance(step, list) or not step:
+                    raise ValueError("sequence steps must be non-empty "
+                                     "action lists")
+                for sub in step:
+                    self._validate_action(sub)
+            gap = int(act.get("gap_ticks", 1))
+            if gap < 0:
+                raise ValueError("gap_ticks must be >= 0")
+        elif kind == "device_group":
+            dtype = act.get("type")
+            if dtype not in content.DEVICE_TYPES:
+                raise ValueError(f"unknown device type: {dtype}")
+            if not isinstance(act.get("set") or {}, dict):
+                raise ValueError("device_group needs set object")
 
     def _validate_condition(self, cond):
         if not isinstance(cond, dict) or cond.get("kind") \
@@ -109,6 +155,20 @@ class RuleEngine:
             if cond.get("op") not in OPS or "attr" not in cond:
                 raise ValueError("condition needs attr and op in "
                                  + str(sorted(OPS)))
+        elif kind == "power":
+            if cond.get("op") not in OPS or "value" not in cond:
+                raise ValueError("power condition needs op and value")
+        elif kind == "zone_count":
+            if cond.get("op") not in OPS or "value" not in cond \
+                    or "count" not in cond:
+                raise ValueError("zone_count needs attr, op, value, "
+                                 "count")
+        elif kind == "trend":
+            if "zone" not in cond:
+                raise ValueError("trend needs zone")
+            if cond.get("direction") not in ("rising", "falling", "flat"):
+                raise ValueError("trend direction must be rising/"
+                                 "falling/flat")
 
     def toggle_rule(self, rule_id, enabled=None):
         rule = self._get(rule_id)
@@ -160,6 +220,8 @@ class RuleEngine:
     # ---------- evaluation ----------
 
     def on_tick(self, world, fired_events):
+        self._revive_quarantined(world)
+        self._drain_pending(world)
         now = world.clock_minutes()
         crossed = set()
         prev = self._last_minute
@@ -178,29 +240,101 @@ class RuleEngine:
             if text != last_text:
                 world.log("event", text)
             last_text = text
-        for rule in self.rules:
+        ordered = sorted((r for r in self.rules if r["enabled"]),
+                         key=lambda r: -int(r.get("priority", 0)))
+        for rule in ordered:
             if not rule["enabled"]:
+                continue
+            modes = rule.get("run_in_modes")
+            if modes and world.mode not in modes:
                 continue
             trig = rule["trigger"]
             ttype = trig["type"]
+            fired_match = None
             if ttype == "tick":
-                ctx = dict(ctx_base)
-                if self._match(rule.get("when"), world, ctx):
-                    self._run(rule, "then", world, ctx)
-                elif rule.get("else"):
-                    self._run(rule, "else", world, ctx)
+                fired_match = [{}]
             elif ttype == "schedule":
                 if rule["id"] in crossed:
-                    self._run(rule, "then", world, dict(ctx_base))
+                    fired_match = [{}]
             elif ttype == "event":
-                for entry in fired_events:
-                    if entry.get("event") != trig["event"]:
-                        continue
-                    ctx = dict(ctx_base)
-                    ctx.update({k: v for k, v in entry.items()
-                                if isinstance(v, (str, int, float))})
-                    if self._match(rule.get("when"), world, ctx):
-                        self._run(rule, "then", world, ctx)
+                fired_match = [e for e in fired_events
+                               if e.get("event") == trig["event"]]
+            for entry in fired_match or ():
+                ctx = dict(ctx_base)
+                ctx.update({k: v for k, v in entry.items()
+                            if isinstance(v, (str, int, float))})
+                branch = "then" \
+                    if self._match(rule.get("when"), world, ctx) \
+                    else "else"
+                if branch == "then":
+                    self._fire(rule, world, ctx)
+                elif rule.get("else"):
+                    self._run(rule, "else", world, ctx)
+        if self.warden_obj is not None:
+            try:
+                self.warden_obj.patrol(world)
+            except Exception as exc:
+                world.log("heal", f"warden patrol error: {exc!r}")
+
+    def _fire(self, rule, world, ctx):
+        """Run then-branch under the circuit breaker; honor max_fires."""
+        rid = rule["id"]
+        try:
+            self._run(rule, "then", world, ctx)
+        except Exception as exc:
+            fails = self.failures.get(rid, 0) + 1
+            self.failures[rid] = fails
+            limit = int(content.WARDEN["rule_fail_limit"])
+            world.log("heal", f"rule {rid} failed ({fails}/{limit}): "
+                              f"{exc!r}")
+            if fails >= limit:
+                revive = int(content.WARDEN["rule_revive_ticks"])
+                rule["enabled"] = False
+                self.quarantined[rid] = world.tick_count + revive
+                world.alert("warn", f"rule {rid} auto-disabled after "
+                                    f"{fails} failures; revival in "
+                                    f"{revive} ticks")
+            return
+        mf = rule.get("max_fires")
+        if mf is not None:
+            rule["_fires"] = rule.get("_fires", 0) + 1
+            if rule["_fires"] >= int(mf):
+                rule["enabled"] = False
+                world.log("heal", f"rule {rid} exhausted "
+                                  f"max_fires={mf} - disabled")
+
+    def _revive_quarantined(self, world):
+        due = [rid for rid, at in self.quarantined.items()
+               if world.tick_count >= at]
+        for rid in due:
+            self.quarantined.pop(rid, None)
+            self.failures.pop(rid, None)
+            for r in self.rules:
+                if r["id"] == rid:
+                    r["enabled"] = True
+                    break
+            world.log("heal", f"rule {rid} revived from quarantine")
+
+    def _drain_pending(self, world):
+        if not self.pending:
+            return
+        now = world.tick_count
+        due_now = []
+        keep = deque(maxlen=MAX_PENDING_SEQUENCES)
+        while self.pending:
+            item = self.pending[0]
+            if item["due"] <= now and len(due_now) < 32:
+                due_now.append(self.pending.popleft())
+            else:
+                keep.append(self.pending.popleft())
+        self.pending = keep
+        for item in due_now:
+            for act in item["actions"]:
+                try:
+                    self._execute(act, world, item["ctx"],
+                                  item.get("rule") or {"id": "sequence"})
+                except Exception as exc:
+                    world.log("heal", f"sequence step error: {exc!r}")
 
     def _base_context(self, world):
         coldest, temp = None, None
@@ -220,13 +354,13 @@ class RuleEngine:
             dev_id = str(act.get("device", "")).format_map(SafeDict(ctx))
             try:
                 world.set_device(dev_id, act.get("set") or {})
-            except (KeyError, ValueError):
+            except KeyError:
                 pass
         elif kind == "hvac":
             zone = str(act.get("zone", "")).format_map(SafeDict(ctx))
             try:
                 world.set_hvac(zone, act.get("set") or {})
-            except (KeyError, ValueError):
+            except KeyError:
                 pass
         elif kind == "scene":
             try:
@@ -263,6 +397,32 @@ class RuleEngine:
                     d.apply({"mode": "off"})
         elif kind == "shed":
             self._shed(world)
+        elif kind == "sequence":
+            gap = int(act.get("gap_ticks", 1))
+            steps = act.get("steps") or []
+            due = world.tick_count
+            for i, step in enumerate(steps):
+                if i > 0:
+                    due += gap
+                self.pending.append({"due": due, "actions": step,
+                                     "ctx": dict(ctx), "rule": rule})
+        elif kind == "device_group":
+            dtype = act.get("type")
+            zone_filter = act.get("zone")
+            changes = act.get("set") or {}
+            for dev in world.devices.values():
+                if dev.type != dtype or not dev.actuator:
+                    continue
+                if zone_filter and dev.zone != str(zone_filter).format_map(
+                        SafeDict(ctx)):
+                    continue
+                try:
+                    dev.apply(changes)
+                except ValueError:
+                    pass
+        elif kind == "log":
+            text = str(act.get("text", "")).format_map(SafeDict(ctx))
+            world.log("note", text)
 
     def _shed(self, world):
         limit = content.POWER_LIMIT_W
@@ -298,6 +458,32 @@ class RuleEngine:
             if start <= end:
                 return start <= now < end
             return now >= start or now < end
+        if kind == "power":
+            return self._compare(world.building_power_w(), cond, ctx)
+        if kind == "zone_count":
+            attr = str(cond.get("attr", "temp"))
+            count = 0
+            for zone in world.zones.values():
+                actual = self._zone_attr(zone, attr, ctx)
+                if self._compare(actual, cond, ctx):
+                    count += 1
+            return count >= int(cond.get("count", 1))
+        if kind == "trend":
+            zone = world.zones.get(
+                str(cond["zone"]).format_map(SafeDict(ctx)))
+            if zone is None:
+                return False
+            window = int(cond.get("window", len(zone.history) or 1))
+            hist = list(zone.history)[-window:]
+            if len(hist) < 2:
+                return cond.get("direction") == "flat"
+            delta = hist[-1] - hist[0]
+            direction = cond.get("direction")
+            if direction == "rising":
+                return delta > TREND_EPSILON
+            if direction == "falling":
+                return delta < -TREND_EPSILON
+            return abs(delta) <= TREND_EPSILON
         if kind == "zone":
             zone_name = str(cond["zone"]).format_map(SafeDict(ctx))
             zone = world.zones.get(zone_name)

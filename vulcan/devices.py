@@ -12,6 +12,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import content
+from collections import deque
 
 
 class Device:
@@ -25,6 +26,9 @@ class Device:
             self.mode = "off"
             self.target = content.COMFORT_TARGET_C
             self.duty = None
+            self.prev_duty = None
+            self.duty_ticks = 0
+            self.cooldown_ticks = 0
         elif dtype == "light":
             self.on = False
             self.brightness = 100
@@ -144,6 +148,7 @@ class Zone:
         self.temp = seed_temp if seed_temp is not None \
             else content.OUTSIDE_TEMP_C + 4.0
         self.devices = {}
+        self.history = deque(maxlen=16)
 
     def by_type(self, dtype):
         return [d for d in self.devices.values() if d.type == dtype]

@@ -21,6 +21,7 @@ import { explainFile, findSymbol, conventions } from './intel.js';
 import { fleetStatus, incidents, reconcileIncidents } from './federation.js';
 import { observeFromSweeps, summarize, teach, unteach } from './learn.js';
 import { ESCALATION, FACTS, TOPOLOGY, adviseFor } from './wisdom.js';
+import { autoStatus, runTick, startAuto, stopAuto } from './autonomic.js';
 
 async function complianceScanner() {
   const root = process.cwd();
@@ -73,11 +74,37 @@ export function buildTools() {
     {
       name: 'status',
       klass: 'L0',
-      summary: 'Kernel snapshot: modules, focus, funnel, scratchpad presence.',
+      summary: 'Kernel snapshot: modules, focus, funnel, scratchpad, autonomy posture.',
       usage: 'thoth status',
       run(engine) {
-        const snap = engine.kernelStatus();
-        return clip(JSON.stringify(snap, null, 2));
+        const raw = engine.kernelStatus();
+        let snap;
+        try {
+          snap = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch {
+          snap = { kernelStatus: String(raw).slice(0, 200) };
+        }
+        const grants = Object.values(engine.state.thoth?.grants || {}).filter(
+          klass => klass === 'L1'
+        ).length;
+        const auto = engine.state.thoth?.auto || {};
+        return clip(
+          JSON.stringify(
+            {
+              ...(snap && typeof snap === 'object' ? snap : { kernelStatus: snap }),
+              autonomy: {
+                standingL1Grants: grants,
+                autonomicLoop: auto.enabled ? 'ON' : 'OFF',
+                lastAutonomicTick: auto.lastTickAt,
+                lastAutonomicAction: auto.lastAction
+                  ? `${auto.lastAction.playbook} -> ${auto.lastAction.tool}`
+                  : null,
+              },
+            },
+            null,
+            2
+          )
+        );
       },
     },
     {
@@ -217,10 +244,11 @@ export function buildTools() {
           for (const { playbook } of matches) {
             for (const step of playbook.steps) {
               const toolName = /"thoth\s+(\w+)/.exec(step.text)?.[1];
-              if (step.human || step.klass !== 'L0' || !toolName || !granted.has(toolName))
-                continue;
+              // Sanctioned automation: a step runs only while its tool holds
+              // an active class (L0 always, L1 via live standing grant).
+              if (step.human || !toolName || !granted.get(toolName)) continue;
               const result = await kernel.handleCommand({ tool: toolName, args: '' }, {});
-              return `Applied "${playbook.title}" first auto step (${toolName}):\n${result.reply}`;
+              return `Applied "${playbook.title}" first permitted step (${toolName}):\n${result.reply}`;
             }
           }
           return 'No auto-runnable step in the matched playbooks - everything needs you.';
@@ -249,6 +277,41 @@ export function buildTools() {
         return `TOPOLOGY\n${systems.join('\n')}\n\nENVIRONMENT\n${facts
           .map(f => `- ${f}`)
           .join('\n')}`;
+      },
+    },
+    {
+      name: 'auto',
+      klass: 'L1',
+      summary: 'Autonomic loop: observe -> learn -> advise -> apply one permitted action per tick.',
+      usage: 'thoth auto on|off|status|tick [minutes]',
+      async run(engine, args, _ctx, _all, kernel) {
+        const parts = String(args || '')
+          .toLowerCase()
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+        const verb = parts[0] || 'status';
+        if (verb === 'on') {
+          const started = startAuto(engine, kernel, {
+            relay: kernel?.relay,
+            intervalMin: parts[1],
+          });
+          const interval = autoStatus(engine).intervalMin;
+          return started
+            ? `Autonomic loop enabled (every ${interval} min): fleet sweep, learning, playbook match, at most one permitted action per tick.`
+            : 'Autonomic loop is already running.';
+        }
+        if (verb === 'off') {
+          return stopAuto(engine)
+            ? 'Autonomic loop disabled. Manual tools stay available.'
+            : 'Autonomic loop was already off.';
+        }
+        if (verb === 'tick') {
+          const result = await runTick(engine, kernel, { relay: kernel?.relay });
+          return `Tick complete:\n${JSON.stringify(result, null, 2).slice(0, 1200)}`;
+        }
+        const s = autoStatus(engine);
+        return `Autonomic loop: ${s.enabled ? 'ON' : 'OFF'} | every ${s.intervalMin} min | ticks ${s.ticks}${s.lastTickAt ? ` | last ${s.lastTickAt}` : ''}${s.lastAction ? ` | last action ${s.lastAction.playbook} -> ${s.lastAction.tool}` : ''}`;
       },
     },
     {

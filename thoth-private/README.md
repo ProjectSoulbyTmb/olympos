@@ -50,6 +50,16 @@ nothing leaves this PC.
   mutations, never touches L2/elevated steps, and never executes `[human]`
   guidance. Automation depth equals standing grants - by design.
 
+## Autonomic loop (v3.0.0+)
+
+- `autonomic.js` is the single heartbeat: per tick it sweeps the fleet,
+  reconciles incident memory, refreshes learning facts, matches playbooks,
+  and applies at most ONE permitted action (existing grants only).
+- `thoth auto on [minutes]|off|status|tick` (L1). Default cadence 15 min,
+  bounded 5-240. Master pause blocks ticks exactly like manual commands.
+- Every tick emits a relay `autonomic` event; state persists in
+  `engine.state.thoth.auto`.
+
 ## Update procedure
 
 1. Edit here or in `../thoth-private`, then mirror.

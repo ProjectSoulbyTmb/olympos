@@ -12,6 +12,14 @@
 
 /** Verified environment facts. Each is checked against the live machine. */
 export const FACTS = {
+  autonomy: {
+    posture:
+      'Standing L1 is live on every grantable tool (backup, capture, changelog, focus, mood, pin, remember, scratch, teach, unpin, unteach, watch) - those run promptless and advise --apply may execute them.',
+    neverAutomated:
+      'restore / reset stay L2: each call needs a proven administrator session. Arming session-scoped elevation (admin panel) removes the per-call confirm for that session while keeping the automatic safety backup.',
+    rationale:
+      'L2 is the renderer-compromise defense and a published SECURITY/TERMS commitment; it is permanent never-auto by consent policy.',
+  },
   soulProvider: {
     endpoint: 'http://127.0.0.1:11434',
     service: 'Ollama /api/chat',

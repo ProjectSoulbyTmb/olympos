@@ -40,7 +40,7 @@ $py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
 | `osrs-llm-agent/server/` | **Your own RSPS engine**: authoritative JSON-lines game server with per-character instanced worlds + `RemoteGameSDK` client so any strategy runs over the wire unchanged. Original protocol/engine modeled on OSRS mechanics - not interoperable with the official client |
 | `osrs-rl/` | Self-play PPO combat agent (200-iteration trained model: 60% win / 7.5% loss vs opponent pool, undefeated vs heuristic & random baselines), resume support |
 | `osrs-rl/rsps_adapter/` | Client env + Java relay plugin to train against your own Elvarg private server |
-| `vulcan/` | **Vulcan**: offline smart-building automation sandbox - 7-zone thermal sim (37 devices), rules engine (occupancy lighting, schedules, security, freeze/fire/load-shed), authoritative JSON-lines server on 127.0.0.1:43901, embedded-or-remote console. Verify: `python vulcan/verify_vulcan.py` |
+| `vulcan/` | **Vulcan**: offline smart-building automation sandbox - 7-zone thermal sim (37 devices), rules engine (sequences, priorities, mode-scoping, max-fires, motion events) + **warden** self-healing (waste/runaway/stuck-sensor repair, rule circuit-breaker w/ auto-revival, escalated load shedding, corrupt-save recovery), authoritative JSON-lines server on 127.0.0.1:43901. Verify: `python vulcan/verify_vulcan.py` |
 
 ## Feature parity with similar tools
 

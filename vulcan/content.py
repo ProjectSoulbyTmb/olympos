@@ -103,6 +103,21 @@ SEED_ZONES = [
 
 MODES = ["home", "away", "night", "vacation"]
 
+WARDEN = {
+    "enabled": True,
+    "stuck_sensor_ticks": 12,
+    "sensor_lo_c": -20.0,
+    "sensor_hi_c": 60.0,
+    "runaway_hvac_ticks": 30,
+    "hvac_cooldown_ticks": 8,
+    "vacant_light_ticks": 6,
+    "rule_fail_limit": 3,
+    "rule_revive_ticks": 60,
+    "escalate_shed_types": ["fan"],
+    "backup_copies": 3,
+    "max_repairs_log": 100,
+}
+
 COMFORT_TARGET_C = 21.0
 HYSTERESIS_C = 0.5
 FREEZE_ALARM_C = 5.0
@@ -230,4 +245,28 @@ DEFAULT_RULES = [
      "trigger": {"type": "event", "event": "power_limit_exceeded"},
      "alert_cooldown_ticks": 6,
      "then": [{"kind": "shed"}]},
+    {"id": "meeting_prep_sequence", "name": "Meeting room prep sequence",
+     "trigger": {"type": "event", "event": "motion"},
+     "when": {"kind": "zone", "zone": "{zone}", "attr": "occupants",
+              "op": ">=", "value": 3},
+     "then": [
+         {"kind": "device_group", "type": "blind", "zone": "meeting",
+          "set": {"open": True}},
+         {"kind": "sequence", "gap_ticks": 2, "steps": [
+             [{"kind": "device", "device": "light_meeting",
+               "set": {"on": True, "brightness": 100}}],
+             [{"kind": "hvac", "zone": "meeting",
+               "set": {"mode": "cool", "target": 20.0}}]]}]},
+    {"id": "evening_precool", "name": "Evening pre-cool on heat buildup",
+     "priority": 5,
+     "trigger": {"type": "tick"},
+     "when": {"kind": "zone_count", "attr": "temp", "op": ">=",
+              "value": 26.0, "count": 3},
+     "alert_cooldown_ticks": 12,
+     "then": [
+         {"kind": "alert", "level": "info",
+          "message": "{hot_count} zones above 26 C - pre-cooling"},
+         {"kind": "device_group", "type": "blind",
+          "set": {"open": False}},
+         {"kind": "device_group", "type": "fan", "set": {"on": True}}]},
 ]

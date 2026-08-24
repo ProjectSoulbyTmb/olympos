@@ -86,6 +86,18 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
   18/18). Rules are plain JSON; actuator writes are idempotent no-ops
   so tick rules can run freely, and alert actions are rate-limited
   per rule.
+- 2026-08-23: Vulcan enhanced automation + self-healing. Rules gained
+  motion events, `sequence` (deferred multi-step actions),
+  `device_group`, `power`/`zone_count`/`trend` conditions, `priority`
+  ordering, `max_fires` one-shots and `run_in_modes` scoping. New
+  warden.py patrols every tick and auto-repairs: HVAC-vs-open-contact
+  waste, runaway duty (forced cooldown), stuck/out-of-bounds sensors
+  (neighbor-average substitution), vacant lights in away/vacation,
+  escalated shedding when plugs are exhausted. Rule failures trip a
+  circuit breaker (auto-disable + timed revival, Venus-heart style).
+  Saves rotate `.bak1..N`; corrupt saves auto-recover from the newest
+  readable backup with a warning alert. Verify gate now 29/29; new
+  SDK verbs: repairs/diagnose/warden.
 
 - 2026-08-23: Heart gained autonomic energy states (awake/drowsy/asleep
   driven by command activity, sleepBpm slowdown) and pluggable critical

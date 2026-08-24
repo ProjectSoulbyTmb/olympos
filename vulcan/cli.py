@@ -147,6 +147,22 @@ class Console:
         elif cmd == "rule_del":
             (rid,) = need(1)
             print(sdk.delete_rule(rule_id=rid))
+        elif cmd == "repairs":
+            rows = sdk.repairs(n=int(args[0]) if args else 20)
+            for r in rows:
+                print(f"  #{r['n']} [{r['category']}] "
+                      f"{r['t']['clock']} {r['text']}")
+        elif cmd == "diagnose":
+            report = sdk.diagnose()
+            print(f"warden: {report.get('warden')} | repairs total: "
+                  f"{report.get('repairs_total', '?')} | fixed now: "
+                  f"{report.get('fixed_now', 0)}")
+            for f in report.get("findings", []):
+                print(f"  - [{f['category']}] {f['text']}")
+        elif cmd == "warden":
+            arg = args[0].lower() if args else None
+            enabled = None if arg is None else arg in ("on", "true")
+            print(sdk.warden(enabled=enabled))
         elif cmd == "alerts":
             for a in sdk.alerts(n=int(args[0]) if args else 20):
                 print(f"  [{a['level']}] {a['t']['clock']} {a['text']}")
@@ -203,6 +219,7 @@ class Console:
   weather CELSIUS            outside temperature
   scene day|night|away|vacation | mode home|away|night|vacation
   rules | rule_toggle ID | rule_del ID
+  repairs [N] | diagnose | warden on|off
   alerts [N] | events [N] | stats [N] | tick [N]
   save PATH | load PATH
   quit""")

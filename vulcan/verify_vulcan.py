@@ -403,6 +403,172 @@ def check_no_phantom_events_after_load(tmp):
     return True
 
 
+def check_motion_events_and_sequence():
+    world, engine, sdk = fresh()
+    sdk.toggle_rule("occ_light_meeting", enabled=False)
+    sdk.motion("meeting", people=3)
+    world.tick(engine)
+    if not world.devices["window_meeting"].open:
+        return "sequence rule did not open blinds on fire"
+    world.tick(engine)
+    if not (world.devices["light_meeting"].on
+            and world.devices["light_meeting"].brightness == 100):
+        return "sequence step 0 did not apply"
+    world.tick(engine)
+    world.tick(engine)
+    if world.devices["hvac_meeting"].mode != "cool" \
+            or world.devices["hvac_meeting"].target != 20.0:
+        return "deferred sequence step did not apply after gap"
+    return True
+
+
+def check_max_fires_exhaustion():
+    _, _, sdk = fresh()
+    sdk.add_rule(spec={
+        "id": "oneshot", "trigger": {"type": "tick"}, "max_fires": 2,
+        "then": [{"kind": "log", "text": "boom"}]})
+    for _ in range(5):
+        sdk.tick(n=1)
+    if next(r for r in sdk.rules() if r["id"] == "oneshot")["enabled"]:
+        return "max_fires did not disable exhausted rule"
+    return True
+
+
+def check_circuit_breaker_and_revival():
+    world, engine, sdk = fresh()
+    at(world, 10)
+    engine._last_minute = world.clock_minutes()
+    sdk.add_rule(spec={
+        "id": "broken_rule", "trigger": {"type": "tick"},
+        "then": [{"kind": "device", "device": "light_hallway",
+                  "set": {"brightness": "banana"}}]})
+    limit = content.WARDEN["rule_fail_limit"]
+    revive = content.WARDEN["rule_revive_ticks"]
+    for _ in range(limit):
+        sdk.tick(n=1)
+    rule = next(r for r in sdk.rules() if r["id"] == "broken_rule")
+    if rule["enabled"]:
+        return f"circuit breaker did not trip after {limit} failures"
+    if "broken_rule" not in engine.quarantined:
+        return "rule not quarantined"
+    if not any("auto-disabled" in a["text"] for a in world.alerts):
+        return "no quarantine alert"
+    sdk.tick(n=revive + 1)
+    rule = next(r for r in sdk.rules() if r["id"] == "broken_rule")
+    if not rule["enabled"]:
+        return "quarantined rule never revived"
+    return True
+
+
+def check_warden_waste_hvac():
+    world, engine, _ = fresh()
+    world.set_hvac("lobby", {"mode": "heat", "target": 24.0})
+    world.devices["door_front"].open = True
+    world.tick(engine)
+    if world.devices["hvac_lobby"].mode != "off":
+        return "warden did not stop HVAC with door open"
+    if not any(r["category"] == "waste" for r in engine.warden_obj.repairs):
+        return "waste repair not logged"
+    return True
+
+
+def check_warden_runaway_cooldown():
+    world, engine, sdk = fresh()
+    at(world, 10)
+    engine._last_minute = world.clock_minutes()
+    sdk.set_hvac("office_a", mode="heat", target=30.0)
+    saw_cooldown = False
+    for _ in range(int(content.WARDEN["runaway_hvac_ticks"]) + 6):
+        world.tick(engine)
+        hvac = world.devices["hvac_office_a"]
+        if hvac.cooldown_ticks > 0 and hvac.duty is None:
+            saw_cooldown = True
+            break
+    if not saw_cooldown:
+        return "runaway HVAC was never forced into cooldown"
+    if not any(r["category"] == "hvac" for r in engine.warden_obj.repairs):
+        return "runaway repair not logged"
+    return True
+
+
+def check_warden_stuck_sensor():
+    world, engine, sdk = fresh()
+    sdk.motion("office_b")
+    zone = world.zones["office_b"]
+    frozen = round(zone.temp, 3)
+    for i in range(content.WARDEN["stuck_sensor_ticks"]):
+        zone.history.append(frozen)
+    world.tick(engine)
+    stuck_fixes = [r for r in engine.warden_obj.repairs
+                   if r["category"] == "sensor"]
+    if not stuck_fixes:
+        return "stuck sensor not detected despite active zone"
+    return True
+
+
+def check_warden_bounds_clamp():
+    world, engine, _ = fresh()
+    world.zones["garage"].temp = 999.0
+    world.tick(engine)
+    if world.zones["garage"].temp > content.WARDEN["sensor_hi_c"]:
+        return "impossible reading not clamped"
+    if not any("clamped" in r["text"]
+               for r in engine.warden_obj.repairs):
+        return "clamp repair not logged"
+    return True
+
+
+def check_corrupt_save_fallback(tmp):
+    world, engine, sdk = fresh()
+    sdk.mode("night")
+    path = os.path.join(tmp, "vulcan_rotate.json")
+    sdk.save(path=path)
+    bak1 = path + ".bak1"
+    if not os.path.exists(bak1):
+        return "backup rotation missing .bak1"
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("{corrupt json!!")
+    world2, _, sdk2 = fresh()
+    result = sdk2.load(path=path)
+    if world2.mode != "night":
+        return "did not recover state from backup"
+    if not any("recovered from backup" in a["text"]
+               for a in world2.alerts):
+        return "recovery alert missing"
+    if "rules_restored" not in result:
+        return "automation not restored from backup"
+    return True
+
+
+def check_escalated_shedding():
+    world, engine, sdk = fresh()
+    for zone in ("lobby", "hallway", "meeting"):
+        sdk.set_hvac(zone, mode="heat", target=24.0)
+        world.zones[zone].temp = 10.0
+    sdk.set_device("rack_fan", on=True)
+    world.tick(engine)
+    if world.devices["rack_fan"].on:
+        return "warden did not escalate shedding to fans"
+    shed_repairs = [r for r in engine.warden_obj.repairs
+                    if r["category"] == "shed"]
+    if not shed_repairs:
+        return "escalated shed repair not logged"
+    return True
+
+
+def check_diagnose_endpoint():
+    _, _, sdk = fresh()
+    report = sdk.diagnose()
+    for key in ("warden", "repairs_total", "findings", "fixed_now"):
+        if key not in report:
+            return f"diagnose missing key: {key}"
+    sdk.warden(enabled=False)
+    if sdk.diagnose().get("warden") != "off":
+        return "warden toggle not reflected"
+    sdk.warden(enabled=True)
+    return True
+
+
 CHECKS = [
     ("content integrity", check_content_integrity),
     ("seed building", check_seed_building),
@@ -423,6 +589,16 @@ CHECKS = [
     ("rules crud + validation", check_rules_crud),
     ("sdk surface lockstep", check_sdk_surface_lockstep),
     ("wire roundtrip (TCP)", check_wire_roundtrip),
+    ("motion events + sequence actions", check_motion_events_and_sequence),
+    ("max_fires exhaustion", check_max_fires_exhaustion),
+    ("rule circuit breaker + revival", check_circuit_breaker_and_revival),
+    ("warden: hvac waste w/ open contact", check_warden_waste_hvac),
+    ("warden: runaway hvac cooldown", check_warden_runaway_cooldown),
+    ("warden: stuck sensor heal", check_warden_stuck_sensor),
+    ("warden: sensor bounds clamp", check_warden_bounds_clamp),
+    ("corrupt save fallback", check_corrupt_save_fallback),
+    ("warden: escalated shedding", check_escalated_shedding),
+    ("diagnose endpoint", check_diagnose_endpoint),
 ]
 
 

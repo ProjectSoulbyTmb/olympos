@@ -92,9 +92,8 @@ function gitVitals(dir) {
     }
   };
   const branch = run('rev-parse', '--abbrev-ref', 'HEAD') ?? '(unknown)';
-  const dirty = Number(
-    run('status', '--porcelain').split('\n').filter(Boolean).length
-  );
+  const porcelain = run('status', '--porcelain');
+  const dirty = porcelain ? porcelain.split('\n').filter(Boolean).length : null;
   run('fetch', '--quiet', '--all');
   const ahead = Number(run('rev-list', '--count', '@{upstream}..HEAD')) || 0;
   const behind = Number(run('rev-list', '--count', 'HEAD..@{upstream}')) || 0;

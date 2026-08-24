@@ -75,7 +75,12 @@ export const knowledge = {
     thothWisdom: {
       title: 'Operational wisdom and guided remediation',
       reply:
-        'THOTH carries an advanced knowledge layer: a workspace topology map ("thoth topology" - supervised systems, integration seams, verified environment facts like the local model endpoint and sync directions), incident playbooks matched by signature, and an escalation policy that fixes what automation may do per severity. When incidents fire, the sweep names the matching playbooks, and "thoth advise" prints diagnosis plus step-by-step remediation marked [auto-ok], [L0]/[L1], or [human]. "thoth advise --apply" executes only the first step your existing standing grants allow - one action per call, never chaining mutations, never touching elevated or human-gated steps. Automation depth equals your grants; judgment stays with you.',
+        'THOTH carries an advanced knowledge layer: a workspace topology map ("thoth topology" - supervised systems, integration seams, verified environment facts like the local model endpoint and sync directions), incident playbooks matched by signature, and an escalation policy that fixes what automation may do per severity. When incidents fire, the sweep names the matching playbooks, and "thoth advise" prints diagnosis plus step-by-step remediation marked [auto-ok], [L0]/[L1], or [human]. "thoth advise --apply" executes only the first step your standing grants allow - one action per call, never chaining mutations, never touching elevated or human-gated steps. Standing L1 is live on every grantable tool, so nearly everything runs promptless; restore and reset alone stay administrator-proven per call. Automation depth equals your grants; judgment stays with you.',
+    },
+    thothAuto: {
+      title: 'Autonomic loop',
+      reply:
+        '"thoth auto on" starts the autonomic heartbeat: every 15 minutes (configurable 5-240) it sweeps the fleet, reconciles incident memory, refreshes learned facts, matches playbooks, and applies at most ONE action your standing grants already permit - then reports through the console feed. "thoth auto tick" runs one cycle on demand; "thoth auto off" stops it; the master switch pauses everything exactly as with manual commands. It never chains actions across ticks into a plan you have not seen, never touches elevated tools, and every decision lands in your local profile.',
     },
     thothAdultWellness: {
       title: 'Adult wellness and control',
@@ -141,6 +146,10 @@ export const knowledge = {
     {
       id: 'thothWisdom',
       re: /\b(playbooks?|advise|remediation|topology|escalation|runbooks?|guided\s+fix)\b/i,
+    },
+    {
+      id: 'thothAuto',
+      re: /\b(autonomic|self[- ]driving|auto(?:matic)?\s+(?:mode|loop|pilot|tick)|thoth\s+auto)\b/i,
     },
     {
       id: 'thoth',

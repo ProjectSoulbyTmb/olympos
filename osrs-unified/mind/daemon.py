@@ -164,28 +164,49 @@ def cmd_release(root, state, level="patch", dry_run=False, no_build=False):
 
 
 def cmd_install_tasks(root, state):
+    """Register hourly Windows scheduled tasks.
+
+    Uses the ScheduledTasks module so each action carries an explicit
+    WorkingDirectory - schtasks /Create cannot set one, and without it
+    `python -m mind.daemon` fails to resolve the package (tasks would
+    silently no-op from system32)."""
+    def _ps_quote(s):
+        return "'" + s.replace("'", "''") + "'"
+
     py = sys.executable
-    daemon = os.path.join(root, "mind", "daemon.py")
+    daemon_mod = "mind.daemon"
     tasks = [
         ("OSRS Mind Patrol",
-         [py, "-m", "mind.daemon", "--root", root, "patrol"], "HOURLY"),
+         f"& {_ps_quote(py)} -m {daemon_mod} --root {_ps_quote(root)} "
+         f"patrol"),
         ("OSRS Knowledge Refresh",
-         [py, os.path.join(root, "tools", "update_knowledge.py")], "HOURLY"),
+         f"& {_ps_quote(py)} {_ps_quote(os.path.join(root, 'tools', 'update_knowledge.py'))}"),  # noqa: E501
     ]
     results = []
-    for name, cmd_parts, sched in tasks:
-        tr = " ".join(f'"{p}"' if " " in p else p for p in cmd_parts)
-        r = subprocess.run(["schtasks", "/Create", "/F", "/TN", name,
-                            "/TR", tr, "/SC", sched],
-                           capture_output=True, text=True)
+    for name, inner in tasks:
+        ps = (
+            "$action = New-ScheduledTaskAction -Execute 'powershell.exe' "
+            "-Argument {_args} -WorkingDirectory {_wd}; "
+            "$trigger = New-ScheduledTaskTrigger -Once -At "
+            "(Get-Date).AddMinutes(5) -RepetitionInterval "
+            "(New-TimeSpan -Hours 1); "
+            "Register-ScheduledTask -TaskName {_name} -Action $action "
+            "-Trigger $trigger -Force | Out-Null"
+        ).format(_args=_ps_quote(
+            "-NoProfile -ExecutionPolicy Bypass -Command " + inner),
+            _wd=_ps_quote(root), _name=_ps_quote(name))
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps],
+            capture_output=True, text=True, errors="replace")
         ok = r.returncode == 0
-        results.append((name, ok, (r.stderr or "").strip()))
+        results.append((name, ok,
+                        ((r.stderr or "") + (r.stdout or "")).strip()[-300:]))
         state.log("moderator", "install-task", f"{name}: ok={ok}")
     for name, ok, err in results:
-        print(f"  {'OK ' if ok else 'ERR'} {name}"
-              + (f" - {err}" if err else ""))
+        print(f"  {'OK ' if ok else 'ERR'} {name}" + (f" - {err}" if err else ""))
     failed = [r for r in results if not r[1]]
-    if any("Access is denied" in e.lower() for _, _, e in failed):
+    if any("Access is denied" in e.lower() or
+           "administrator" in e.lower() for _, _, e in failed):
         print("\nrun this shell as Administrator to register tasks")
     return 0 if all(ok for _, ok, _ in results) else 1
 

@@ -15,6 +15,8 @@ if HERE not in sys.path:
 
 import calendar
 import json
+import os
+import shutil
 import time as _time
 from collections import deque
 
@@ -43,6 +45,7 @@ class World:
         self.alerts = deque(maxlen=content.MAX_ALERTS)
         self.stats = deque(maxlen=content.MAX_STATS)
         self.outside_temp = content.OUTSIDE_TEMP_C
+        self.pending_events = []
         self._build_from_content()
 
     def _build_from_content(self):
@@ -131,6 +134,8 @@ class World:
         occ.people = max(0, int(people))
         occ.idle_ticks = 0
         self.log("motion", f"{zone_name}: {occ.people} present")
+        self.pending_events.append({"event": "motion", "zone": zone_name,
+                                    "device": occ.id})
         return occ.snapshot()
 
     def set_contact(self, dev_id, is_open):
@@ -208,6 +213,7 @@ class World:
 
     def _step_thermal(self, fired_events):
         for zone in self.zones.values():
+            zone.history.append(round(zone.temp, 3))
             loss = content.ENVELOPE_LOSS_PER_TICK
             for contact in zone.by_type("contact"):
                 if contact.open:
@@ -221,7 +227,11 @@ class World:
             zone.temp += zone.occupants() * content.OCCUPANT_HEAT_C
             hvac = next(iter(zone.by_type("hvac")), None)
             if hvac is not None:
-                duty = self._hvac_duty(hvac, zone.temp)
+                if hvac.cooldown_ticks > 0:
+                    hvac.cooldown_ticks -= 1
+                    duty = None
+                else:
+                    duty = self._hvac_duty(hvac, zone.temp)
                 if duty == "heat":
                     delta = min(content.HVAC_MAX_DELTA_C,
                                 max(0.0, hvac.target + content.HYSTERESIS_C
@@ -232,9 +242,12 @@ class World:
                                 max(0.0, zone.temp - (hvac.target
                                     - content.HYSTERESIS_C)))
                     zone.temp -= delta
+                if duty is not None and duty == hvac.prev_duty:
+                    hvac.duty_ticks += 1
+                else:
+                    hvac.duty_ticks = 1 if duty is not None else 0
+                hvac.prev_duty = duty
                 hvac.duty = duty
-            else:
-                pass
         names = list(self.zones)
         for name in names:
             zone = self.zones[name]
@@ -279,7 +292,8 @@ class World:
 
     def tick(self, rule_engine=None):
         self.tick_count += 1
-        fired = []
+        fired = list(self.pending_events)
+        self.pending_events = []
         self.advance_clock()
         self._step_thermal(fired)
         for contact in self.devices.values():
@@ -334,12 +348,42 @@ class World:
                 payload[key] = val
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2, sort_keys=True)
+        self._rotate_backups(path)
         self.log("save", f"state saved -> {os.path.basename(path)}")
         return payload
 
+    def _backup_paths(self, path):
+        n = int(content.WARDEN["backup_copies"])
+        return [f"{path}.bak{i + 1}" for i in range(n)]
+
+    def _rotate_backups(self, path):
+        baks = self._backup_paths(path)
+        for i in range(len(baks) - 1, 0, -1):
+            if os.path.exists(baks[i - 1]):
+                shutil.copyfile(baks[i - 1], baks[i])
+        if os.path.exists(path):
+            shutil.copyfile(path, baks[0])
+
     def load(self, path):
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
+        data = None
+        tried = []
+        for candidate in [path] + self._backup_paths(path):
+            if not os.path.exists(candidate):
+                continue
+            try:
+                with open(candidate, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                if candidate != path:
+                    self.alert("warn",
+                               f"save file damaged; state recovered "
+                               f"from backup {os.path.basename(candidate)}")
+                    self.log("load", f"fallback -> "
+                                     f"{os.path.basename(candidate)}")
+                break
+            except (OSError, ValueError) as exc:
+                tried.append(f"{os.path.basename(candidate)}: {exc}")
+        if data is None:
+            raise OSError(f"no readable save: {'; '.join(tried)}")
         version = data.get("version", 1)
         if version > content.SAVE_VERSION:
             raise ValueError(f"save version {version} newer than "

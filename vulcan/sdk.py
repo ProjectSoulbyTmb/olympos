@@ -29,7 +29,7 @@ class VulcanSDK:
         "set_device", "set_hvac", "motion", "contact", "smoke",
         "outside_temp", "scene", "mode", "rules", "add_rule",
         "toggle_rule", "delete_rule", "alerts", "events", "stats",
-        "tick", "save", "load",
+        "tick", "save", "load", "repairs", "diagnose", "warden",
     }
 
     def __init__(self, world, rule_engine):
@@ -45,6 +45,12 @@ class VulcanSDK:
         snap = self.world.snapshot()
         snap["building"]["rules_active"] = sum(
             1 for r in self.engine.rules if r["enabled"])
+        w = self.engine.warden_obj
+        snap["building"]["warden"] = {
+            "enabled": bool(w and w.enabled),
+            "repairs_total": w.repair_count if w else 0,
+            "quarantined_rules": sorted(self.engine.quarantined),
+        }
         return snap
 
     def zones(self):
@@ -124,6 +130,32 @@ class VulcanSDK:
     def delete_rule(self, rule_id):
         self.engine.delete_rule(rule_id)
         return {"deleted": rule_id}
+
+    # ---- self-healing ----
+
+    def repairs(self, n=20):
+        w = self.engine.warden_obj
+        if w is None:
+            return []
+        return list(w.repairs)[-int(n):]
+
+    def diagnose(self):
+        w = self.engine.warden_obj
+        if w is None:
+            return {"warden": "disabled", "findings": [],
+                    "fixed_now": 0}
+        return w.diagnose(self.world)
+
+    def warden(self, enabled=None):
+        w = self.engine.warden_obj
+        if w is None:
+            raise ValueError("warden was not constructed")
+        if enabled is not None:
+            w.enabled = bool(enabled)
+            state = "enabled" if w.enabled else "disabled"
+            self.world.log("heal", f"warden {state}")
+        return {"enabled": w.enabled,
+                "repairs_total": w.repair_count}
 
     # ---- telemetry / time ----
 
