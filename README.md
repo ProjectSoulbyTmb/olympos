@@ -20,6 +20,7 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 | `vulcan/` | Smart-building automation sandbox: thermal simulation, rules engine with schema gates, warden self-healing, authoritative JSON-lines server - the proving ground for autonomous build-and-verify loops |
 | `gaia/` | Ops kernel watching the whole organism: git sync state, CI verdicts, patrol loops (`node gaia.mjs`) |
 | `poseidon/` | **Tide kernel**: fully autonomous commit-and-push workflow - sweeps uncommitted drift into snapshot commits via a throwaway index (root tree never touched mid-cycle), carries them through the FLOW.md lane (`auto/poseidon` -> push -> PR -> squash merge) under FORSETI's push-lane lock, then settles the mirror. Quarantine breaker after repeated failures; JSONL tide ledger. Verify: `python poseidon/verify_poseidon.py` - arm: `python -m poseidon watch --interval 300` |
+| `hebe/` | **Legal & Document Scribe**: full dictation privileges over the workspace (refuses only `.git`, `.worktrees` and credential carriers), codified legal knowledge corpus (licenses with canonical texts, copyright/trade-secret/NDA/trademark/DMCA playbooks), append-only oath + IP-register ledgers that ship with the repo, LICENSE seeding on first boot, and her own scoped auto-commit/push lane (`auto/hebe`, throwaway index, FORSETI lock, PR squash). Standing L2 grant, no confirmation gate; quarantine breaker. Verify: `python hebe/verify_hebe.py` - arm: `python -m hebe watch --interval 300` |
 | `ptah/` | Software-engineering agent kernel: event-sourced reasoning-action loop over audited tools (terminal, file editor, grep, task tracker, verify-gate runner, memory), risk-classified actions with human confirmation gating, keyword-triggered skills, provider-agnostic LLM brain (OpenAI-compatible/Anthropic) or offline scripted brain, REST control plane on `127.0.0.1:43903`. Verify: `python ptah/verify_ptah.py` - nightly self-check: `python -m ptah selfcheck` |
 | `atlas/` | **Hypervisor**: hosts jailed guest workspaces for builder agents - per-guest directory confinement, argv-only execution with hard timeouts + tree-kill, capped output capture, scrubbed environments, hash-chained audit, NORN rights on the wire (watchers observe; operators rent compute) on `127.0.0.1:43904`. Verify: `python atlas/verify_atlas.py` |
 | `daedalus/` | **Workshop**: autonomous server builder over its ATLAS subfleet - blueprint designs woven into guest worlds, self-test gates run inside the jail, fault-injected builds converge via fix passes (verify-fix-retry), VULCAN-style schema gates + policy rules + warden self-healing (stuck lanes, failure storms quarantined), sealed+hashed artifacts on `127.0.0.1:43905`. Verify: `python daedalus/verify_daedalus.py` |
@@ -65,6 +66,12 @@ python -m poseidon watch --interval 300
 # subfleet: berth + sync a private worktree for every kernel
 python -m poseidon fleet start
 python -m poseidon fleet status
+
+# scribe: dictate a document, consult the legal corpus, let her ship it
+python -m hebe dictate --path docs/legal/memo.md --title memo --body "..."
+python -m hebe advise licenses
+python -m hebe once --dry-run
+python -m hebe watch --interval 300
 ```
 
 ## Infrastructure
@@ -78,9 +85,9 @@ python -m poseidon fleet status
   `data/sentinel/incidents.jsonl` (mirrored to Ratatosk). Use
   `--watch N` to keep watching.
 - `register-zeus-task.ps1`, `register-thoth-task.ps1`,
-  `register-ptah-task.ps1`, `register-poseidon-task.ps1` -
-  Windows Scheduled Task helpers that keep the kernels running
-  around the clock.
+  `register-ptah-task.ps1`, `register-poseidon-task.ps1`,
+  `register-hebe-task.ps1` - Windows Scheduled Task helpers that
+  keep the kernels running around the clock.
 
 ## Multi-agent flow
 

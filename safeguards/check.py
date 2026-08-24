@@ -29,7 +29,26 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+
+
+def _repo_root():
+    """Bind to the checkout the gate actually runs in. Git hooks fire
+    with cwd set to the committing checkout (which may be a FLOW.md
+    worktree, not the mirror that hosts this file) - binding to
+    dirname(HERE) gated one lane against another lane's staged files.
+    Fall back to the toolkit's home repo when git is unavailable."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10).stdout.strip()
+        if out:
+            return out
+    except Exception:                          # noqa: BLE001 - gate
+        pass
+    return os.path.dirname(HERE)
+
+
+ROOT = _repo_root()
 MAX_WARN = 40
 OVERSIZE_BYTES = 512 * 1024          # single-source-file warn cap
 # Text scanners (markers/secrets) run on EVERYTHING except these known

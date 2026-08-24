@@ -177,7 +177,7 @@ class Scribe:
                             cands.add(p)
         except OSError:
             pass
-        return sorted(cands)
+        return sorted(c.replace("\\", "/") for c in cands)
 
     def _say(self, kind, payload):
         if not self.bus:
@@ -232,19 +232,29 @@ class Scribe:
                 record=True):
         """Write ``text`` to ``rel`` under full dictation privileges.
         Returns the decree row. Raises Refusal - never writes - when
-        the walls, credential carriers or secret formations say no."""
+        the walls, credential carriers or secret formations say no;
+        every refusal is journaled (witness doctrine)."""
         reason = self.classify_refusal(rel)
         if reason:
+            if record:
+                self.refuse(rel, reason)
             raise Refusal(reason)
         text = str(text)
         if not text.endswith("\n"):
             text += "\n"
         reason = self.content_refusal(text)
         if reason:
+            if record:
+                self.refuse(rel, reason)
             raise Refusal(reason)
         cls = classification if classification in C.CLASSIFICATIONS \
             else "internal"
-        target = self._resolve(rel)
+        try:
+            target = self._resolve(rel)
+        except Refusal:
+            if record:
+                self.refuse(rel, "escapes-workspace-root")
+            raise
         os.makedirs(os.path.dirname(target), exist_ok=True)
         tmp = target + ".hebe-tmp"
         with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
@@ -434,22 +444,29 @@ class Scribe:
 
     def snapshot_scoped(self, paths, message):
         """Commit ONLY ``paths`` into a throwaway-index commit; the
-        root index/working tree is never touched. Returns
-        (tree, commit) or None when those paths add nothing new."""
+        root index/working tree is never touched. The snapshot is
+        parented on the writer branch tip whenever the lane exists,
+        so consecutive decrees are increments of HEBE's own history
+        and can never self-conflict. Returns (tree, commit) or None
+        when those paths add nothing new."""
         idx = os.path.join(self.data_dir, "idx-%d" % os.getpid())
         env = {"GIT_INDEX_FILE": idx}
         try:
             os.makedirs(self.data_dir, exist_ok=True)
-            head = _git(self.root, "rev-parse", "HEAD")
-            _git(self.root, "read-tree", "HEAD", env_extra=env)
+            if os.path.exists(os.path.join(self.worktree, ".git")):
+                base = _git(self.worktree, "rev-parse", "HEAD")
+            else:
+                base = _git(self.root, "rev-parse", "HEAD")
+            _git(self.root, "read-tree", base, env_extra=env)
             for batch in _chunks(paths, C.RESTORE_BATCH):
                 _git(self.root, "add", "-A", "--", *batch,
                      env_extra=env)
             tree = _git(self.root, "write-tree", env_extra=env)
-            if tree == _git(self.root, "rev-parse", "HEAD^{tree}"):
+            if tree == _git(self.root,
+                            "rev-parse", "%s^{tree}" % base):
                 return None
             commit = _git(self.root, "commit-tree", tree, "-p",
-                          head, "-m", message, env_extra=env)
+                          base, "-m", message, env_extra=env)
             return tree, commit
         finally:
             try:
@@ -490,14 +507,17 @@ class Scribe:
                                    % (C.BRANCH,
                                       merged.stderr.strip()[:200]))
 
-    def cherry_pick(self, commit):
+    def advance_branch(self, commit):
+        """Fast-forward the writer lane onto a snapshot commit that
+        already names the current tip as its parent - decrees stack
+        as clean increments, never as replayed patches."""
         proc = subprocess.run(
-            ["git", "-C", self.worktree, "cherry-pick", "-x", commit],
+            ["git", "-C", self.worktree, "merge", "--ff-only",
+             commit],
             capture_output=True, text=True, timeout=C.GIT_TIMEOUT_S)
         if proc.returncode == 0:
             return _git(self.worktree, "rev-parse", "HEAD^{tree}")
-        _git(self.worktree, "cherry-pick", "--abort", check=False)
-        raise RuntimeError("cherry-pick conflicted: %s"
+        raise RuntimeError("lane refused fast-forward: %s"
                            % proc.stderr.strip()[:200])
 
     def push_branch(self):
@@ -637,18 +657,23 @@ class Scribe:
             self.sync_branch()
             snap = self.snapshot_scoped(paths, subject)
             if snap is None:
+                # nothing new versus the lane tip: if that tip is
+                # itself unmerged we are WAITING, not idle - and a
+                # waiting scribe neither consumes her debt nor counts
+                # a failure (the breaker is for real faults).
+                ahead = _git(self.worktree, "rev-list", "--count",
+                             "origin/main..HEAD", check=False)
+                if ahead and int(ahead or 0) > 0:
+                    report["verdict"] = "awaiting-merge"
+                    self._ledger(dict(report))
+                    self._say("decree-idle", report)
+                    return report
                 report["verdict"] = "still-water"
                 st["last_shipped_row"] = int(st.get("row", 0))
                 self._save_state(st)
                 self._sync_mirror_soft(report)
                 return report
-            tip_tree = _git(self.worktree, "rev-parse", "HEAD^{tree}")
-            if tip_tree == snap[0]:
-                report["verdict"] = "awaiting-merge"
-                self._ledger(dict(report))
-                self._say("decree-idle", report)
-                return report
-            self.cherry_pick(snap[1])
+            self.advance_branch(snap[1])
             self.push_branch()
             pr = self.ship_pr(subject)
             st["seq"] = seq_next
