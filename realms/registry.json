@@ -309,6 +309,21 @@
         "knowledge/verify_knowledge.py"
       ],
       "profile": "watcher"
+    },
+    {
+      "name": "aphrodite",
+      "kind": "viewer",
+      "engine": "studio-media-viewer",
+      "port": 43904,
+      "sdk": null,
+      "path": "aphrodite/server.py",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_aphrodite.py"
+      ],
+      "profile": "watcher"
     }
   ]
 }

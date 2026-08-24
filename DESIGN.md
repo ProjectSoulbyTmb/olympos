@@ -17,6 +17,7 @@ platform (see `INTEGRATION.md`).
 | **Ratatosk** | `ratatosk/` | Filesystem communication network: atomic mailboxes (`data/post/`), correlated replies, priority lanes, topics with cursors, heartbeats, corrupt-letter quarantine. Stdlib-only; no ports, no daemons |
 | **NORN** | `norn/` | Accountability machinery: Clockwork determinism seam, replay seeds, capability-rights profiles, witness journals, pulse SLOs |
 | **Hypnos** | `hypnos/` | Silent task organ: letter/drop-in claim-run-retry-resume with audited actions and crash recovery |
+| **APHRODITE** | `aphrodite/` | Offline studio media viewer (single-root, loopback :43904): browse/lightbox/slideshow, GDI+ thumbnails, EXIF panel, favorites, virtualized grid, ratings/tags/boards/smart albums/contact-sheet export — library read-only, all creative state app-side |
 | Toolkit | `image-toolkit/` | Shared image-processing toolkit (Node) |
 
 Infrastructure: `doctor.py` (stabilization gate), `sentinel.py`
@@ -70,6 +71,7 @@ tag-driven releases).
   server-side, append-only witness journals, pulse SLO
   quarantine/revival). The realms registry became the single
   declarative home for endpoints.
+- 2026-08-24: APHRODITE joined the registry as tier 2 (:43904) - offline studio media viewer with the muse layer v0.5 (ratings, tags+index, boards, smart albums, contact-sheet export). Library stays read-only; every writable route mutates only APHRODITE's own JSON under LOCALAPPDATA. Gate: `python verify_aphrodite.py` (36 checks).
 - 2026-08-24: Added the PTAH realm (`ptah/`) - a software-engineering
   agent kernel in the OpenHands class, rebuilt to house rules: pure
   standard library, event-sourced conversations (JSONL replay),
