@@ -1,7 +1,7 @@
 # Fishing
 
 Source: https://oldschool.runescape.wiki/w/Fishing
-Fetched: 2026-08-24T01:48:33+00:00
+Fetched: 2026-08-24T02:28:03+00:00
 
 Fishing is a skill which involves catching fish from selected spots around Gielinor. Higher Fishing levels enable different mechanisms of Fishing, the ability to catch a larger selection of fish and increases a player's catch rate. Caught fish may be cooked through the Cooking skill to create food which may be used later to regain hitpoints during combat. Alternatively, many players sell their excess stock of catches for gold.
 

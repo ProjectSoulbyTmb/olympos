@@ -23,7 +23,9 @@ Controls:
 
 Panel tabs (click): Stats Inv Quests Magic Prayer Bank Shop
 """
+import math
 import os
+import random
 import sys
 import time
 
@@ -118,6 +120,193 @@ class Splat:
         return time.time() - self.born < 0.75
 
 
+EMOTES = {
+    "wave": "waves", "dance": "dances", "bow": "bows",
+    "salute": "salutes", "cheer": "cheers", "cry": "cries",
+}
+
+
+class Avatar:
+    """VTuber-style procedural bust rig - VTube Studio patterns
+    (idle sway, blink cycle, breathing, mouth flap, expression
+    states, emotes) rendered without any external assets."""
+
+    W, H = 132, 158
+
+    def __init__(self):
+        self.next_blink = time.time() + 2.5
+        self.blink_until = 0.0
+        self.talk_until = 0.0
+        self._talk_flip = 0.0
+        self.expr = "neutral"
+        self.expr_until = 0.0
+        self.emote = None            # (name, until)
+        self.hurt_until = 0.0
+        self.sparkles = []
+
+    # ---- state drivers ----
+
+    def say(self, text):
+        self.talk_until = time.time() + min(3.0, 0.4 + len(text) * 0.05)
+
+    def celebrate(self, secs=2.6):
+        self.expr, self.expr_until = "happy", time.time() + secs
+        for _ in range(14):
+            self.sparkles.append([time.time(),
+                                  random.uniform(-46, 46),
+                                  random.uniform(-70, 10)])
+
+    def hurt(self):
+        self.hurt_until = time.time() + 0.45
+
+    def do_emote(self, name, secs=2.2):
+        if name in EMOTES:
+            self.emote = (name, time.time() + secs)
+
+    def update(self, now):
+        if now > self.expr_until:
+            self.expr = "neutral"
+        if now >= self.next_blink:
+            self.blink_until = now + 0.12
+            self.next_blink = now + random.uniform(2.2, 5.0)
+
+    def draw(self, scr, font, ox, oy, now, hp_frac=1.0):
+        pg = self.pg_ref
+        t = now
+        breathe = math.sin(t * 1.9) * 1.6
+        bob = math.sin(t * 0.9) * 2.0
+        tilt = math.sin(t * 0.55) * 1.6
+        cx = ox + self.W // 2
+        base_y = oy + self.H - 26
+
+        surf = self.pg_ref.Surface((self.W + 40, self.H + 20),
+                                   self.pg_ref.SRCALPHA)
+        scx = (self.W + 40) // 2
+        scy = self.H - 26
+
+        # emote pose offsets
+        arm_raise = dance_sway = bow_lean = cry_drop = 0
+        emote_label = None
+        if self.emote:
+            name, until = self.emote
+            if now < until:
+                ph = (now * 4) % 2
+                if name == "wave":
+                    arm_raise = int(10 * abs(ph - 1))
+                elif name == "dance":
+                    dance_sway = int(7 * math.sin(now * 9))
+                elif name == "bow":
+                    bow_lean = 14
+                elif name == "cheer":
+                    arm_raise = int(12 * abs(ph - 1))
+                elif name == "cry":
+                    cry_drop = 1
+                emote_label = EMOTES[name]
+            else:
+                self.emote = None
+
+        hurt_kick = 0
+        if now < self.hurt_until:
+            hurt_kick = int(3 * math.sin(now * 60))
+
+        # shoulders / torso
+        top = scy - 34 + int(breathe) + bow_lean // 2
+        pg.draw.polygon(surf, (52, 74, 160),
+                        [(scx - 44, scy + 16),
+                         (scx - 30, top), (scx + 30, top),
+                         (scx + 44, scy + 16)])
+        pg.draw.rect(surf, (40, 58, 130),
+                     (scx - 44, scy + 8, 88, 10))
+        # arms (raise on wave/cheer)
+        for sgn in (-1, 1):
+            ax = scx + sgn * 38
+            ay = top + 6
+            lift = arm_raise if (sgn == 1 or name_is_two_arm(
+                self.emote)) else 0
+            pg.draw.line(surf, (240, 235, 250),
+                         (ax, ay), (ax + sgn * (6 + lift // 2),
+                                    ay - 8 - lift), 7)
+        # head
+        hx = scx + dance_sway + hurt_kick
+        hy = scy - 56 + int(bob) + bow_lean
+        pg.draw.circle(surf, (243, 222, 200), (hx, hy), 22)
+        # hair cap + sway strands
+        pg.draw.arc(surf, (96, 64, 40), (hx - 23, hy - 23, 46, 46),
+                    0.4, math.pi - 0.4, 12)
+        sway = int(math.sin(t * 1.7) * 2)
+        pg.draw.line(surf, (96, 64, 40), (hx - 21, hy - 8),
+                     (hx - 25 + sway, hy + 8), 5)
+        pg.draw.line(surf, (96, 64, 40), (hx + 21, hy - 8),
+                     (hx + 25 + sway, hy + 8), 5)
+        # eyes with blink + expressions
+        blinking = now < self.blink_until
+        eye_h = 1 if blinking else 5
+        squint = now < self.hurt_until
+        col_eye = (30, 32, 40)
+        for sgn in (-1, 1):
+            ex = hx + sgn * 8
+            ey = hy - 3
+            if self.expr == "happy" or (self.emote and
+                                        self.emote[0] == "cheer"):
+                pg.draw.arc(surf, col_eye, (ex - 4, ey - 3, 8, 8),
+                            math.pi, 2 * math.pi, 2)
+            elif squint:
+                pg.draw.line(surf, col_eye, (ex - 4, ey),
+                             (ex + 4, ey), 2)
+            else:
+                pg.draw.ellipse(surf, col_eye,
+                                (ex - 3, ey - eye_h // 2, 6, max(2,
+                                                                 eye_h)))
+        # brows
+        brow_lift = -3 if self.expr == "happy" else \
+            (-1 if now < self.hurt_until else 0)
+        for sgn in (-1, 1):
+            pg.draw.line(surf, (80, 54, 34),
+                         (hx + sgn * 4, hy - 11 + brow_lift),
+                         (hx + sgn * 12, hy - 12 + brow_lift), 2)
+        # mouth: flap when talking, smile when happy, wobble when crying
+        my = hy + 10
+        if now < self.talk_until:
+            flap = 3 if (t * 11 % 2) < 1 else 0.5
+            pg.draw.ellipse(surf, (110, 50, 50),
+                            (hx - 5, my - flap, 10, flap * 2 + 2))
+        elif self.expr == "happy":
+            pg.draw.arc(surf, (110, 50, 50), (hx - 8, my - 6, 16, 12),
+                        math.pi * 0.15, math.pi * 0.85, 2)
+        elif cry_drop:
+            pg.draw.arc(surf, (110, 50, 50), (hx - 6, my - 4, 12, 8),
+                        math.pi * 1.15, math.pi * 1.85, 2)
+            tear_y = my + int((now * 40) % 18)
+            pg.draw.circle(surf, (120, 180, 250), (hx - 10, tear_y), 2)
+        else:
+            pg.draw.line(surf, (110, 50, 50), (hx - 5, my),
+                         (hx + 5, my), 2)
+
+        rotated = pg.transform.rotate(surf, tilt)
+        scr.blit(rotated, (ox + self.W // 2 - rotated.get_width() // 2,
+                           oy - 8))
+
+        # sparkles on celebration
+        for sp in self.sparkles[:]:
+            age = now - sp[0]
+            if age > 1.1:
+                self.sparkles.remove(sp)
+                continue
+            sxp = cx + int(sp[1] + math.sin(age * 6) * 4)
+            syp = oy + 30 + int(sp[2] - age * 34)
+            alpha = max(0, 255 - int(age * 230))
+            star = font.render("*", True, COLORS["gold"])
+            star.set_alpha(alpha)
+            scr.blit(star, (sxp, syp))
+        if emote_label:
+            img = font.render(f"*{emote_label}*", True, COLORS["gold"])
+            scr.blit(img, (cx - img.get_width() // 2, oy - 4))
+
+
+def name_is_two_arm(emote):
+    return bool(emote) and emote[0] in ("cheer",)
+
+
 def tile_center_px(pos):
     return (pos[0] * TILE + TILE // 2, pos[1] * TILE + TILE // 2)
 
@@ -183,6 +372,8 @@ class Game:
         self.selected_spell = None
         self.sprites = {}
         self._shop_prices_cache = None
+        self.avatar = Avatar()
+        self.avatar.pg_ref = self.pg
         self._amb_update()
 
     # ---------- helpers ----------
@@ -214,6 +405,7 @@ class Game:
                 self.banner = f"LEVEL UP! {skill} -> {cur['level']}"
                 self.banner_until = time.time() + 2.5
                 self.audio.play("levelup")
+                self.avatar.celebrate()
             self.prev_xp[skill], self.prev_levels[skill] = \
                 cur["xp"], cur["level"]
 
@@ -260,6 +452,26 @@ class Game:
             return None
         return min(cands, key=lambda n: n["distance"])
 
+    def _send_chat(self, txt):
+        txt = txt[:200]
+        if txt.startswith("/") and \
+                txt[1:].split(" ")[0] in EMOTES:
+            word = txt[1:].split(" ")[0]
+            self.avatar.do_emote(word)
+            try:
+                self.sdk.chat(f"{self.st.get('name', 'me')} "
+                              f"*{EMOTES[word]}*")
+            except Exception:
+                pass
+            return
+        self.avatar.say(txt)
+        try:
+            self.sdk.chat(txt)
+            self.chat_lines.append(f"me: {txt}")
+            del self.chat_lines[:-9]
+        except Exception as exc:
+            self._flash(str(exc)[:50])
+
     def drain_chat(self):
         try:
             got = self.sdk._drain_chat()
@@ -267,7 +479,22 @@ class Game:
             got = []
         for c in got:
             frm = c.get("from", "?")
-            self.chat_lines.append(f"{frm}: {c.get('text', '')}")
+            text = c.get("text", "")
+            self.chat_lines.append(f"{frm}: {text}")
+            if "*" in text:
+                for word in EMOTES.values():
+                    if f"*{word}*" in text:
+                        pos = next((p["pos"]
+                                    for p in self.st.get("players", [])
+                                    if p["name"] == frm), None)
+                        if pos:
+                            self.floaters.append(
+                                Floater(f"{frm} {word}",
+                                        COLORS["gold"],
+                                        tile_center_px(pos)))
+                        else:
+                            self.chat_lines.append(f"  ({frm} emotes)")
+                        break
         del self.chat_lines[:-9]
 
     # ---------- actions ----------
@@ -302,6 +529,7 @@ class Game:
                                          taken=True))
                 self.floaters.append(
                     Floater("OUCH", COLORS["bad"], pp))
+                self.avatar.hurt()
             self.lunge = (time.time(),
                           npc["pos"][0] - self.st["position"][0],
                           npc["pos"][1] - self.st["position"][1])
@@ -947,6 +1175,10 @@ class Game:
         self.pg.draw.rect(scr, (120, 180, 240),
                           (x, y, int(bar_w * pfrac), 9), border_radius=3)
         y += 13
+        self.avatar.update(time.time())
+        self.avatar.draw(scr, self.small, x - 4, y + 4,
+                         time.time())
+        y = y + 4 + Avatar.H + 2
         y = self._line(scr, x, y,
                        f"coins {self.st['coins']}   energy "
                        f"{int(self.st['energy'])}%   run "
@@ -1398,13 +1630,7 @@ class Game:
                         if e.key == self.pg.K_RETURN:
                             txt = self.chat_input.strip()
                             if txt:
-                                try:
-                                    self.sdk.chat(txt[:200])
-                                    self.chat_lines.append(
-                                        f"me: {txt}")
-                                    del self.chat_lines[:-9]
-                                except Exception as exc:
-                                    self._flash(str(exc)[:50])
+                                self._send_chat(txt)
                             self.chat_input = ""
                             self.chat_mode = False
                         elif e.key == self.pg.K_ESCAPE:

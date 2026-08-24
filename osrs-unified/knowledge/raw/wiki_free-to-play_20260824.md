@@ -1,7 +1,7 @@
 # Free-to-play
 
 Source: https://oldschool.runescape.wiki/w/Free-to-play
-Fetched: 2026-08-24T01:48:33+00:00
+Fetched: 2026-08-24T02:28:03+00:00
 
 Free-to-play, also known as F2P, is the free version of Old School RuneScape where no payment to Jagex is required to play. Players who play the free version are known as "Free players", "F2Pers", or "Non-members". This is in contrast to members, who pay a fee for access to a much larger map and a multitude of skills, items, quests, and activities that are unavailable to free-to-play users. 
 Free-to-play users can gain access to membership for free through their in-game activities by purchasing membership bonds for coins on the Grand Exchange.

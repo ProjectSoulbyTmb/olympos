@@ -1,7 +1,7 @@
 # Ultimate Ironman
 
 Source: https://oldschool.runescape.wiki/w/Ultimate_Ironman
-Fetched: 2026-08-24T01:48:33+00:00
+Fetched: 2026-08-24T02:28:03+00:00
 
 Ultimate Ironman mode is an official game mode that players can choose to assign themselves. It has all of the restrictions of ironman mode with the additional restriction that ultimate ironmen cannot use banks. There are many other unique restrictions that follow from the inability to use a bank.
 

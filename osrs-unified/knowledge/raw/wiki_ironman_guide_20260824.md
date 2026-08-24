@@ -1,7 +1,7 @@
 # Ironman Guide
 
 Source: https://oldschool.runescape.wiki/w/Ironman_Guide
-Fetched: 2026-08-24T01:48:33+00:00
+Fetched: 2026-08-24T02:28:03+00:00
 
 This guide aims to give general advice, tips, and suggestions for regular and Hardcore Ironmen. Ultimate Ironmen have their own guide here.
 

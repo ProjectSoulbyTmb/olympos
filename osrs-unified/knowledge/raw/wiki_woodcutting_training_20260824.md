@@ -1,7 +1,7 @@
 # Woodcutting training
 
 Source: https://oldschool.runescape.wiki/w/Woodcutting_training
-Fetched: 2026-08-24T01:48:33+00:00
+Fetched: 2026-08-24T02:28:03+00:00
 
 This guide outlines the best methods for training the Woodcutting skill. The profit from Woodcutting is low compared to other money-making methods and the profitable methods offer very slow experience per hour. Some players may find it more beneficial to perform the fastest experience methods and use the saved time to make money from other activities.
 For maximum theoretical experience rates for certain Woodcutting training methods, see this page.

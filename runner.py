@@ -218,7 +218,16 @@ def supervised_server():
         print("supervisor stopped")
 
 
+
+
+def play_client():
+    """Launch the graphical playable client (auto-hosts a server)."""
+    print("\\nlaunching the playable client (auto-hosts if needed)...\\n")
+    subprocess.run([PY, os.path.join(HERE, "play_rsps.py")])
+
+
 MENU = [
+    ("Play now (graphical client)", play_client),
     ("Run an activity (sim or RSPS)", run_activity),
     ("Train combat agent (RL)", train_rl),
     ("Evaluate a trained combat agent", evaluate_rl),

@@ -714,6 +714,54 @@ def t_playable_client_ui():
     return "menus, minimap, dialogue, chat, tabs, splats present"
 
 
+def t_trading_and_status():
+    from server.rsps_server import GameServer
+    from server.client import RemoteGameSDK
+    srv = GameServer(port=43991)
+    srv.start_async()
+    time.sleep(0.8)
+    try:
+        a = RemoteGameSDK(name="tr_alice", port=srv.port,
+                          channel="main")
+        b = RemoteGameSDK(name="tr_bob", port=srv.port, channel="main")
+        st = a._request({"cmd": "status"})["status"]
+        assert {"tr_alice", "tr_bob"} <= set(st["players"])
+        assert st["channels"] == ["main"]
+        a._request({"cmd": "trade_offer", "target": "tr_bob"})
+        r = b._request({"cmd": "state"})
+        assert any(n["type"] == "trade_invite"
+                   for n in r.get("notices", []))
+        b._request({"cmd": "trade_accept"})
+        a._call("walk", "tree_1")
+        for i in range(24):
+            if a.inventory().get("logs", 0) >= 1:
+                break
+            try:
+                a._call("chop")
+            except Exception:
+                a._call("walk", "tree_2")
+        n_logs = min(3, a.inventory().get("logs", 0))
+        assert n_logs >= 1, "no logs chopped for trade"
+        assert a._request({"cmd": "trade_add",
+                           "item": "logs",
+                           "n": n_logs})["ok"]
+        b._request({"cmd": "trade_confirm"})
+        before_a = a.inventory().get("logs", 0)
+        r = a._request({"cmd": "trade_confirm"})
+        assert r["ok"], r
+        assert a.inventory().get("logs", 0) == before_a - n_logs
+        assert b.inventory().get("logs") == n_logs
+        assert not a._request({"cmd": "state"}).get("trade")
+        a._request({"cmd": "trade_offer", "target": "tr_bob"})
+        b._request({"cmd": "trade_accept"})
+        b._request({"cmd": "trade_cancel"})
+        assert not a.state().get("trade")
+        a.close(); b.close()
+    finally:
+        srv.running = False
+    return "invite/confirm/execute/cancel + status endpoint"
+
+
 print("=" * 72)
 print("OSRS LAB - FULL SYSTEM VERIFICATION")
 print("=" * 72)
@@ -744,6 +792,7 @@ for name, fn in [
     ("ENGINE: catacombs, ladders & boss", t_ladder_catacombs),
     ("ENGINE: new spells & shop stock", t_new_spells_and_shop),
     ("SOCKET: multiplayer channel + resume", t_multiplayer_channel),
+    ("SOCKET: trading + status", t_trading_and_status),
     ("APP: client UI systems", t_playable_client_ui),
 ]:
     check(name, fn)

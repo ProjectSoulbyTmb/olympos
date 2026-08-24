@@ -1,7 +1,7 @@
 # Money making guide
 
 Source: https://oldschool.runescape.wiki/w/Money_making_guide
-Fetched: 2026-08-24T01:48:33+00:00
+Fetched: 2026-08-24T02:28:03+00:00
 
 This is a list of some of the ways to make money (money makers) in Old School RuneScape and the requirements to do so. The prices and hourly rates are simply an estimate. The actual rates and profit are likely to differ. There are likely other ways that aren't included here; feel free to suggest them on the talk page.
 If you notice a discrepancy between profits listed here and profits listed on guide pages, it is probably because of a caching issue. You can clear the cache and force an update by clicking here.

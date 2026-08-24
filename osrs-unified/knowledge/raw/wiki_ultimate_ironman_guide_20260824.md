@@ -1,7 +1,7 @@
 # Ultimate Ironman Guide
 
 Source: https://oldschool.runescape.wiki/w/Ultimate_Ironman_Guide
-Fetched: 2026-08-24T01:48:33+00:00
+Fetched: 2026-08-24T02:28:03+00:00
 
 Playing as an Ultimate Ironman is full of unique and interesting challenges, and it is very different from a regular account or normal Ironman. In addition to the restrictions given to regular Ironman, Ultimate Ironmen cannot use banks. This guide aims to give general advice, tips, and suggestions for playing as an Ultimate Ironman.
 This page has a quick introduction to the Ultimate Ironman mode, as well as some guidance on getting started on a new Ultimate Ironman account. More in-depth skill training methods, quest tips, equipment suggestions, and more can be found on their respective pages. These pages can be navigated to using the icons in the top-right of each page, or by the links further down on this page.
