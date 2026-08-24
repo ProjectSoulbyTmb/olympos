@@ -28,25 +28,25 @@ of the ATHENA doctrine).
 6. `DESIGN.md` — referenced by both model docs but **absent from disk**
    (see §2). If found, it defines what the architecture IS.
 
-## 2. Disk truth (audited 2026-08-24)
+## 2. Disk truth (audited 2026-08-24, post-restoration)
 
-Referenced by docs but **missing** after the §9 lineage reset:
-`DESIGN.md`, `doctor.py`, `sentinel.py`, `realms/registry.json`,
-CI wiring for new gates, PTAH working tree (orphaned-untracked).
-Restoration must pass `verify_scope.py` first (INTEGRATION §9).
+Restored and live on main: `doctor.py` (compile/port-squatter/baseline
+checks, `--ci` mode), `sentinel.py` (watchdog: remediate -> gates ->
+incidents ledger, `--watch N`; **realm gates derive from the registry**),
+`realms/registry.json` schema v2 with full membership incl. tier/lang/
+verify/profile, comprehensive `.github/workflows/ci.yml`, PTAH working
+tree, forseti organ. Safeguards pre-commit gate activates via
+`git config core.hooksPath safeguards/githooks` (committed shim).
+Shipping protocol: FLOW.md - private worktrees + auto/* branches +
+squash PRs; direct pushes to main are hook-blocked.
 
-Present at root: `verify_autopilot.py`, `verify_buskit.py`,
-`verify_scope.py`, `register-{zeus,thoth,ptah,hypnos,soul-tasks}.ps1`
-(generic elevated-task registrar pattern), `elevate-bootstrap.ps1`,
-dirs: `zeus/ gaia/ thoth-private/ vulcan/ hades/ ratatosk/ norn/
-buskit/ hypnos/ knowledge/ tools/ image-toolkit/ assistant/ data/`.
-Roles of `buskit/`, `hypnos/`, `tools/` are `[UNVERIFIED]` — inspect
-before citing them in any design.
+Still missing: `DESIGN.md`. Roles of `buskit/`, `hypnos/`, `tools/`
+were verified via their verify suites; anything new gets inspected
+before being cited in a design.
 
-Ports (per INTEGRATION §2): vulcan `:43901` only. `43590/43591` are
-retired; treat any listener there as a squatter finding. ZEUS `:43902`
-appears in STRATEGY.md's audit table — reconcile against code before
-relying on it.
+Ports (registry = single source): vulcan `:43901`, zeus `:43902`,
+ptah `:43903`. `43590/43591` are retired; any listener there is a
+squatter finding.
 
 ## 3. The five guarantees (each has an owner and a test)
 

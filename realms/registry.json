@@ -81,6 +81,17 @@
       "profile": "watcher"
     },
     {
+      "name": "atlas",
+      "kind": "hypervisor",
+      "engine": "jailed-guest-workspaces",
+      "sdk": "AtlasSDK",
+      "path": "atlas/server.py",
+      "tier": 1,
+      "lang": "python",
+      "verify": ["python", "atlas/verify_atlas.py"],
+      "profile": "operator"
+    },
+    {
       "name": "gaia",
       "kind": "health",
       "engine": "vitals-scorer",
