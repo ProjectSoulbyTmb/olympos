@@ -118,3 +118,12 @@ tag-driven releases).
   consume the proposal queue, promotion still human-gated. Automation:
   weekly staggered learner tasks via `register-learning-tasks.ps1`,
   full sweep via `learning-cycle.ps1`.
+
+- 2026-08-24: POSEIDON tide kernel landed (`poseidon/`): fully
+  autonomous commit-and-push - throwaway-index snapshots of root
+  drift carried through `auto/poseidon` (push -> PR -> squash
+  merge) under FORSETI's lock, mirror settled only after origin
+  holds the content; quarantine breaker after three consecutive
+  failures, JSONL tide ledger, Ratatosk announcements. Also repairs
+  the dangling Hypnos build gate that referenced this suite before
+  the realm existed. Gate: `python poseidon/verify_poseidon.py`.
