@@ -22,6 +22,7 @@ import json
 import socket
 import threading
 import time
+from collections import deque
 
 _HERE2 = os.path.dirname(HERE)          # workspace root: norn/ lives there
 if _HERE2 not in sys.path:
@@ -67,6 +68,16 @@ class ZeusServer:
                 self.witness = Witness(wdir, actor="zeus")
             except Exception:     # noqa: BLE001 - journaling is optional
                 self.witness = None
+        # wire auth + flood control state (per connection id)
+        self.authed = set()           # cids that presented the token
+        self._cmd_times = {}          # cid -> deque[float] timestamps
+
+    def _token(self):
+        try:
+            with open(content.TOKEN_PATH, "r", encoding="utf-8") as fh:
+                return fh.read().strip()
+        except OSError:
+            return None
 
     @property
     def connection_count(self):
@@ -137,10 +148,12 @@ class ZeusServer:
                    if rights is not None else "operator")
         with self._lock:
             self.profiles[cid] = profile
+            self._cmd_times[cid] = deque()
         conn.sendall(json.dumps(
             {"error": None, "result": {
                 "hello": "zeus", "version": content.VERSION,
                 "profile": profile,
+                "authenticated": False,
                 "profiles": sorted(rights.ZEUS_PROFILES)
                 if rights is not None else ["operator"],
                 "watches": len(self.kernel.sentinel.manifest),
@@ -160,7 +173,16 @@ class ZeusServer:
                 if not isinstance(msg, dict) or "cmd" not in msg:
                     self._send(conn, error="missing cmd")
                     continue
+                if not self._rate_ok(cid):
+                    self._send(conn, error="rate_limited: slow down",
+                               result=None)
+                    continue
                 cmd = str(msg.get("cmd"))
+                if rights is not None and cmd == "auth":
+                    self._handle_auth(conn, cid,
+                                      str((msg.get("args") or {})
+                                          .get("token", "")))
+                    continue
                 if rights is not None and cmd == "assume":
                     newp = str((msg.get("args") or {}).get("profile", ""))
                     with self._lock:
@@ -192,6 +214,51 @@ class ZeusServer:
             with self._lock:
                 self.sessions.pop(cid, None)
                 self.profiles.pop(cid, None)
+                self._cmd_times.pop(cid, None)
+                self.authed.discard(cid)
+
+    def _rate_ok(self, cid):
+        """Rolling-window flood control; bursts absorb, floods refuse."""
+        now = time.time()
+        with self._lock:
+            times = self._cmd_times.setdefault(cid, deque())
+            while times and now - times[0] > content.RATE_WINDOW_S:
+                times.popleft()
+            if len(times) >= content.RATE_MAX_COMMANDS:
+                return False
+            times.append(now)
+            return True
+
+    def _handle_auth(self, conn, cid, token):
+        import hmac as hmac_mod
+        expected = self._token()
+        with self._lock:
+            ok = bool(expected) and hmac_mod.compare_digest(
+                token.encode("utf-8"), expected.encode("utf-8"))
+            if ok:
+                self.authed.add(cid)
+        if ok:
+            self._send(conn, result={"authenticated": True})
+        else:
+            self.kernel.log_event(
+                "security", "warn",
+                f"failed wire auth on cid {cid}")
+            self._send(conn,
+                       error="right_denied: invalid capability token",
+                       result=None)
+
+    def _effective_rights(self, cid):
+        """Authenticated connections keep their declared profile;
+        strangers are read-only watchers, whatever they assume."""
+        if rights is None or cid is None:
+            return None
+        with self._lock:
+            pname = self.profiles.get(cid,
+                                      rights.ZEUS_DEFAULT_PROFILE)
+        table = rights.ZEUS_PROFILES.get(pname)
+        if cid not in self.authed:
+            return rights.ZEUS_INFO      # unauthenticated: info only
+        return table
 
     def handle(self, cmd, args, cid=None):
         cmd = str(cmd)
@@ -201,13 +268,11 @@ class ZeusServer:
         if cmd not in ZeusSDK._VALID or not callable(method):
             return {"error": f"unknown command: {cmd}", "result": None}
         if rights is not None and cid is not None:
-            with self._lock:
-                pname = self.profiles.get(
-                    cid, rights.ZEUS_DEFAULT_PROFILE)
-            allowed = rights.ZEUS_PROFILES.get(pname)
+            allowed = self._effective_rights(cid)
             if allowed is not None and cmd not in allowed:
-                return {"error": f"right_denied: profile '{pname}' "
-                                 f"may not '{cmd}'", "result": None}
+                return {"error": f"right_denied: may not '{cmd}' "
+                                 f"(authenticate for operator)",
+                        "result": None}
         args = args if isinstance(args, dict) else {}
         try:
             result = method(**args)

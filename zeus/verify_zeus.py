@@ -3,6 +3,7 @@
 Run: python zeus/verify_zeus.py   (exit 0 = all checks pass)
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -420,6 +421,129 @@ def check_wire_roundtrip(tmp):
             server.running = False
 
 
+def check_stranger_is_read_only(tmp):
+    """No capability token -> info verbs work, mutations refused."""
+    with sandbox(tmp) as kernel:
+        server = ZeusServer(port=0, auto_patrol=False, kernel=kernel)
+        server.start_async()
+        try:
+            client = ZeusClient(server.host, server.port, auth=False)
+            client.connect()
+            if not client.status().get("zeus"):
+                return "stranger lost read access"
+            try:
+                client.bolt_kill(pid=os.getpid())
+                return "unauthenticated bolt accepted"
+            except ValueError as exc:
+                if "right_denied" not in str(exc):
+                    return f"wrong refusal: {exc}"
+            try:
+                client.policy_set(key="CPU_SOFT_PCT", value=50)
+                return "unauthenticated policy_set accepted"
+            except ValueError as exc:
+                if "right_denied" not in str(exc):
+                    return f"wrong refusal: {exc}"
+            client.close()
+            return True
+        finally:
+            server.running = False
+
+
+def check_token_auth_restores_operator(tmp):
+    with sandbox(tmp) as kernel:
+        server = ZeusServer(port=0, auto_patrol=False, kernel=kernel)
+        server.start_async()
+        try:
+            client = ZeusClient(server.host, server.port)  # auto-auths
+            client.connect()
+            got = client.policy_set(key="CPU_SOFT_PCT", value=50)
+            if got.get("CPU_SOFT_PCT") != 50:
+                return "authenticated mutation did not stick"
+            # a wrong token must NOT escalate
+            os.environ["ZEUS_TOKEN"] = "forged-token"
+            try:
+                bad = ZeusClient(server.host, server.port)
+                bad.connect()
+                bad.policy_set(key="CPU_SOFT_PCT", value=60)
+                return "forged token escalated to operator"
+            except ValueError as exc:
+                if "right_denied" not in str(exc):
+                    return f"wrong refusal: {exc}"
+            finally:
+                os.environ.pop("ZEUS_TOKEN", None)
+            client.close()
+            return True
+        finally:
+            server.running = False
+
+
+def check_audit_chain_is_tamper_evident(tmp):
+    # own data dir: other checks' audit lines would shift the sequence
+    with sandbox(tmp, data_dir=os.path.join(tmp, "audit-chain")) as kernel:
+        for i in range(5):
+            kernel.log_event("entry", "info", f"row {i}", i=i)
+        ok, count, first_bad = kernel.audit_verify()
+        if not (ok and count == 5):
+            return f"clean chain failed: ok={ok} n={count} bad={first_bad}"
+        lines = open(content.AUDIT_PATH, encoding="utf-8").readlines()
+        forged = json.loads(lines[2])
+        forged["kind"] = "forged"
+        lines[2] = json.dumps(forged, sort_keys=True,
+                              separators=(",", ":")) + "\n"
+        with open(content.AUDIT_PATH, "w",
+                  encoding="utf-8", newline="") as fh:
+            fh.writelines(lines)
+        ok, count, first_bad = kernel.audit_verify()
+        if ok or first_bad != 3:
+            return f"tampering missed: ok={ok} first_bad={first_bad}"
+        return True
+
+
+def check_policy_bounds_are_enforced():
+    sdk = ZeusSDK.__new__(ZeusSDK)          # no kernel needed for gates
+    sdk.kernel = None
+    try:
+        sdk.policy_set(key="CPU_HARD_PCT", value=500)
+        return "out-of-band CPU_HARD_PCT accepted"
+    except ValueError as exc:
+        if "out of range" not in str(exc):
+            return f"wrong rejection: {exc}"
+    got = sdk.policy_set(key="RUNAWAY_SAMPLES", value=7)
+    if got.get("RUNAWAY_SAMPLES") != 7:
+        return "in-band value rejected"
+    return True
+
+
+def check_flood_control_engages(tmp):
+    with sandbox(tmp) as kernel:
+        server = ZeusServer(port=0, auto_patrol=False, kernel=kernel)
+        server.start_async()
+        try:
+            client = ZeusClient(server.host, server.port, auth=False)
+            client.connect()
+            rate_limited = False
+            for _ in range(content.RATE_MAX_COMMANDS + 50):
+                try:
+                    client.ping()
+                except ValueError as exc:
+                    if "rate_limited" in str(exc):
+                        rate_limited = True
+                        break
+                    return f"unexpected flood error: {exc}"
+            if not rate_limited:
+                return "flood never throttled"
+            # graceful close would itself be rate-limited: drop raw
+            for handle in (client._fh, client._sock):
+                if handle:
+                    try:
+                        handle.close()
+                    except OSError:
+                        pass
+            return True
+        finally:
+            server.running = False
+
+
 def check_watch_manifest_contains_self():
     manifest = [{"name": "selfpy", "kind": "contains",
                  "match": "python"}]
@@ -450,6 +574,16 @@ CHECKS = [
     ("audit write + rotation", lambda tmp:
      check_audit_written_and_rotates(tmp)),
     ("sdk surface lockstep", check_sdk_surface_lockstep),
+    ("security: stranger read-only", lambda tmp:
+     check_stranger_is_read_only(tmp)),
+    ("security: token auth operator", lambda tmp:
+     check_token_auth_restores_operator(tmp)),
+    ("security: audit tamper-evident", lambda tmp:
+     check_audit_chain_is_tamper_evident(tmp)),
+    ("security: policy bounds", lambda tmp:
+     check_policy_bounds_are_enforced()),
+    ("security: flood control", lambda tmp:
+     check_flood_control_engages(tmp)),
     ("wire roundtrip (TCP)", lambda tmp: check_wire_roundtrip(tmp)),
     ("watch manifest resolves self", check_watch_manifest_contains_self),
 ]

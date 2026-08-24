@@ -11,8 +11,11 @@ never let one sick probe take the whole kernel down.
 """
 
 import contextlib
+import hashlib
+import hmac
 import json
 import os
+import secrets
 import time
 from collections import deque
 
@@ -120,6 +123,10 @@ class Kernel:
         self.started_at = time.time()
         self.last_report = {}
         os.makedirs(content.DATA_DIR, exist_ok=True)
+        self._mint_token()
+        # audit chain head: every entry hashes the previous one, so a
+        # silent edit anywhere in the trail is detectable (rule 16)
+        self._audit_head = self._chain_tail()
         # NORN pulse: the patrol cycle is an organ with a latency SLO;
         # breach streaks quarantine it briefly instead of letting a
         # wedged probe spin. Vitals ride the status verb.
@@ -153,7 +160,11 @@ class Kernel:
         return rec
 
     def _audit(self, entry):
-        line = json.dumps(entry, separators=(",", ":"),
+        entry["prev"] = self._audit_head
+        digest = hashlib.sha256(self._audit_canonical(entry)
+                                .encode("utf-8")).hexdigest()
+        entry["sha"] = digest
+        line = json.dumps(entry, sort_keys=True, separators=(",", ":"),
                           default=str) + "\n"
         try:
             size = os.path.getsize(content.AUDIT_PATH) \
@@ -161,8 +172,18 @@ class Kernel:
             if size > content.AUDIT_MAX_BYTES:
                 os.replace(content.AUDIT_PATH,
                            content.AUDIT_PATH + ".1")
+                self._audit_head = "genesis"   # fresh chain per file
+                entry["prev"] = "genesis"
+                digest = hashlib.sha256(self._audit_canonical(
+                    {k: v for k, v in entry.items() if k != "sha"})
+                    .encode("utf-8")).hexdigest()
+                entry["sha"] = digest
+                line = json.dumps(entry, sort_keys=True,
+                                  separators=(",", ":"),
+                                  default=str) + "\n"
             with open(content.AUDIT_PATH, "a", encoding="utf-8") as fh:
                 fh.write(line)
+            self._audit_head = digest
         except OSError:
             pass                    # auditing must never kill patrols
         if ratatosk is not None and \
@@ -172,6 +193,67 @@ class Kernel:
                                  kind=str(entry.get("kind", "event")))
             except Exception:
                 pass
+
+    def _mint_token(self):
+        """Rotate the wire capability token each guardian boot. Same-
+        user clients re-read it transparently; stale copies die here."""
+        try:
+            token = secrets.token_hex(content.TOKEN_BYTES)
+            fd = os.open(content.TOKEN_PATH,
+                         os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(token)
+        except OSError:
+            pass                    # auth degrades to watcher-only
+
+    def _chain_tail(self):
+        """Hash head of the existing audit file, so appends continue
+        the chain across restarts (older lines stay verifiable)."""
+        try:
+            with open(content.AUDIT_PATH, "rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                fh.seek(max(0, size - 4096))
+                tail = fh.read().decode("utf-8", errors="replace")
+            last = [ln for ln in tail.splitlines() if ln.strip()][-1]
+            return json.loads(last).get("sha", "genesis")
+        except (OSError, ValueError, IndexError):
+            return "genesis"
+
+    @staticmethod
+    def _audit_canonical(entry):
+        body = {k: v for k, v in entry.items() if k != "sha"}
+        return json.dumps(body, sort_keys=True, separators=(",", ":"),
+                          default=str)
+
+    def audit_verify(self):
+        """Recompute the whole chain. Returns (ok, entries, first_bad)."""
+        ok, count, first_bad = True, 0, None
+        prev = "genesis"
+        try:
+            with open(content.AUDIT_PATH, "r", encoding="utf-8") as fh:
+                for seq, ln in enumerate(
+                        (l for l in fh if l.strip()), 1):
+                    count = seq
+                    try:
+                        entry = json.loads(ln)
+                        recomputed = hashlib.sha256(self._audit_canonical(
+                            entry).encode("utf-8")).hexdigest()
+                        chain_ok = (
+                            entry.get("prev") == prev
+                            and hmac.compare_digest(
+                                entry.get("sha", ""), recomputed))
+                    except ValueError:
+                        ok = False
+                        first_bad = first_bad or seq
+                        continue
+                    if not chain_ok:
+                        ok = False
+                        first_bad = first_bad or seq
+                    prev = entry.get("sha", prev)
+        except OSError:
+            return True, 0, None     # no trail yet: vacuously clean
+        return ok, count, first_bad
 
     def _heartbeat(self):
         if ratatosk is None:
