@@ -14,6 +14,7 @@ KIND_TICK = "fleet.tick"        # heartbeat + gate/lane summary each cycle
 KIND_BUILD = "fleet.build"      # daedalus outcome (forwarded or commissioned)
 KIND_REPAIR = "fleet.repair"    # remediation sweep outcome
 MAILBOX = "venus"               # stable point-to-point lane for Venus
+MIND_MAILBOX = "mind"           # outbound mirror for the mind layer
 
 # Inbound intent lane: Venus is the only writer, relay the only reader.
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +23,12 @@ INTENT_DIR = os.path.join(WORKSPACE, "assistant", "data", "relay",
                           "to-fleet")
 INTENT_DONE = os.path.join(INTENT_DIR, "done")
 INTENT_FAILED = os.path.join(INTENT_DIR, "failed")
+
+# MIND intent lane: the consciousness layer writes here, relay drains.
+MIND_INTENT_DIR = os.path.join(WORKSPACE, "assistant", "data", "relay",
+                               "from-mind")
+MIND_DONE = os.path.join(MIND_INTENT_DIR, "done")
+MIND_FAILED = os.path.join(MIND_INTENT_DIR, "failed")
 
 # ---------- cadence ----------
 

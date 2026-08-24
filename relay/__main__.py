@@ -30,11 +30,15 @@ def cmd_watch(a):
 def cmd_status(_a):
     relay = Relay()
     pending, done, failed = _counts()
+    mind_pending, mind_done, mind_failed = _mind_counts()
     tail = relay.post.tail(content.TOPIC, n=3)
     print(json.dumps({
         "topic": content.TOPIC,
         "mailbox": content.MAILBOX,
+        "mind_mailbox": content.MIND_MAILBOX,
         "intents": {"pending": pending, "done": done, "failed": failed},
+        "mind_intents": {"pending": mind_pending, "done": mind_done,
+                         "failed": mind_failed},
         "recent_updates": [
             {"seq": r.get("seq"), "kind": r.get("kind"),
              "at": (r.get("payload") or {}).get("at")}
@@ -68,6 +72,17 @@ def _counts():
             return 0
     return (_n(content.INTENT_DIR), _n(content.INTENT_DONE),
             _n(content.INTENT_FAILED))
+
+
+def _mind_counts():
+    def _n(path):
+        try:
+            return sum(1 for f in os.listdir(path)
+                       if f.endswith(".intent.json"))
+        except OSError:
+            return 0
+    return (_n(content.MIND_INTENT_DIR), _n(content.MIND_DONE),
+            _n(content.MIND_FAILED))
 
 
 def main(argv=None):

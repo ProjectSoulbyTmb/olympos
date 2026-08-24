@@ -1,4 +1,4 @@
-"""Verify suite for RELAY - the daedalus<->venus bridges.
+﻿"""Verify suite for RELAY - the daedalus<->venus bridges.
 
 Proves the seams, not the organs (those have their own suites):
 
@@ -50,18 +50,30 @@ def check(name, fn):
 
 
 class ScratchFleet:
-    """A relay wired to a throwaway post office + intent lane."""
+    """A relay wired to a throwaway post office + intent lanes."""
 
     def __init__(self):
         self.tmp = tempfile.mkdtemp(prefix="relay-verify-")
         self.post = Post(root=os.path.join(self.tmp, "post"))
         self.intent_dir = os.path.join(self.tmp, "to-fleet")
+        self.mind_dir = os.path.join(self.tmp, "from-mind")
         self._saved = (content.INTENT_DIR, content.INTENT_DONE,
-                       content.INTENT_FAILED, content.WORKSPACE)
+                       content.INTENT_FAILED, content.WORKSPACE,
+                       content.MIND_INTENT_DIR, content.MIND_DONE,
+                       content.MIND_FAILED)
         content.INTENT_DIR = self.intent_dir
         content.INTENT_DONE = os.path.join(self.intent_dir, "done")
         content.INTENT_FAILED = os.path.join(self.intent_dir, "failed")
         content.WORKSPACE = self.tmp
+        content.MIND_INTENT_DIR = self.mind_dir
+        content.MIND_DONE = os.path.join(self.mind_dir, "done")
+        content.MIND_FAILED = os.path.join(self.mind_dir, "failed")
+
+    def restore(self):
+        (content.INTENT_DIR, content.INTENT_DONE,
+         content.INTENT_FAILED, content.WORKSPACE,
+         content.MIND_INTENT_DIR, content.MIND_DONE,
+         content.MIND_FAILED) = self._saved
 
     def write_intent(self, body):
         os.makedirs(self.intent_dir, exist_ok=True)
@@ -71,9 +83,20 @@ class ScratchFleet:
             json.dump(body, fh)
         return name
 
+    def write_mind_intent(self, body):
+        os.makedirs(self.mind_dir, exist_ok=True)
+        name = f"mind-{body.get('id', 'i')}.intent.json"
+        with open(os.path.join(self.mind_dir, name), "w",
+                  encoding="utf-8") as fh:
+            json.dump(body, fh)
+        return name
+
     def close(self):
         (content.INTENT_DIR, content.INTENT_DONE,
-         content.INTENT_FAILED, content.WORKSPACE) = self._saved
+         content.INTENT_FAILED, content.WORKSPACE,
+         content.MIND_INTENT_DIR, content.MIND_DONE,
+         content.MIND_FAILED) = self._saved
+        shutil.rmtree(self.tmp, ignore_errors=True)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
 
@@ -227,11 +250,77 @@ def t_cli_status():
     return "status reports topic/mailbox/lane counts"
 
 
+def t_mind_intents_roundtrip():
+    fleet = ScratchFleet()
+    try:
+        ran = []
+
+        def runner(intent):
+            ran.append(intent["type"])
+            return True, "mind-ok"
+
+        r = Relay(post=fleet.post, runner=runner)
+        fleet.write_mind_intent({"id": "m1", "type": "build",
+                                 "blueprint": "jsonl-echo"})
+        fleet.write_mind_intent({"raw": 1})            # malformed
+        out = r.drain_mind_intents()
+        assert len(out) == 2, out
+        done = os.listdir(content.MIND_DONE)
+        failed = os.listdir(content.MIND_FAILED)
+        assert len(done) == 1 and len(failed) == 1, (done, failed)
+        # reply letters land in the mind mailbox with correlation id
+        replies = [l for l in fleet.post.read(content.MIND_MAILBOX)
+                   if l.get("kind") == "fleet.reply"]
+        assert any(r_.get("payload", {}).get("intent") == "m1"
+                   for r_ in replies), replies
+        # venus lane untouched by mind traffic
+        assert not [n for n in os.listdir(content.INTENT_DIR)
+                    if n.endswith(".intent.json")] if os.path.isdir(
+                        content.INTENT_DIR) else True
+        return "mind intent executed; reply correlated; malformed filed"
+    finally:
+        shutil.rmtree(fleet.tmp, ignore_errors=True)
+        fleet.close()
+
+
+def t_mind_knowledge_intent():
+    fleet = ScratchFleet()
+    try:
+        # minimal corpus so the knowledge engine has something to say
+        lib = os.path.join(fleet.tmp, "knowledge", "library")
+        os.makedirs(lib, exist_ok=True)
+        with open(os.path.join(lib, "alpha.md"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("# Alpha Doctrine\n\nThe alpha protocol requires "
+                     "a confirmation gate before every destructive act.\n")
+        engine = os.path.join(fleet.tmp, "knowledge", "engine.py")
+        src = os.path.join(WORKSPACE, "knowledge", "engine.py")
+        shutil.copyfile(src, engine)
+
+        r = Relay(post=fleet.post)                 # real runner path
+        fleet.write_mind_intent({"id": "k1", "type": "knowledge",
+                                 "query": "alpha protocol confirmation"})
+        out = r.drain_mind_intents()
+        assert len(out) == 1 and out[0][1] is True, out
+        replies = [l for l in fleet.post.read(content.MIND_MAILBOX)
+                   if l.get("kind") == "fleet.reply"]
+        blob = json.dumps(replies)
+        assert "Alpha Doctrine" in blob or "alpha" in blob, blob[:300]
+        return "knowledge intent answered from library corpus"
+    finally:
+        shutil.rmtree(fleet.tmp, ignore_errors=True)
+        fleet.close()
+
+
 def main():
     print("verify_relay")
     check("forward exactly-once across restart", t_forward_exactly_once)
     check("failures relay with ok=false", t_forward_marks_failures)
     check("intents execute, file and publish", t_intents_execute_and_file)
+    check("mind intents roundtrip + correlated replies",
+          t_mind_intents_roundtrip)
+    check("mind knowledge intent answers from library",
+          t_mind_knowledge_intent)
     check("constant stream carries verdicts", t_tick_streams_verdict)
     check("buskit catalogue discipline", t_catalogue_contract)
     check("cli status green on scratch bus", t_cli_status)
