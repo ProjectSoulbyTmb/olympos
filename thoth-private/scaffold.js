@@ -63,13 +63,47 @@ function existsDir(p) {
 
 function indexTemplate({ id, title }) {
   const exportName = `${pascal(id)}Feature`;
+  const stateKey = camel(id);
   return `${HEADER}/**
  * ${title} - scaffolded by THOTH against the feature contract.
+ * Ships with a working, store-persisted collection baseline; replace or
+ * extend add/list/remove with real domain logic when you are ready.
  * See src/core/feature-registry.js for the descriptor shape.
  */
 import { knowledge } from './knowledge.js';
 
 export const ${id.toUpperCase().replace(/-/g, '_')}_VERSION = '0.1.0';
+
+const STATE_KEY = '${stateKey}';
+
+/** Working baseline: a bounded, persisted collection on the engine store. */
+export function attachToEngine(engine) {
+  if (!engine.state[STATE_KEY] || typeof engine.state[STATE_KEY] !== 'object') {
+    engine.state[STATE_KEY] = { enabled: true, items: [] };
+  }
+  const persist = () => engine.store?.save?.(engine.state);
+  return {
+    add(text) {
+      const item = {
+        text: String(text ?? '').trim().slice(0, 500),
+        at: new Date().toISOString(),
+      };
+      if (!item.text) throw new Error('nothing to add');
+      engine.state[STATE_KEY].items.push(item);
+      if (engine.state[STATE_KEY].items.length > 500) engine.state[STATE_KEY].items.shift();
+      persist();
+      return item;
+    },
+    list() {
+      return engine.state[STATE_KEY].items.slice();
+    },
+    remove(index) {
+      const removed = engine.state[STATE_KEY].items.splice(Number(index), 1);
+      persist();
+      return removed.length ? removed[0] : null;
+    },
+  };
+}
 
 export const ${exportName} = {
   id: '${id}',
@@ -95,10 +129,10 @@ export const ${exportName} = {
     return undefined;
   },
   schemaDefaults: {
-    '${id}': { enabled: true },
+    '${stateKey}': { enabled: true, items: [] },
   },
   migrations: [],
-  api: { version: ${id.toUpperCase().replace(/-/g, '_')}_VERSION, knowledge },
+  api: { version: ${id.toUpperCase().replace(/-/g, '_')}_VERSION, knowledge, attachToEngine },
 };
 `;
 }
@@ -120,7 +154,7 @@ export const knowledge = {
   rules: [
     {
       id: '${key}',
-      re: /\\b${id.replace(/-/g, '\\s?')}\\b/i,
+      re: /\\b${id.replace(/-/g, '[-\\s]?')}\\b/i,
     },
   ],
 };
@@ -151,10 +185,24 @@ test(
   { skip: !existsSync(INSTALLED) },
   async () => {
     const { registeredFeatures, featureApi } = await import('../src/core/feature-registry.js');
+    const mod = await import(
+      new URL('../src/features/${id}/index.js', import.meta.url).href
+    );
     const api = featureApi('${id}');
     assert.equal(api.version, '0.1.0');
     assert.ok(api.knowledge?.entries && Array.isArray(api.knowledge.rules));
     assert.ok(registeredFeatures().map(f => f.id).includes('${id}'));
+
+    // Working-baseline proof: persisted collection round-trip.
+    let saved = 0;
+    const engine = { state: {}, store: { save: () => (saved += 1) } };
+    const collection = mod.attachToEngine(engine);
+    collection.add('first');
+    collection.add('second');
+    assert.equal(collection.list().length, 2);
+    assert.equal(collection.remove(0).text, 'first');
+    assert.equal(collection.list().length, 1);
+    assert.ok(saved >= 2, 'mutations persist through engine.store.save');
   }
 );
 `;

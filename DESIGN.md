@@ -98,6 +98,19 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
   Saves rotate `.bak1..N`; corrupt saves auto-recover from the newest
   readable backup with a warning alert. Verify gate now 29/29; new
   SDK verbs: repairs/diagnose/warden.
+- 2026-08-23: RSPS client brought to full playability (verify gate
+  19 -> 26). Engine: ground-item layer + pickup, prayer book with
+  drain/regen and combat multipliers, branching dialogue trees
+  (talk_to/dialogue_choose) with two new quests, catacombs region
+  with ladder teleports, skeleton/hobgoblin spawns and the Vulcan
+  Guardian boss, water/earth strike spells, snapshot v7 (additive,
+  v1-v6 still load). Server: named channels give shared chat +
+  presence (state.players) without breaking per-player instancing;
+  snapshots persist to server/saves/ and resume by name on re-login.
+  Client: right-click context menus everywhere, clickable minimap,
+  procedural sprites/animations/hit-splats, panel tabs (stats/inv/
+  quests/magic/prayer/bank/shop), dialogue window, chat box, area
+  ambience with catacombs drone.
 
 - 2026-08-23: Heart gained autonomic energy states (awake/drowsy/asleep
   driven by command activity, sleepBpm slowdown) and pluggable critical

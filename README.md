@@ -34,7 +34,7 @@ $py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
 | Path | What it is |
 |---|---|
 | `dashboard.py` / `OsrsLab.exe` | Desktop hub: pick an activity, run it, watch sessions + RL curves live |
-| `play_rsps.py` | **Playable game client**: graphical tile world with click/WASD movement, combat, skilling, XP drops - auto-hosts the server if none is running (`python play_rsps.py`) |
+| `play_rsps.py` | **Playable game client**: graphical tile world with click/right-click context menus, WASD movement, combat with hit splats, skilling, XP drops, minimap, dialogue trees, prayer/magic/bank/shop/journal tabs, shared-channel chat - auto-hosts the server if none is running (`python play_rsps.py`) |
 | `osrs_updater.py` | Continuous live-data refresher: GE prices (4.5k items), item mapping, wiki update-feed watcher -> `knowledge/live/`. Run `python osrs_updater.py --watch 30` to stay current |
 | `MIND kernel /` | Tick-based 23-skill world (woodcutting, mining, fishing, cooking, firemaking, smithing, combat, prayer, ranged, magic, runecrafting, thieving, agility, herblore, crafting, fletching, slayer, farming, **construction**, **hunter**), bank/shop/furnace/quests, workshop sawmill + furniture building, bird-snare hunting ground, Ultimate Ironman mode, pause/resume sessions, LLM strategic loop, GE-price + Wiki knowledge pipeline |
 | `osrs-llm-agent/server/` | **Your own RSPS engine**: authoritative JSON-lines game server with per-character instanced worlds + `RemoteGameSDK` client so any strategy runs over the wire unchanged. Original protocol/engine modeled on OSRS mechanics - not interoperable with the official client |

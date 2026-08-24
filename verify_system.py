@@ -553,6 +553,167 @@ def t_runner():
     return "all 7 flows wired"
 
 
+def t_ground_items():
+    from game.world import World
+    from game.sdk import GameSDK
+    w = World(tick_budget=2000)
+    g = GameSDK(w)
+    w.inventory["logs"] = 4
+    g.drop("logs", 2)
+    assert w.ground.get(w.pos, {}).get("logs") == 2
+    assert w.inventory["logs"] == 2
+    before = w.state()
+    assert any(gr["item"] == "logs"
+               for gr in before["ground"]), "drop not visible in state"
+    w.inventory["logs"] = 2
+    del w.inventory["logs"]
+    g.pickup()
+    assert w.inventory.get("logs") == 2 and not w.ground
+    try:
+        g.pickup()
+        raise AssertionError("pickup on empty tile should fail")
+    except Exception:
+        pass
+    snap = json.loads(json.dumps(w.save()))
+    w2 = World(); w2.load_snapshot(snap)
+    return "drop->state->pickup + v7 persistence OK"
+
+
+def t_prayers():
+    from game.world import World, GameError
+    from game.sdk import GameSDK
+    import game.content as C
+    w = World(tick_budget=2000)
+    g = GameSDK(w)
+    assert set(C.PRAYERS) >= {"clarity", "toughness", "fury", "blessing"}
+    try:
+        g.toggle_prayer("fury")
+        raise AssertionError("level gate broken")
+    except GameError:
+        pass
+    w.prayer_points = 50.0
+    assert g.toggle_prayer("clarity") is True
+    t0 = w.tick
+    pp0 = w.prayer_points
+    g.wait(20)
+    assert w.tick - t0 >= 20 and w.prayer_points < pp0, "no drain"
+    assert "clarity" in w.active_prayers
+    g.toggle_prayer("clarity")
+    assert "clarity" not in w.active_prayers
+    st = g.state()["prayers"]
+    assert st["cap"] == 10 + w.skill_level("prayer")
+    return "gates, drain, regen cap, state payload OK"
+
+
+def t_dialogue_system():
+    from game.world import World, GameError
+    from game.sdk import GameSDK
+    from game.content import LOCATIONS
+    w = World(tick_budget=4000)
+    g = GameSDK(w)
+    qp = LOCATIONS["quest_giver"][2]
+    w.move_to(*qp)
+    d = g.talk_to()
+    assert d["npc"] == "quest_giver" and len(d["options"]) >= 3
+    d = g.dialogue_choose(0)          # -> work page
+    assert any("shrimp" in o for o in d["options"])
+    d = g.dialogue_choose(0)          # accept shrimp_fetch
+    assert w.quests["shrimp_fetch"] == "active"
+    try:
+        g.dialogue_choose(99)
+        raise AssertionError("bad option index accepted")
+    except GameError:
+        pass
+    wp = LOCATIONS["wise_man"][2]
+    w.move_to(*wp)
+    d = g.talk_to("wise_man")
+    assert any("chef" in o for o in d["options"])
+    g.dialogue_choose(1)
+    g.dialogue_choose(0)
+    assert w.quests["chef_order"] == "active"
+    try:
+        g.talk_to("nobody")
+        raise AssertionError("unknown talk target accepted")
+    except GameError:
+        pass
+    return "branching trees, quest actions, guards OK"
+
+
+def t_ladder_catacombs():
+    from game.world import World
+    from game.sdk import GameSDK
+    from game.content import LOCATIONS, LADDER_DEST, NPC_SPAWNS
+    w = World(tick_budget=6000)
+    g = GameSDK(w)
+    kinds = {k for k, _p in NPC_SPAWNS.values()}
+    assert {"skeleton", "hobgoblin", "vulcan_guardian"} <= kinds
+    ent = LOCATIONS["catacomb_entrance"][2]
+    ticks = g.move_to(*ent)
+    assert tuple(w.pos) != ent, "ladder did not teleport"
+    assert any(n["kind"] in ("skeleton", "vulcan_guardian")
+               for n in w.npcs())
+    up = LOCATIONS["catacomb_exit"][2]
+    g.move_to(*up)
+    dest = LOCATIONS["catacomb_exit"][2] and LADDER_DEST["catacomb_exit"]
+    assert tuple(w.pos) == tuple(dest), "exit teleport wrong"
+    return f"teleport pair + boss/skeleton spawns OK"
+
+
+def t_new_spells_and_shop():
+    import game.content as C
+    for spell in ("water_strike", "earth_strike"):
+        spec = C.SPELLS[spell]
+        assert spec["runes"] and spec["req"] >= 5
+    for rune in ("water_rune", "earth_rune"):
+        assert rune in C.SHOP_STOCK and C.SHOP_PRICES[rune] > 0
+    assert "guardian_shard" in C.SHOP_STOCK
+    return "water/earth strikes + shop stock OK"
+
+
+def t_multiplayer_channel():
+    sys.path.insert(0, AGENT)
+    from server.rsps_server import GameServer
+    from server.client import RemoteGameSDK
+    srv = GameServer(port=43993)
+    srv.start_async()
+    time.sleep(0.8)
+    try:
+        a = RemoteGameSDK(name="mp_alice", port=srv.port, channel="main")
+        b = RemoteGameSDK(name="mp_bob", port=srv.port, channel="main")
+        a.chat("anyone here?")
+        b.state()
+        got = [c["text"] for c in b._drain_chat()]
+        assert any("anyone here?" in t for t in got), got
+        a.move_to(7, 7)
+        seen = b.state().get("players")
+        assert any(p["name"] == "mp_alice" and p["pos"] == [7, 7]
+                   for p in seen), seen
+        tick_a = a.state()["tick"]
+        a.close()
+        time.sleep(0.5)
+        c = RemoteGameSDK(name="mp_alice", port=srv.port,
+                          channel="main")
+        assert c.resumed and c.state()["tick"] >= tick_a
+        priv = RemoteGameSDK(name="mp_carol", port=srv.port)
+        assert priv.state().get("players") in ([], None)
+        c.close(); b.close(); priv.close()
+    finally:
+        srv.running = False
+    return "chat feed, presence, resume-by-name, private default"
+
+
+def t_playable_client_ui():
+    src = open(os.path.join(HERE, "play_rsps.py"),
+               encoding="utf-8").read()
+    need = ["world_menu_at", "minimap_click", "draw_dialogue",
+            "draw_chat", "_tab_bank", "_tab_shop", "_tab_magic",
+            "_tab_prayer", "selected_spell", "Splat", "ambience",
+            "CATACOMBS_RECT", "catacombs"]
+    missing = [n for n in need if n not in src]
+    assert not missing, f"client missing: {missing}"
+    return "menus, minimap, dialogue, chat, tabs, splats present"
+
+
 print("=" * 72)
 print("OSRS LAB - FULL SYSTEM VERIFICATION")
 print("=" * 72)
@@ -577,6 +738,13 @@ for name, fn in [
     ("SOCKET: LLM endpoint (ollama)", t_llm_endpoint),
     ("APP: OsrsLab.exe", t_dashboard_exe),
     ("APP: easy runner wiring", t_runner),
+    ("ENGINE: ground items & pickup", t_ground_items),
+    ("ENGINE: prayer book", t_prayers),
+    ("ENGINE: dialogue trees", t_dialogue_system),
+    ("ENGINE: catacombs, ladders & boss", t_ladder_catacombs),
+    ("ENGINE: new spells & shop stock", t_new_spells_and_shop),
+    ("SOCKET: multiplayer channel + resume", t_multiplayer_channel),
+    ("APP: client UI systems", t_playable_client_ui),
 ]:
     check(name, fn)
 

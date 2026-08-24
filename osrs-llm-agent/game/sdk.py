@@ -26,7 +26,9 @@ class GameSDK:
               "talk_quest(q=None)", "deposit_all()", "deposit(i,n=None)",
               "withdraw(i,n=None)", "sell(i,n=None)", "buy(item,n=1)",
               "drop(i,n=None)", "wait(t)", "set_run(bool)",
-              "get_score(task='total_xp')")
+              "get_score(task='total_xp')",
+              "pickup()", "toggle_prayer(p)", "talk_to(npc=None)",
+              "dialogue_choose(idx)")
 
     def __init__(self, world):
         self._w = world
@@ -261,6 +263,20 @@ class GameSDK:
         """Live Grand Exchange price from the updater snapshot (or None)."""
         from .market import ge_price
         return ge_price(str(item))
+
+    def pickup(self):
+        """Pick up ground items under your feet."""
+        return self._w.pickup()
+
+    def toggle_prayer(self, name):
+        return self._w.toggle_prayer(name)
+
+    def talk_to(self, npc=None):
+        return self._w.talk_to(npc)
+
+    def dialogue_choose(self, idx):
+        return self._w.dialogue_choose(idx)
+
 
 
 def build_sdk_docs():

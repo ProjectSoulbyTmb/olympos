@@ -30,6 +30,8 @@ class Session:
         self.state_tick = None
         self.state_bytes = b""
         self.last_saved_tick = -1
+        # Bounded chat feed; cross-thread appends go through GameServer._lock.
+        self.chat_log = deque(maxlen=CHAT_HISTORY)
 
 
 class GameServer:
