@@ -64,6 +64,7 @@ SUITES = [
     ("system", "verify_system.py"),
     ("relay", os.path.join("relay", "verify_relay.py")),
     ("learning", "verify_learning.py"),
+    ("godot-blueprint", "verify_godot_blueprint.py"),
 ]
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [
