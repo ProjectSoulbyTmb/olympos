@@ -51,3 +51,4 @@ site/
 
 # --- per-agent git worktrees (FLOW.md) ---
 .worktrees/
+atlas/data/

@@ -87,6 +87,8 @@ BUILD_GATES = [
      "timeout_s": 420},
     {"name": "ptah", "argv": ["python", "ptah/verify_ptah.py"],
      "timeout_s": 600},
+    {"name": "atlas", "argv": ["python", "atlas/verify_atlas.py"],
+     "timeout_s": 300},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this
 BUILD_ON_IDLE = True           # the organism proves itself even quiet

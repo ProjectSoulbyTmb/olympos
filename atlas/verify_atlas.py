@@ -228,9 +228,9 @@ def sdk_surface_matches_registry():
 def audit_trail_is_tamper_evident():
     with sandbox() as hv:
         hv.create("aud")
-        hv.stop("aud")
+        hv.exec("aud", [PY, "-c", "pass"])
         ok, count, bad = hv.audit.verify()
-        assert ok and count >= 2, (ok, count, bad)
+        assert ok and count >= 3, (ok, count, bad)
         lines = open(hv.audit.path, encoding="utf-8").readlines()
         forged = json.loads(lines[0])
         forged["kind"] = "forged"

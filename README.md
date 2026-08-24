@@ -20,6 +20,7 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 | `vulcan/` | Smart-building automation sandbox: thermal simulation, rules engine with schema gates, warden self-healing, authoritative JSON-lines server - the proving ground for autonomous build-and-verify loops |
 | `gaia/` | Ops kernel watching the whole organism: git sync state, CI verdicts, patrol loops (`node gaia.mjs`) |
 | `ptah/` | Software-engineering agent kernel: event-sourced reasoning-action loop over audited tools (terminal, file editor, grep, task tracker, verify-gate runner, memory), risk-classified actions with human confirmation gating, keyword-triggered skills, provider-agnostic LLM brain (OpenAI-compatible/Anthropic) or offline scripted brain, REST control plane on `127.0.0.1:43903`. Verify: `python ptah/verify_ptah.py` - nightly self-check: `python -m ptah selfcheck` |
+| `atlas/` | **Hypervisor**: hosts jailed guest workspaces for builder agents - per-guest directory confinement, argv-only execution with hard timeouts + tree-kill, capped output capture, scrubbed environments, hash-chained audit, NORN rights on the wire (watchers observe; operators rent compute) on `127.0.0.1:43904`. Verify: `python atlas/verify_atlas.py` |
 | `thoth-private/` | Operator kernel doctrines: federation, stabilization points, knowledge entries, repair contracts |
 | `knowledge/` | Distilled lessons database + architecture playbook + engineering rules extracted from everything built here |
 

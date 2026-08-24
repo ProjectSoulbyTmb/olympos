@@ -36,6 +36,15 @@ VULCAN_PROFILES = {
 }
 VULCAN_DEFAULT_PROFILE = "operator"
 
+# Atlas realm: the hypervisor. Guests are compute; renting one is a
+# mutation, watching the fleet is not.
+ATLAS_INFO = frozenset({"ping", "status", "guests", "close"})
+ATLAS_PROFILES = {
+    "operator": None,   # None == every AtlasSDK verb
+    "watcher": ATLAS_INFO,
+}
+ATLAS_DEFAULT_PROFILE = "operator"
+
 # Zeus realm: protection verbs are high-stakes (bolts, policy), so the
 # read-only surface stays wide but mutation stays operator-only.
 ZEUS_INFO = frozenset({
