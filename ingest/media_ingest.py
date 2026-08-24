@@ -14,6 +14,8 @@ Usage:
   python tools/media_ingest.py --download            # download pending files
   python tools/media_ingest.py --download --only goth
   python tools/media_ingest.py --launch              # detached background run
+  python tools/media_ingest.py --clone-source dbnaked-riley-reid-tube --as dbnaked-other-model-tube --set-path "/models/general/O/Other-Model"
+  python tools/media_ingest.py --audit-videos        # Riley: integrity+dupes
   python tools/media_ingest.py --clone-source dbnaked-riley-reid-pics \
       --as dbnaked-other-model-pics --set-path "/models/general/O/Other-Model"
   python tools/media_ingest.py --audit-videos        # Riley: integrity+dupes
@@ -742,6 +744,40 @@ def cmd_launch(args):
     log(f"detached pid launched\nlog: {logf}\nmanual rerun: {bat}")
 
 
+def cmd_clone(args):
+    master = load_json(args.catalog, {"v": VERSION, "sources": {}})
+    src_name = args.clone_source
+    info = master["sources"].get(src_name)
+    sdir = None
+    if info and os.path.isdir(info["dir"]):
+        sdir = info["dir"]
+    else:
+        guess = os.path.join(args.out, src_name)
+        if os.path.isdir(guess):
+            sdir = guess
+    scat = load_json(os.path.join(sdir or "", "_source.json"), None) \
+        if sdir else None
+    if not scat:
+        log(f"clone fail: no catalog/source for '{src_name}'")
+        return 1
+    spec = json.loads(json.dumps(scat["spec"]))
+    spec["name"] = args.as_name
+    if args.set_path:
+        spec["path"] = args.set_path
+    ndir = os.path.join(args.out, args.as_name)
+    os.makedirs(ndir, exist_ok=True)
+    save_json(os.path.join(ndir, "_source.json"),
+              {"name": args.as_name, "spec": spec, "items": []})
+    master["sources"][args.as_name] = {
+        "dir": ndir, "items": 0, "materialized": 0,
+        "updated_at": datetime.now(timezone.utc).isoformat()}
+    save_json(args.catalog, master)
+    log(f"cloned {src_name} -> {args.as_name} "
+        f"[{spec['adapter']}] path={spec.get('path')}")
+    log(f"populate it with: --discover --only {args.as_name}")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog=APP)
     p.add_argument("--out", default=r"D:\new")
@@ -758,11 +794,19 @@ def main(argv=None):
                    action="store_false")
     p.add_argument("--no-female-filter", action="store_true")
     p.add_argument("--no-discover-extra", action="store_true")
+    p.add_argument("--clone-source", default=None,
+                   help="clone an existing source's config by name")
+    p.add_argument("--as", dest="as_name", default=None,
+                   help="name for the cloned source")
+    p.add_argument("--set-path", default=None,
+                   help="override the cloned source's path (e.g. a model page)")
     p.add_argument("--only", default=None)
     p.add_argument("--speed", type=float, default=1.0)
     args = p.parse_args(argv)
     os.makedirs(args.out, exist_ok=True)
     ran = False
+    if args.clone_source:
+        sys.exit(cmd_clone(args))
     if args.discover:
         cmd_discover(args)
         ran = True
