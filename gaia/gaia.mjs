@@ -453,8 +453,18 @@ async function main() {
     (Number(args.find(a => a.startsWith('--every='))?.split('=')[1]?.replace(/\D/g, '')) || 15) * 60_000);
   const withCi = args.includes('--ci');
   const asJson = args.includes('--json');
-  const execute = args.includes('--execute');
-  const withFix = args.includes('--fix');
+  // SAFEGUARD: a `.gaia-pause` file at the repo root suppresses all
+  // mutating patrols (fix/execute) while read-only vitals keep working.
+  // This is how humans and other agents stop auto-commit storms
+  // without needing admin rights over the scheduled task.
+  const paused = fs.existsSync(path.resolve(GAIA_ROOT, '..', '.gaia-pause'));
+  let execute = args.includes('--execute');
+  const withFix0 = args.includes('--fix');
+  const withFix = withFix0 && !paused;
+  if (paused && (execute || withFix0)) {
+    console.log('GAIA: .gaia-pause present - remediation suppressed (vitals stay read-only)');
+    execute = false;
+  }
 
   do {
     if (cmd === 'trend') {

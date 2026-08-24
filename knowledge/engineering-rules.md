@@ -50,10 +50,17 @@ lesson id in `lessons.json`.
 14. **Trademark hygiene while small**: public names avoid third-party
     marks; disclaimers live in the README; internal identifiers stay
     (L024).
+15. **Shared checkout => private index.** Commit with an isolated
+    GIT_INDEX_FILE staging only your declared paths; run gates on
+    those paths before the commit lands (L028).
+16. **Gate every commit mechanically**: syntax compile, duplicate
+    top-level def scan, JSON validity - `safeguards/check.py` wired
+    as a pre-commit hook exists because each of these failures
+    already happened once.
 
 ## Security
 
-15. **Capability check per verb** from one declared table; profiles
+17. **Capability check per verb** from one declared table; profiles
     narrow; escalation is admin-only and logged (L013).
-16. **Hash-chain all audit trails**; seal manifests with HMAC plus an
+18. **Hash-chain all audit trails**; seal manifests with HMAC plus an
     independent anchor (L011).

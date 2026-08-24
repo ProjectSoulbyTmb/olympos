@@ -19,7 +19,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT_PARENT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT_PARENT)
 
-from ratatosk.bus import Post, default_root, publish, beat  # noqa: E402
+from ratatosk.bus import (Post, default_root, publish, beat,          # noqa: E402
+                          MAX_LETTER_BYTES, FLOOD_UNREAD)
 
 CHECKS = []
 
@@ -608,6 +609,132 @@ def vitals_cli_exit_codes():
         r = run(["vitals"])
         assert r.returncode == 0 and "topic skoll: 2 lines" in r.stdout, \
             r.stdout
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
+def oversize_letter_guards():
+    post, outer = sandbox()
+    try:
+        big = {"blob": "x" * (MAX_LETTER_BYTES + 1024)}
+        try:
+            post.send("gatekeeper", "huge", big, frm="abuser")
+            raise AssertionError("oversize send must raise ValueError")
+        except ValueError:
+            pass
+        # never-raise senders truncate to a reference note instead
+        seq = publish("gate-topic", big, frm="abuser", kind="big",
+                      root=post.root)
+        assert isinstance(seq, int)
+        rec = post.tail("gate-topic", n=1)[0]
+        assert rec["payload"].get("_truncated") is True, rec["payload"]
+        assert "preview" in rec["payload"]
+        from ratatosk import safe_send, fit_payload
+        lid = safe_send("gatekeeper", "trimmed", big, frm="abuser",
+                        root=post.root)
+        assert lid is not None
+        letters = post.read("gatekeeper")
+        assert letters[0]["payload"].get("_truncated") is True
+        small = fit_payload({"ok": 1})
+        assert small == {"ok": 1}, "small payloads pass through intact"
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
+def flood_flag_and_deadman():
+    from ratatosk import deadman
+    post, outer = sandbox()
+    try:
+        for i in range(FLOOD_UNREAD + 5):
+            post.send("swamped", "p", {"i": i}, frm="feeder")
+        st = post.status()
+        assert st["organs"]["swamped"]["flooded"] is True
+        assert st["organs"]["swamped"]["unread"] == FLOOD_UNREAD + 5
+        post.beat("swamped", note="alive")
+        assert deadman("swamped", max_age_s=600,
+                       root=post.root) is False
+        assert deadman("never-beat-organ", max_age_s=600,
+                       root=post.root) is True
+        old = time.time() - 9999
+        post.beat("elder", note=None)
+        hb = os.path.join(post.root, "elder", "heartbeat.json")
+        doc = json.load(open(hb, encoding="utf-8"))
+        doc["epoch"] = old
+        json.dump(doc, open(hb, "w", encoding="utf-8"))
+        assert deadman("elder", max_age_s=600, root=post.root) is True
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
+def safeguards_gate_catches_breakage():
+    """The repo gate itself: dup-def detector + JSON gate + strict
+    mixed-state behavior, exercised through check.py on temp files."""
+    import subprocess as sp
+    outer = tempfile.mkdtemp(prefix="safegate-")
+    py = sys.executable
+    checker = os.path.join(ROOT_PARENT, "safeguards", "check.py")
+    try:
+        badpy = os.path.join(outer, "dup.py")
+        open(badpy, "w", encoding="utf-8").write(
+            "def twice():\n    return 1\n\n\ndef twice():\n    return 2\n")
+        r = sp.run([py, checker, badpy], capture_output=True, text=True)
+        assert r.returncode != 0 and "'twice'" in r.stdout, r.stdout
+        badjson = os.path.join(outer, "broken.json")
+        open(badjson, "w", encoding="utf-8").write('{"a": 1,,}')
+        r = sp.run([py, checker, badjson], capture_output=True, text=True)
+        assert r.returncode != 0 and "json" in r.stdout.lower(), r.stdout
+        goodpy = os.path.join(outer, "clean.py")
+        open(goodpy, "w", encoding="utf-8").write("X = 1\n")
+        r = sp.run([py, checker, "--strict", goodpy],
+                   capture_output=True, text=True)
+        assert r.returncode == 0, r.stdout
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
+def safe_commit_isolated_index():
+    """Dogfood the isolated-index committer on a scratch branch clone:
+    unrelated staged junk in a shared index must NOT leak into the
+    commit."""
+    import subprocess as sp
+    py = sys.executable
+    sc = os.path.join(ROOT_PARENT, "safeguards", "safe_commit.py")
+    outer = tempfile.mkdtemp(prefix="safe-commit-")
+    clone = os.path.join(outer, "clone")
+    env = dict(os.environ)
+    try:
+        r = sp.run(["git", "clone", "-q", ROOT_PARENT, clone],
+                   capture_output=True, text=True)
+        if r.returncode:                     # nested-repo quirk: skip
+            print("[note] clone unavailable; skipping isolation drill")
+            return
+        def w(rel, text):
+            p = os.path.join(clone, rel)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write(text)
+            return p
+        w("lane_a.txt", "lane A change\n")
+        junk = w("lane_b_junk.txt", "patron lane's staged junk\n")
+        sp.run(["git", "add", "lane_a.txt", "lane_b_junk.txt"],
+               cwd=clone, capture_output=True)
+        r = sp.run([py, sc, "-m",
+                    "lane A only - junk must stay out",
+                    "lane_a.txt"],
+                   cwd=clone, capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr + r.stdout
+        shown = sp.run(["git", "show", "--name-only", "--format=", 
+                        "HEAD"], cwd=clone, capture_output=True,
+                       text=True).stdout.split()
+        assert shown == ["lane_a.txt"], shown
+        assert os.path.isfile(junk), "junk file must remain on disk"
+        status = sp.run(["git", "status", "--short"], cwd=clone,
+                        capture_output=True, text=True).stdout
+        assert "lane_b_junk" in status, "junk must remain staged for its owner"
     finally:
         shutil.rmtree(outer, ignore_errors=True)
 

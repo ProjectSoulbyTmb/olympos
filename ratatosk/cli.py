@@ -18,7 +18,7 @@ import shutil
 import sys
 import tempfile
 
-from .bus import Post, default_root
+from .bus import Post, default_root, FLOOD_UNREAD
 
 
 def _payload(text):
@@ -112,30 +112,33 @@ def cmd_beat(args):
 
 
 def cmd_vitals(args):
-    """One line per organ (heartbeat age, unread, stale marker) plus
-    per-topic line counts. --strict exits 1 when ANY known organ's
-    heartbeat is older than --stale-s or missing entirely."""
+    """One line per organ (heartbeat age, unread, stale/flood markers)
+    plus per-topic line counts. --strict exits 1 when ANY known organ
+    is stale, silent, or flooded (unread over the flood threshold)."""
     post = Post()
-    stale = False
+    bad = False
     print(f"post office: {post.root}")
     print(f"{'organ':<16} {'unread':>6} {'hb-age':>10}  state")
     for name in post.organs():
         age = post.heartbeat_age(name)
+        unread = post.unread(name)
         if age is None:
             state = "STALE (no heartbeat)"
         elif age > args.stale_s:
             state = "STALE"
+        elif unread > FLOOD_UNREAD:
+            state = "FLOODED"
         else:
             state = "ok"
-        stale = stale or state.startswith("STALE")
+        bad = bad or state != "ok"
         age_s = f"{age:.0f}s" if age is not None else "-"
-        print(f"{name:<16} {post.unread(name):>6} {age_s:>10}  {state}")
+        print(f"{name:<16} {unread:>6} {age_s:>10}  {state}")
     topics = post.topics()
     for t in topics:
         print(f"topic {t}: {post.line_count(t)} lines")
     if not topics:
         print("topics: (none yet)")
-    return 1 if (args.strict and stale) else 0
+    return 1 if (args.strict and bad) else 0
 
 
 def cmd_purge(_args):

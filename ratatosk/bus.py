@@ -45,6 +45,11 @@ LOCK_STALE_S = 10.0
 LOCK_RETRIES = 150
 LOCK_SLEEP_S = 0.02
 
+# SAFEGUARD: a letter is a signal, not a shipping service. Oversized
+# payloads are the classic way one buggy organ degrades every reader.
+MAX_LETTER_BYTES = 8 * 1024 * 1024      # 8 MiB serialized envelope cap
+FLOOD_UNREAD = 1000                     # unread above this == flooded
+
 ROTATE_BYTES = 5 * 1024 * 1024      # topic live-segment size cap
 KEEP_SEGMENTS = 3                   # rotated archives kept per topic
 
@@ -240,6 +245,11 @@ class Post:
         so lexicographic listing delivers it first."""
         if priority not in ("normal", "high"):
             raise ValueError("priority must be 'normal' or 'high'")
+        letter_probe = json.dumps({"payload": payload}, default=str)
+        if len(letter_probe.encode("utf-8")) > MAX_LETTER_BYTES:
+            raise ValueError(
+                f"payload exceeds MAX_LETTER_BYTES ({MAX_LETTER_BYTES}); "
+                "write it to a file and send the path instead")
         inbox, _ = self._ensure_organ(to)
         frm = _safe(frm)
         seq = self._next_seq(frm)
@@ -694,6 +704,7 @@ class Post:
         organs = {}
         for name in self.organs():
             hb_age = self.heartbeat_age(name, now=now)
+            unread = self.unread(name)
             last = None
             try:
                 files = sorted(os.listdir(self._dir(name, "inbox")))
@@ -701,9 +712,10 @@ class Post:
                     last = files[0]
             except OSError:
                 pass
-            organs[name] = {"unread": self.unread(name),
+            organs[name] = {"unread": unread,
                             "heartbeat_age_s": hb_age,
                             "stale": hb_age is None or hb_age > 600,
+                            "flooded": unread > FLOOD_UNREAD,
                             "next_letter": last,
                             "metrics": self._load_metrics(name)}
         topics = {}
@@ -725,10 +737,49 @@ class Post:
 
 # ------------------------------------------------- wiring convenience
 
-def publish(topic, payload, frm="cli", kind="event", root=None):
-    """Broadcast that never raises - safe inside watchdogs/gates."""
+def fit_payload(payload, max_bytes=MAX_LETTER_BYTES):
+    """Shrink a payload under the letter cap for never-raise senders.
+
+    Oversized payloads are replaced by a reference note; nothing is
+    dropped silently because publish() callers cannot handle raises."""
     try:
-        return Post(root).broadcast(topic, kind, payload, frm=frm)
+        probe = json.dumps({"payload": payload}, default=str)
+        if len(probe.encode("utf-8")) <= max_bytes:
+            return payload
+        blob = json.dumps(payload, default=str)
+        keep = max(0, max_bytes - 512)       # room for the marker text
+        return {"_truncated": True,
+                "_reason": f"payload > {max_bytes} bytes",
+                "preview": blob[:keep]}
+    except Exception:                        # noqa: BLE001 - never raise
+        return {"_truncated": True, "_reason": "unserializable payload"}
+
+
+def safe_send(to, kind, payload, frm="cli", root=None, **kw):
+    """send() that truncates oversize payloads instead of raising -
+    for organ wiring where a crash costs more than a trimmed letter."""
+    try:
+        return Post(root).send(to, kind, fit_payload(payload), frm=frm,
+                               **kw)
+    except Exception:                        # noqa: BLE001
+        return None
+
+
+def deadman(name, max_age_s=600.0, root=None):
+    """True when an organ's heartbeat is missing or too old - the
+    liveness question watchdogs ask. Never raises."""
+    try:
+        age = Post(root).heartbeat_age(name)
+        return age is None or age > float(max_age_s)
+    except Exception:                        # noqa: BLE001
+        return True
+
+def publish(topic, payload, frm="cli", kind="event", root=None):
+    """Broadcast that never raises - safe inside watchdogs/gates.
+    Oversize payloads are truncated to a reference note, not dropped."""
+    try:
+        return Post(root).broadcast(topic, kind,
+                                    fit_payload(payload), frm=frm)
     except Exception:                        # noqa: BLE001 - bus must not kill hosts
         return None
 
