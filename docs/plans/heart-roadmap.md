@@ -2,8 +2,10 @@
 
 Companion to `docs/adr/0001-heart-layered-sovereignty.md` (decision) and
 `docs/contracts/heart-interface-v1.md` (wire schemas). Baseline audited
-2026-08-24: heart v0.2.0 at `heart/` (nested repo), port 4767, zero runtime
-deps, tests via `node --test tests/*.test.js`.
+2026-08-24 morning: heart v0.2.0 at `heart/` (nested repo), port 4767, zero
+runtime deps, tests via `node --test tests/*.test.js`. **The tree is
+currently absent from the workspace** (rev 2 evidence correction) — restore
+it before any phase; every phase gates on `Test-Path heart\package.json`.
 
 Rules every phase honors (from DESIGN.md hard rules + INTEGRATION.md):
 local-first; fail safe; verify before claiming health; additive wire changes
@@ -15,30 +17,53 @@ only; no organ invents fleet timers; nothing leaves the machine.
 
 **Goal:** HEART becomes a declared satellite without changing its behavior.
 
+- Gate: `Test-Path heart\package.json` — no phase starts while the tree is
+  absent (rev 2).
 - Files: `realms/registry.json` (+1 row per ADR C1); DESIGN.md ecosystem
-  table row + decision-log row; `sentinel.py` tier-awareness;
-  **registry-derived port sweep** in `doctor.py` and `sentinel.py::doctor()`.
-  Evidence: squatter checks are hardcoded today (`doctor.py`
-  `OWNED_PORTS=[43901,43902,43903]`; sentinel pins `(43901,43903)`), so a
-  registry row alone protects nothing — the sweep reads ports from the
-  registry instead, which also discharges STRATEGY Phase 2's "squatter check
-  covers every registered port".
+  table row + decision-log row; `sentinel.py` tier-awareness; sentinel
+  `doctor()` probe-list derivation + tier-aware listener classification.
+  Evidence (corrected rev 2): `doctor.py` **already derives** `OWNED_PORTS`
+  from the registry (`sorted({43901,43902,43903} | _registry_ports())`) —
+  the row alone buys doctor-side squatter coverage. Remaining work:
+  `sentinel.py::doctor()` still pins `(43901, 43903)` hardcoded; and both
+  tools treat any busy owned port as warn/squatter (sentinel exits 2 on
+  busy-at-rest), so a *running* companion would be permanent alarm noise —
+  classify by tier: T1/T2 ports must be free at rest, T3 companion ports
+  busy ⇒ informational log only.
 - **Precondition (do first):** confirm sentinel treats `tier >= 3` rows as
-  informational gates. Sentinel currently derives realm gates from the
-  registry (codex §2, disk-verified). If tier routing is not implemented,
-  land that first as `H0a` — otherwise a red heart test could turn fleet
-  health red, which violates the T3 contract in STRATEGY §3.1. H0a also
-  fixes severity encoding: today's incident envelope payload is free-form,
-  so specify `payload.severity:"informational"` for T3 gate results.
+  informational gates. Sentinel currently derives realm gates from
+  `realms.all_realms()` with zero tier filtering — and this is not
+  hypothetical: **`godot-template` is already `tier: 3` with a verify entry
+  running as a blocking gate today**, violating the T3 contract in STRATEGY
+  §3.1 independent of heart. H0a therefore routes on `tier >= 3` for all
+  rows, with godot-template as the existing regression case, and must:
+  (a) tag gate results with `realm.tier`; (b) mark `tier >= 3` failures
+  informational in the ledger payload (`payload.severity:"informational"`)
+  **and exclude them from `failed[]`, the summary and the exit code** —
+  severity tagging alone still exits 1; (c) not create dual registrations
+  (today's godot-template is registered twice via the registry loop + a
+  hardcoded `defs +=` entry — do not replicate that for heart).
 - Verification:
-  - `python doctor.py --ci` → green before and after (byte-identical realm results)
-  - `(Get-Content realms\registry.json | ConvertFrom-Json).realms.Count` → 10, parses clean
+  - `python doctor.py --ci` → green before and after (byte-identical realm
+    results) — note ports are skipped in `--ci` mode, so port behavior is
+    proven separately below
+  - full-mode `python doctor.py` with heart running → port 4767 logged
+    **informational, not warn**; with nothing on 4767 → clean
+  - `(Get-Content realms\registry.json | ConvertFrom-Json).realms.Count`
+    → **21** after insert (20 rows today), parses clean
   - `Push-Location heart; npm test; Pop-Location` → green
-  - sentinel dry run with a forced heart-test failure → incident logged **informational**, fleet score untouched
-- Acceptance: registry row present; doctor/sentinel derive checked ports
-  from the registry (4767 protected while heart runs; future rows inherit
-  protection automatically); DESIGN.md row cites version + port.
-- Rollback: delete the registry row and doc rows; registry consumers keep fallback behavior (INTEGRATION §4.2).
+  - sentinel dry run with a forced heart-test failure → incident logged
+    **informational**, exit 0, fleet score untouched; same drill with a
+    forced godot-template failure (existing T3 regression case)
+  - GAIA note: `discoverSystems()` includes root-level nested repos
+    already — confirm composite delta vs pre-H0 is limited to git-vitals
+    noise, nothing registry-driven changed
+- Acceptance: registry row present; sentinel probe list derived from the
+  registry (4767 protected without alarm fatigue while heart runs; future
+  rows inherit protection automatically); DESIGN.md row cites version +
+  port.
+- Rollback: delete the registry row and doc rows; registry consumers keep
+  fallback behavior (INTEGRATION §4.2).
 - Risk: **Low-Med** (only phase touching shared gates).
 
 ## H1 — Wire alignment (heart-side, additive)
@@ -47,7 +72,14 @@ only; no organ invents fleet timers; nothing leaves the machine.
 
 - Files: `heart/heart.js` (success paths return `"error": null`; `/api/state`
   adds `schema_version: 1`), `heart/tests/core.test.js` (envelope asserts).
-- Verification: `npm test` in `heart/` green; manual `curl 127.0.0.1:4767/api/state` shows `error:null`.
+  **Loopback hardening (rev 2):** reject requests whose `Host` is not
+  `127.0.0.1:4767`/`localhost:4767` (kills DNS rebinding, where a hostile
+  page rebinds a hostname to 127.0.0.1 and reads the API same-origin); for
+  state-changing verbs require a same-origin check (`Origin`/
+  `Sec-Fetch-Site`) or a per-boot random token injected into served pages —
+  kills cross-origin `fetch(no-cors)`/`sendBeacon` POSTs to
+  `/api/settings`/`/api/note`/`/api/plan`.
+- Verification: `npm test` in `heart/` green; manual `curl 127.0.0.1:4767/api/state` shows `error:null`; rebinding drill (request with forged external `Host`) → rejected; cross-origin POST without token → rejected.
 - Acceptance: every JSON endpoint returns an `error` field; old clients unaffected (additive).
 - Rollback: revert commit; no data migration involved.
 - Risk: **Low**.
@@ -105,10 +137,12 @@ content-addressed, user-editable skill packs with built-in fallbacks.
   active only when `RATATOSK_ROOT` set).
 - Precondition: three catalogue/enforcement edits before first publish —
   INTEGRATION.md §6 topic row (`vitals.heart`); kind constant in
-  `ratatosk/bus.py`; AND a `buskit/envelope.py` TOPICS entry (verified:
-  `envelope.py` does exact-match topic validation and rejects unknown
-  topics; `bus.py` itself validates nothing). Sample letter ids must match
-  `{seq}-{from}-{kind}-{12-hex}`.
+  `ratatosk/bus.py`; AND a `buskit/envelope.py` TOPICS entry
+  (`"vitals.heart": {"vital"}` — verified: `envelope.py` does exact-match
+  topic validation and rejects unknown topics; `bus.py` itself validates
+  nothing). Publish via `bus.publish(...)` only — never hand-written topic
+  lines; the stored record shape and corrected letter live in contract §4
+  (rev 2 conformance fix).
 - Verification: judge tests (bad line rejected → built-in voice returned);
   buslink test writes into a temp RATATOSK_ROOT; unconfigured boot produces zero bus files.
 - Acceptance: `brain:on` + judge → no unguarded line can reach the UI; bridge off by default.
@@ -168,15 +202,23 @@ persisted; studio page arranges.
 - Files: new `public/widgets.js`; `lib/config.js` (+ `layout` key);
   `/api/widgets` GET/PUT per contract §8; fixed widget-id allowlist;
   **retro hardening**: `public/studio.html` renders avatar names through
-  `innerHTML` today — switch to DOM-API construction in this phase.
+  `innerHTML` today — switch to DOM-API construction in this phase;
+  **shell hardening (rev 2)**: `desktop/main.js` webPreferences set to
+  `nodeIntegration:false`, `contextIsolation:true`, `sandbox:true`, no
+  remote `loadURL`, CSP meta `default-src 'self'` on served pages, startup
+  self-test asserting the flags (per contract §8 Electron mandate).
 - Hard rule: **no user HTML ever** — ALL user-derived strings (plan
   goals/titles, avatar names, note text) reach the DOM exclusively via DOM
-  APIs (`textContent`) or entity-escaped SVG `<text>`; unknown widget ids
-  rejected server-side.
+  APIs; SVG exclusively via `createElementNS(...)` + `textContent` text
+  nodes, zero user-data interpolation into attributes (`href`, `style`,
+  `on*`) or string-built markup; unknown widget ids rejected server-side.
 - Verification: `npm test` (layout schema validation, unknown-widget 400,
   corrupt-layout → defaults + `layout_reset:true`); injection-payload test
-  (store avatar name / plan title containing HTML/script markers, render,
-  assert zero element injection); manual arrange/persist.
+  with the extended corpus (HTML/script markers **plus SVG-borne vectors:
+  `</text><script>` breakout, attribute-borne `"><svg onload=...>`,
+  `&#106;avascript:` entities, `<image href>` localhost beacons) — assert
+  zero element injection and zero network requests; shell-flag self-test
+  green; manual arrange/persist.
 - Acceptance: corrupt layout cannot break boot; no inline-HTML injection path.
 - Rollback: reset `layout` key.
 - Risk: **Medium** (only UI injection surface in the product — allowlist +
@@ -206,14 +248,17 @@ precedent), default off, advisory only — nobody is obligated to obey.
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Sentinel lacks tier-awareness → satellite test failure reddens fleet | Med | H0a precondition gate; informational-severity dry-run proof required before registry row lands |
+| Sentinel lacks tier-awareness → satellite test failure reddens fleet | Med (already live for godot-template) | H0a precondition gate; informational severity **excluded from summary/exit code**; dry-run proofs for heart AND godot-template |
+| Busy companion port treated as squatter → permanent warn / sentinel exit 2 (alarm fatigue) | High if unaddressed | H0 tier-aware listener classification: T3 busy ⇒ informational |
+| DNS rebinding / cross-origin POST reaches loopback API | Med | H1 Host-header validation + Origin/per-boot-token checks on state-changing verbs |
+| Electron shell legacy webPreferences turn DOM injection into Node RCE | Med | Contract §8 Electron mandate; startup self-test fails boot on deviation |
 | Skills layer changes coach voice users like | Med | built-in packs byte-equal to current coach lines; A/B only via explicit activation |
 | Embedding path makes search worse offline | Low | overlap score always computed; embeddings strictly additive rerank |
 | Horizon state machine drifts from timer's purity discipline | Med | table-driven transitions + identical-restart acceptance test mandated |
-| Bus publish spam / catalogue violation | Low | one line/day cap; catalogue row precondition; review gate |
+| Bus publish spam / catalogue violation | Low | one line/day cap; catalogue row precondition; publish-API-only rule (contract §4) |
 | OS voice availability/quality varies per machine | Med | silent degradation mandated in H6 acceptance; chime remains the floor |
 | Insight output read as productivity judgment | Low | descriptive-language mandate; never comparative, never diagnostic |
-| Widget layout becomes an injection vector | Med | fixed id allowlist, text/SVG-only rendering, schema-validated PUT (H8 hard rule) |
+| Widget layout becomes an injection vector | Med | fixed id allowlist; createElementNS/textContent-only mandate incl. SVG attributes; extended payload corpus; shell hardening (contract §8) |
 | DND flag ignored or over-obeyed by readers | Low | advisory-only contract with mandatory `untilTs` expiry (contract §9) |
 
 ## Promotion checklist (T3 → T2, only if ever justified)

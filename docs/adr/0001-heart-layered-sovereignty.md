@@ -3,16 +3,24 @@
 | | |
 |---|---|
 | **Status** | Proposed |
-| **Date** | 2026-08-24 |
+| **Date** | 2026-08-24 (rev 2 — reviewer findings folded, same day) |
 | **Author** | ATHENA (design cycle, ad-hoc trigger) |
 | **Scope** | `heart/` (nested repo, v0.2.0), `realms/registry.json`, `DESIGN.md`, future `heart/lib/*` |
-| **Review** | @reviewer requested before any registry/gate change lands (touches port surface + gate derivation) |
+| **Review** | @reviewer verdict 2026-08-24: **REQUEST-CHANGES** (10 findings) — all folded into this revision; see `docs/plans/cycles/2026-08-24-1042.md`. H0 remains blocked on the restored tree + operator yes. |
 
-## Context (evidence, audited 2026-08-24)
+## Context (evidence, audited 2026-08-24; re-audited post-review)
 
-- `heart/` exists on disk as a **self-managed nested git repo** — parent commit
-  `2fec27e` "chore: deskmate joins as a self-managed nested repo"; currently
-  untracked in the parent working tree (`git status`: `?? heart/`).
+> **Evidence-status note (rev 2):** the `heart/` source tree was present at
+> the morning audit but is **absent from the workspace now** (empty
+> directory, no `.git`; it lived only in an untracked nested repo — parent
+> commit `2fec27e` added only `.gitignore` rows). Implementation-grounded
+> citations below are preserved as recorded morning-audit evidence and must
+> be re-verified when the tree is restored. H0 is gated on
+> `Test-Path heart\package.json`.
+
+- `heart/` joined as a **self-managed nested git repo** — parent commit
+  `2fec27e` "chore: deskmate joins as a self-managed nested repo"; tree
+  currently absent from disk (see note above).
 - HEART v0.2.0 (`heart/CHANGELOG.md`) is an **offline desk-side companion**:
   focus/break timer as a pure timestamp state machine (`lib/timer.js`),
   healthy-habit nudge lanes (`lib/nudges.js`), crash-safe JSONL notes +
@@ -24,11 +32,15 @@
   devDependency (`desktop/main.js`). Loopback-only HTTP on port **4767**
   (`heart/heart.js:33`); zero runtime dependencies beyond Node
   (`heart/package.json`).
-- HEART is **invisible to every fleet document**: absent from the DESIGN.md
-  ecosystem table, from STRATEGY.md tier tables, and from
-  `realms/registry.json` (9 realms audited today; no heart row). Consequences
-  today: port 4767 is unprotected by doctor's squatter check, and HEART's
-  `npm test` surface is aggregated by nothing.
+- HEART is **invisible to the fleet's declaration surfaces**: absent from the
+  DESIGN.md ecosystem table, from STRATEGY.md tier tables, and from
+  `realms/registry.json` (re-audited post-review: **20 rows**, none heart;
+  the morning audit's "9 realms" predates lanes #34/#37/#42 landing).
+  Scope note: GAIA's `discoverSystems()` auto-includes any root-level
+  directory containing `.git`, so a restored nested repo joins GAIA's
+  composite regardless — "invisible" here means docs/registry/gates only.
+  Consequences today: port 4767 has no sentinel-side at-rest check, and
+  HEART's `npm test` surface is aggregated by nothing.
 - Operator directive this cycle: *design HEART to its fullest capabilities,
   learning from mistral.ai*.
 
@@ -68,16 +80,28 @@ Adopt **Option C — layered sovereignty**, eight commitments:
   "kind": "companion", "engine": "desk-companion", "port": 4767, "sdk": null,
   "path": "heart/", "tier": 3, "lang": "node", "verify": ["npm", "test"],
   "workdir": "heart", "profile": "watcher"}` — declaring identity and an
-  informational optional gate per STRATEGY Phase 2 / M6 precedent. Squatter
-  protection is NOT automatic: doctor/sentinel hardcode their port lists
-  today (reviewer-verified), so C1 lands together with H0's registry-derived
-  port sweep — which also discharges STRATEGY Phase 2's generalized squatter
-  check.
+  informational optional gate per STRATEGY Phase 2 / M6 precedent.
+  Port-protection evidence corrected in rev 2: `doctor.py` already derives
+  `OWNED_PORTS` from the registry (`sorted({43901,43902,43903} |
+  _registry_ports())`), so the row alone buys doctor-side squatter coverage;
+  the remaining gaps are (a) `sentinel.py::doctor()`, which still pins a
+  hardcoded `(43901, 43903)` probe list, and (b) listener *semantics* — both
+  tools treat any busy owned port as squatter/warn (sentinel exits 2 on
+  busy-at-rest), which for a long-running companion means permanent alarm
+  noise. C1 therefore lands with H0's work items: sentinel probe-list
+  derivation plus tier-aware classification (T1/T2 ports free at rest; T3
+  companion ports busy ⇒ informational log, not warn/fail).
   Precondition: sentinel must treat `tier >= 3` verify failures as
-  informational before the row lands (verify first; see roadmap H0).
+  informational — excluded from summary and exit code, not merely tagged —
+  before the row lands (verify first; see roadmap H0a).
 - **C2 Additive wire alignment.** Every JSON response gains `"error": null`
   on success paths (house contract: every response carries `error`);
   `/api/state` reports `schema_version`. No breaking field removals.
+  One deliberate behavior change is called out (rev 2): rejecting unknown
+  setting/skill/plan fields with `400` replaces config's silent-ignore —
+  ship-ordered so the bundled UI stops sending legacy keys *before* the
+  server starts rejecting, keeping the change effectively additive
+  (contract §1).
 - **C3 Skills system-of-record.** `lib/skills.js`: append-only
   `data/skills/ledger.jsonl`, content-addressed ids (sha256-16 of canonical
   JSON), versioned manifests; coach/nudges/digest read through the skill layer;
