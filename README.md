@@ -77,6 +77,7 @@ changes reach `main` through squash-merged pull requests. The root
 checkout is an integration mirror - it pulls, it does not host commits.
 Protocol and helper: [`FLOW.md`](FLOW.md) / `flow.ps1`.
 
+
 ## Doctrine
 
 - **Verify suites are hard gates**: every behavioral change ships a
