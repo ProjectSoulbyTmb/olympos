@@ -1,0 +1,14 @@
+#!/bin/sh
+# Soul Platform guard: main is integration-only (canonical copy lives at
+# hooks/pre-push in the repo; install with: powershell -File flow.ps1 install-hooks)
+# Updates land via pull requests - FLOW.md / flow.ps1 ship.
+while read local_ref local_sha remote_ref remote_sha; do
+    if [ "$remote_ref" = "refs/heads/main" ]; then
+        echo "" >&2
+        echo "BLOCKED: direct push to main." >&2
+        echo "Ship through your branch instead:" >&2
+        echo "  powershell -File flow.ps1 ship -Name <you> -Message \"...\"" >&2
+        exit 1
+    fi
+done
+exit 0

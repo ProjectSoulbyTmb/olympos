@@ -65,6 +65,16 @@ jobs:
         run: python verify_buskit.py
       - name: Scope guard gate
         run: python verify_scope.py
+      - name: Sindri sandbox-forge gate
+        run: python verify_sindri.py
+      - name: Forseti arbitration gate
+        run: python verify_forseti.py
+      - name: Secrets hygiene gate
+        run: python verify_secrets.py
+      - name: Coverage floor gate
+        run: python verify_coverage.py
+      - name: Godot template gate
+        run: python templates/verify_template.py
       - name: Autopilot contract gate
         run: python verify_autopilot.py
       - name: Doctor stabilization gate

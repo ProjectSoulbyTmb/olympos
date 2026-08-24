@@ -220,6 +220,7 @@ Organs flush cursors + heartbeats, close journals (witness rotates at
 | `build.stage` | builder | hub, witness | build.design/code/verify/iterate |
 | `artifacts.sealed` | Hades | hub, releaser | provenance.seal |
 | `policy.update` | THOTH | all | policy.reload |
+| `llm` | builder brain (ptah) | hub, witness | llm.call / llm.error |
 
 Rule: new cross-organ communication goes through a catalogue entry in
 this table + a kind constant in `bus.py`; ad-hoc inbox spam is rejected
