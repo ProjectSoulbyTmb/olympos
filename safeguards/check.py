@@ -24,12 +24,70 @@ Exit 0 = clean. Exit 1 = any failure (with --strict, warnings fail too).
 import json
 import os
 import py_compile
+import re
 import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 MAX_WARN = 40
+OVERSIZE_BYTES = 512 * 1024          # single-source-file warn cap
+# Text scanners (markers/secrets) run on EVERYTHING except these known
+# binary types. Allowlists are how key.pem slipped past the secret
+# gate; denylisting binaries is the safe default.
+BINARY_EXTS = {".jar", ".zip", ".exe", ".dll", ".png", ".jpg", ".jpeg",
+               ".gif", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".otf",
+               ".mp3", ".wav", ".ogg", ".mp4", ".class", ".so", ".dylib",
+               ".pt", ".onnx", ".bin", ".db", ".sqlite"}
+
+# Real leak patterns seen in the wild. Word-bounded, low false-positive.
+SECRET_PATTERNS = [
+    ("github-token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b")),
+    ("aws-access-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+    ("openai-style-key", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
+    ("slack-token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
+    ("private-key-block", re.compile(
+        r"-----BEGIN (RSA |OPENSSH |EC |PGP )?PRIVATE KEY-----")),
+]
+
+
+def conflict_markers(path):
+    """Unresolved merge markers - the interleaved-lane classic."""
+    hits = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh, 1):
+                s = line.rstrip("\r\n")
+                if s.startswith("<<<<<<<") or s.startswith(">>>>>>>"):
+                    hits.append(f"{path}:{n}: merge marker '{s[:12]}'")
+    except OSError:
+        pass
+    return hits
+
+
+def secrets(path):
+    """Credential-shaped strings committed by accident."""
+    hits = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh, 1):
+                for label, rx in SECRET_PATTERNS:
+                    if rx.search(line):
+                        hits.append(f"{path}:{n}: possible {label}")
+                        break
+    except OSError:
+        pass
+    return hits
+
+
+def oversize(path):
+    try:
+        if os.path.getsize(path) > OVERSIZE_BYTES:
+            return (f"oversize {path}: {os.path.getsize(path) // 1024} KiB "
+                    f"> {OVERSIZE_BYTES // 1024} KiB cap")
+    except OSError:
+        pass
+    return None
 
 
 def _git(*args):
@@ -115,6 +173,13 @@ def run(paths, strict=False):
             err = check_json(ap)
             if err:
                 errors.append(f"json {p}: {err}")
+        ext = os.path.splitext(p)[1].lower()
+        if ext not in BINARY_EXTS:
+            errors.extend(conflict_markers(ap))
+            errors.extend(secrets(ap))
+        w = oversize(ap)
+        if w:
+            warnings.append(w)
         if p in mixed:
             warnings.append(f"mixed-state: {p} has staged AND unstaged "
                             "edits (interleaved-lane risk)")
