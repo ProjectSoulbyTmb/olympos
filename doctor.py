@@ -49,6 +49,7 @@ SUITES = [
     ("zeus", os.path.join("zeus", "verify_zeus.py")),
     ("vulcan", os.path.join("vulcan", "verify_vulcan.py")),
     ("hades", os.path.join("hades", "verify_hades.py")),
+    ("knowledge", os.path.join("knowledge", "verify_knowledge.py")),
     ("ptah", os.path.join("ptah", "verify_ptah.py")),
     ("ratatosk", os.path.join("ratatosk", "verify_ratatosk.py")),
     ("norn", os.path.join("norn", "verify_norn.py")),
