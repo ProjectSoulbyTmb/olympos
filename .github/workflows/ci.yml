@@ -87,6 +87,8 @@ jobs:
         run: python templates/verify_template.py
       - name: Learning vault integrity gate
         run: python verify_learning.py
+      - name: Parallel verify gates (all suites, bounded)
+        run: python safeguards/gate.py --full --timeout 600
       - name: Autopilot contract gate
         run: python verify_autopilot.py
       - name: Doctor stabilization gate
