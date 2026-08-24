@@ -39,7 +39,13 @@ def sandbox():
     saved_d = {f: getattr(content, f) for f in
                ("DATA_DIR", "AUDIT_PATH", "ARTIFACTS_DIR",
                 "REPAIR_STATS_PATH")}
-    saved_a = {"GUESTS_DIR": ac.GUESTS_DIR}
+    saved_a = {"GUESTS_DIR": ac.GUESTS_DIR,
+               # the hypervisor's audit chain binds atlas's AUDIT_PATH;
+               # without this redirect every check verifies the SHARED
+               # default trail - including its historical damage - and
+               # parallel suites interleave appends into it (the
+               # tamper-evidence flake under load)
+               "AUDIT_PATH": ac.AUDIT_PATH}
     saved_env = os.environ.get("RATATOSK_ROOT")
     data = os.path.join(outer, "data")
     content.DATA_DIR = data
@@ -47,6 +53,7 @@ def sandbox():
     content.ARTIFACTS_DIR = os.path.join(data, "artifacts")
     content.REPAIR_STATS_PATH = os.path.join(data, "repair_stats.json")
     ac.GUESTS_DIR = os.path.join(outer, "guests")
+    ac.AUDIT_PATH = os.path.join(data, "atlas-audit.jsonl")
     os.environ["RATATOSK_ROOT"] = os.path.join(outer, "post")
     os.makedirs(ac.GUESTS_DIR, exist_ok=True)
     try:

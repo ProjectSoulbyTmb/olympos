@@ -16,7 +16,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Cmd,
     [string]$Name,
     [string]$Message,
-    [switch]$NoMerge
+    [switch]$NoMerge,
+    [switch]$SkipPostMerge
 )
 
 $ErrorActionPreference = "Continue"   # native tools report via exit codes
@@ -101,6 +102,33 @@ function Ship-Flow([string]$n, [string]$msg, [bool]$noMerge) {
     # refresh the integration mirror so the root checkout follows main
     & git -C $root pull --ff-only origin main --quiet 2>$null
     Write-Host "mirror fast-forwarded"
+
+    if ($SkipPostMerge) { return }
+
+    # ---- post-merge fix loop -------------------------------------
+    # The tide landed; now prove the water it joined. Doctor runs the
+    # fast suite set including its own safe idempotent fixes; if
+    # anything stays red, sentinel gets ONE full remediate -> gates ->
+    # incident-ledger cycle. Post-merge findings never undo the merge:
+    # they land in data\sentinel\incidents.jsonl and this transcript,
+    # and the ship command still succeeds.
+    Push-Location $root
+    try {
+        Write-Host "post-merge: doctor --ci (safe fixes + fast gates) ..."
+        & python doctor.py --ci
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "post-merge: red after doctor - one sentinel remediate cycle ..."
+            & python sentinel.py
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning ("post-merge: main still red after remediation " +
+                               "- see data\sentinel\incidents.jsonl")
+            } else {
+                Write-Host "post-merge: remediated to green"
+            }
+        } else {
+            Write-Host "post-merge: green"
+        }
+    } finally { Pop-Location }
 }
 
 function Install-Hooks {

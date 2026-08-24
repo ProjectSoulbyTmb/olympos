@@ -57,3 +57,4 @@ poseidon/data/
 
 # --- nested repos / apps that manage their own git ---
 heart/
+deskmate/

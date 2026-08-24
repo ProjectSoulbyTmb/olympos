@@ -28,6 +28,18 @@ try:
 except ImportError:                 # pragma: no cover
     ratatosk = None
 
+try:                                # cross-process audit lock (Windows)
+    import msvcrt
+    _HAVE_MSVCRT = True
+except ImportError:                 # pragma: no cover - POSIX
+    _HAVE_MSVCRT = False
+
+try:                                # cross-process audit lock (POSIX)
+    import fcntl
+    _HAVE_FCNTL = True
+except ImportError:                 # pragma: no cover - Windows
+    _HAVE_FCNTL = False
+
 
 class BuildError(Exception):
     pass
@@ -436,30 +448,72 @@ class _Chain:
 
     def append(self, entry):
         with self._lock:
-            entry["prev"] = self.head
-            digest = hashlib.sha256(self._canonical(entry)
-                                    .encode("utf-8")).hexdigest()
-            entry["sha"] = digest
-            try:
-                os.makedirs(os.path.dirname(self.path), exist_ok=True)
-                if (os.path.getsize(self.path)
-                        if os.path.exists(self.path) else 0) \
-                        > content.AUDIT_MAX_BYTES:
-                    os.replace(self.path, self.path + ".1")
-                    entry["prev"] = "genesis"
-                    digest = hashlib.sha256(self._canonical(entry)
-                                            .encode("utf-8")
-                                            ).hexdigest()
+            # Cross-process serialization: sibling suites (and their
+            # guests) may legally share this trail under parallel gate
+            # runs. Re-read the tail INSIDE the OS lock so two writers
+            # can never fork the chain, then hold the lock across the
+            # write - appends stay atomic and linearly linked (rule 16).
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            with open(self.path + ".lock", "a+b") as lf:
+                self._flock(lf)
+                try:
+                    self.head = self._tail(self.path)
+                    entry["prev"] = self.head
+                    digest = hashlib.sha256(
+                        self._canonical(entry).encode("utf-8")).hexdigest()
                     entry["sha"] = digest
-                with open(self.path, "a", encoding="utf-8",
-                          newline="\n") as fh:
-                    fh.write(json.dumps(entry, sort_keys=True,
-                                        separators=(",", ":"),
-                                        default=str) + "\n")
-                self.head = digest
-            except OSError:
-                pass
+                    try:
+                        size = os.path.getsize(self.path) \
+                            if os.path.exists(self.path) else 0
+                        if size > content.AUDIT_MAX_BYTES:
+                            os.replace(self.path, self.path + ".1")
+                            entry["prev"] = "genesis"
+                            digest = hashlib.sha256(
+                                self._canonical(entry)
+                                .encode("utf-8")).hexdigest()
+                            entry["sha"] = digest
+                        with open(self.path, "a", encoding="utf-8",
+                                  newline="\n") as fh:
+                            fh.write(json.dumps(entry, sort_keys=True,
+                                                separators=(",", ":"),
+                                                default=str) + "\n")
+                        self.head = digest
+                    except OSError:
+                        pass
+                finally:
+                    self._funlock(lf)
             return digest
+
+    def _flock(self, fh):
+        """Best-effort exclusive lock (msvcrt on Windows, fcntl on
+        POSIX); a no-op platform falls back to O_APPEND atomicity."""
+        try:
+            if _HAVE_MSVCRT:
+                deadline = time.time() + 30
+                while True:
+                    try:
+                        fh.seek(0)
+                        msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+                        return
+                    except OSError:
+                        if time.time() >= deadline:
+                            return          # degrade, never wedge builds
+                        time.sleep(0.05)
+            elif _HAVE_FCNTL:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        except (OSError, ValueError):
+            pass                            # unlocked best effort
+
+    @staticmethod
+    def _funlock(fh):
+        try:
+            if _HAVE_MSVCRT:
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            elif _HAVE_FCNTL:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except (OSError, ValueError):
+            pass
 
     def verify(self):
         ok, count, first_bad = True, 0, None
