@@ -92,6 +92,11 @@ export const knowledge = {
       reply:
         '"thoth scaffold <id> [title]" plans a brand-new feature against the registry contract - descriptor, knowledge entry, fail-closed contract test, and a guarded dynamic-import seam in feature-registry.js. Add --write inside an administrator session to generate, wire, and verify for real: every generated file is syntax-checked and the generated contract test is executed before success is reported. Global answer-surface merging of new feature knowledge stays a one-line human seam in core/knowledge.js by design.',
     },
+    thothEngineDoctrine: {
+      title: 'RSPS engine doctrine (RuneSource / Hyperion)',
+      reply:
+        'Our RSPS engine follows the distilled laws of RuneSource and Hyperion, recorded in osrs-llm-agent/knowledge/engine_principles.md with citations: single-writer mutable state serialized on the server lock, parallelism reserved for read-only work, cached per-tick state blocks, bounded queues everywhere, a slow-handler watchdog, atomic off-hot-path saves, and simplicity as the performance feature. Applied 2026-08: chat/presence/channel mutations hardened under the single-writer lock, chat feed bounded, watchdog added. Engine PRs that violate these rules are rejected citing that file.',
+    },
     thothAdultWellness: {
       title: 'Adult wellness and control',
       reply:
@@ -168,6 +173,10 @@ export const knowledge = {
     {
       id: 'thothScaffold',
       re: /\b(scaffold(ing)?|generate\s+a\s+feature|new\s+feature\s+wire)\b/i,
+    },
+    {
+      id: 'thothEngineDoctrine',
+      re: /\b(runesource|hyperion|317|engine\s+(?:doctrine|principles?|laws?)|tick\s+budget)\b/i,
     },
     {
       id: 'thoth',
