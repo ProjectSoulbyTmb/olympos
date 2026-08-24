@@ -264,6 +264,20 @@
         "verify_learning.py"
       ],
       "profile": "watcher"
-    }
-  ]
+    },
+    {
+      "name": "hebe",
+      "kind": "scribe",
+      "engine": "legal-dictation-lane",
+      "port": null,
+      "sdk": null,
+      "path": "hebe/",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "hebe/verify_hebe.py"
+      ],
+      "profile": "operator"
+    }  ]
 }

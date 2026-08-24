@@ -122,6 +122,12 @@ BUILD_GATES = [
     {"name": "poseidon",
      "argv": ["python", "poseidon/verify_poseidon.py"],
      "timeout_s": 300},
+    {"name": "hebe",
+     "argv": ["python", "hebe/verify_hebe.py"],
+     "timeout_s": 300},
+    {"name": "knowledge",
+     "argv": ["python", "knowledge/verify_knowledge.py"],
+     "timeout_s": 300},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this
 BUILD_ON_IDLE = True           # the organism proves itself even quiet

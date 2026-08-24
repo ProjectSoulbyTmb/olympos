@@ -232,35 +232,44 @@ class TideEngine:
 
     # ---------------- worktree lane ----------------
 
-    def ensure_worktree(self):
-        if os.path.exists(os.path.join(self.worktree, ".git")):
+    @staticmethod
+    def branch_of(name):
+        return "auto/%s" % name
+
+    def wt_path(self, name):
+        return os.path.join(self.root, ".worktrees", name)
+
+    def ensure_worktree(self, name=ORGAN):
+        path = self.wt_path(name)
+        branch = self.branch_of(name)
+        if os.path.exists(os.path.join(path, ".git")):
             return
         have = _git(self.root, "rev-parse", "--verify",
-                    "--quiet", BRANCH, check=False)
-        args = (["worktree", "add", self.worktree, BRANCH] if have
-                else ["worktree", "add", "-b", BRANCH, self.worktree])
+                    "--quiet", branch, check=False)
+        args = (["worktree", "add", path, branch] if have
+                else ["worktree", "add", "-b", branch, path])
         _git(self.root, *args)
-        if not _git(self.worktree, "config", "user.email", check=False):
-            _git(self.worktree, "config", "user.name", "poseidon")
-            _git(self.worktree, "config", "user.email",
+        if not _git(path, "config", "user.email", check=False):
+            _git(path, "config", "user.name", "poseidon")
+            _git(path, "config", "user.email",
                  "poseidon@olympos.local")
 
-    def sync_branch(self):
-        _git(self.worktree, "fetch", "origin", "--prune",
+    def sync_branch(self, name=ORGAN):
+        path = self.wt_path(name)
+        _git(path, "fetch", "origin", "--prune",
              timeout=GIT_TIMEOUT_S)
         code = subprocess.run(
-            ["git", "-C", self.worktree, "pull", "--ff-only",
-             "origin", "main"],
+            ["git", "-C", path, "pull", "--ff-only", "origin", "main"],
             capture_output=True, text=True, timeout=GIT_TIMEOUT_S)
         if code.returncode != 0:
             merged = subprocess.run(
-                ["git", "-C", self.worktree, "merge", "origin/main",
+                ["git", "-C", path, "merge", "origin/main",
                  "--no-edit"],
                 capture_output=True, text=True, timeout=GIT_TIMEOUT_S)
             if merged.returncode != 0:
-                _git(self.worktree, "merge", "--abort", check=False)
+                _git(path, "merge", "--abort", check=False)
                 raise RuntimeError("cannot sync %s with main: %s"
-                                   % (BRANCH,
+                                   % (self.branch_of(name),
                                       merged.stderr.strip()[:200]))
 
     def cherry_pick(self, snap):

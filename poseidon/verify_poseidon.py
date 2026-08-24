@@ -60,8 +60,10 @@ class Fixture:
         git(self.base, "init", "--bare", "-b", "main", "origin.git")
         git(self.base, "clone", "origin.git", "mirror",
             check=False)  # warns on empty repo; fine
-        # mirror the real workspace's ignore discipline so writer
-        # worktrees never pollute drift here either
+        # seed the real workspace's ignore discipline: writer
+        # worktrees and this organ's runtime dirs are not drift.
+        # (kernel.py additionally prunes SWEEP_EXCLUDES from its temp
+        # index, so the gate stays honest even if these lines vanish.)
         with open(os.path.join(self.root, ".gitignore"), "w") as fh:
             fh.write(".worktrees/\ndata/\nposeidon/data/\n")
         with open(os.path.join(self.root, "file.txt"), "w") as fh:
@@ -174,7 +176,7 @@ def squash_mode_settles_the_mirror():
         calls = []
 
         def fake_gh(*args):
-            calls.append(tuple(args))
+            calls.append(tuple(args[:2]))
             if args[0] == "pr":
                 if args[1] == "list":
                     return ""
@@ -186,18 +188,15 @@ def squash_mode_settles_the_mirror():
             raise AssertionError("unexpected gh call %s" % (args,))
         eng._gh = fake_gh
         rep = eng.once()
-        assert rep["verdict"] == "shipped" and rep["settled"], \
-            "verdict/settled wrong: %r" % (rep,)
+        assert rep["verdict"] == "shipped" and rep["settled"], rep
         assert eng.drift() == {"tracked": [], "untracked": []}, \
-            "settled root must be clean: %r" % (eng.drift(),)
-        assert "settled" in fx.read("file.txt"), \
-            "file.txt not settled: %r" % fx.read("file.txt")
+            "settled root must be clean"
+        assert "settled" in fx.read("file.txt")
         assert fx.read(os.path.join("deep", "note.md")) == "# tide\n", \
             "swept new files must return as tracked content"
         log = git(fx.root, "log", "--oneline", "-2", "origin/main")
-        assert "squash:" in log, "no squash in log: %r" % log
-        assert any(c[:2] == ("pr", "merge") for c in calls), \
-            "no merge call: %r" % (calls,)
+        assert "squash:" in log
+        assert ("pr", "merge") in calls
     finally:
         fx.cleanup()
 
@@ -262,6 +261,32 @@ def still_water_keeps_the_workflow_moving():
         rep = eng.once()
         assert rep["verdict"] == "still-water", rep
         assert rep.get("pull") is not None, "quiet days must still sync"
+    finally:
+        fx.cleanup()
+
+
+@check
+def fleet_berths_are_idempotent_and_reported():
+    fx = Fixture()
+    try:
+        from poseidon import fleet
+        eng = fx.engine()
+        names = ("gaia", "hades")
+        try:
+            fleet.status(eng, only="nope")
+            raise RuntimeError("registry accepted an unknown kernel")
+        except SystemExit:
+            pass
+        for name in names:
+            eng.ensure_worktree(name)
+            eng.ensure_worktree(name)          # idempotent re-berth
+            assert os.path.exists(os.path.join(
+                eng.wt_path(name), ".git")), name
+        rows = fleet.status(eng, only="gaia,hades")
+        assert rows["gaia"]["ready"] and rows["hades"]["ready"]
+        assert rows["gaia"]["branch"] == "auto/gaia"
+        assert rows["gaia"]["ahead_main"] == 0
+        assert rows["gaia"]["dirty"] is False
     finally:
         fx.cleanup()
 

@@ -127,3 +127,16 @@ tag-driven releases).
   failures, JSONL tide ledger, Ratatosk announcements. Also repairs
   the dangling Hypnos build gate that referenced this suite before
   the realm existed. Gate: `python poseidon/verify_poseidon.py`.
+
+- 2026-08-24: HEBE completed as the Legal & Document Scribe
+  (`hebe/`): full dictation privileges over the workspace (refusing
+  only `.git`/`.worktrees` and credential carriers via filename +
+  content secret scanners), a codified legal corpus (license catalog
+  with canonical MIT/BSD/ISC/Apache/proprietary texts,
+  copyright/trade-secret/NDA/trademark/DMCA playbooks), append-only
+  oath and IP-register ledgers tracked in `hebe/records/`, LICENSE
+  seeding on first boot, inbox drop-in dictation, and her own scoped
+  auto-commit/push lane under FORSETI's lock. Standing L2 grant, no
+  confirmation gate; quarantine breaker after three failures. Gate:
+  `python hebe/verify_hebe.py`; wired into Hypnos build gates, the
+  Olympos task bootstrap, and the realms registry.

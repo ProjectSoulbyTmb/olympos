@@ -5,6 +5,8 @@
     python -m poseidon watch --interval 300 # the constant workflow
     python -m poseidon status               # sea state
     python -m poseidon resume               # clear quarantine
+    python -m poseidon fleet start          # berth every kernel
+    python -m poseidon fleet status         # subfleet table
 """
 
 import argparse
@@ -26,6 +28,10 @@ def main(argv=None):
     o.add_argument("--dry-run", action="store_true")
     w = sub.add_parser("watch")
     w.add_argument("--max-cycles", type=int, default=0)
+    f = sub.add_parser("fleet")
+    f.add_argument("action", choices=("start", "sync", "status"))
+    f.add_argument("--only", default=None,
+                   help="comma-separated kernel names")
     sub.add_parser("status")
     sub.add_parser("resume")
     ns = ap.parse_args(argv)
@@ -43,6 +49,11 @@ def main(argv=None):
         except KeyboardInterrupt:
             print("tide paused (keyboard interrupt)")
             return 0
+
+    if ns.cmd == "fleet":
+        from . import fleet
+        fleet.run(ns.action, eng=eng, only=ns.only)
+        return 0
 
     if ns.cmd == "status":
         print(json.dumps(eng.status(), indent=1))
