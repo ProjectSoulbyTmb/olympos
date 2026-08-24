@@ -63,6 +63,8 @@ Install-OrganTask "Olympos HYPNOS Dreamworker" $python `
     "-m hypnos.daemon" $here $false
 Install-OrganTask "Olympos GAIA Pulse" $node `
     "gaia.mjs pulse --watch --every 15m" (Join-Path $here "gaia") $false
+Install-OrganTask "Olympos RELAY Bridge" $python `
+    "-m relay watch --every 60" $here $false
 Install-OrganTask "Olympos POSEIDON Tide" $python `
     "-m poseidon watch --interval 300" $here $false
 
@@ -73,7 +75,8 @@ Write-Output "autopilot armed. starting what is registered..."
 foreach ($t in ("Olympos ZEUS Guardian",
                 "Olympos HYPNOS Dreamworker",
                 "Olympos GAIA Pulse",
-                "Olympos POSEIDON Tide")) {
+                "Olympos POSEIDON Tide",
+                "Olympos RELAY Bridge")) {
     $st = (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue)
     if ($st) { Start-ScheduledTask -TaskName $t }
 }
