@@ -29,6 +29,7 @@ train_console.txt
 ui-errors.log
 data/
 zeus/data/
+ptah/data/
 
 # --- OS ---
 .DS_Store

@@ -21,6 +21,7 @@ python sentinel.py          # remediate -> all gates -> incident ledger
 | `hades/` | **Hades**: provenance realm - file fingerprinting, watermarking, and audit of artifact lineage. Verify: `python hades/verify_hades.py` |
 | `gaia/` | **GAIA**: ecosystem health kernel (Node) - collects vitals from every member system (git sync state, commit age, CI verdicts, daemon freshness), scores each 0-100, raises severity-ranked alerts. Test: `cd gaia && npm test` |
 | `thoth-private/` | **THOTH** operator-kernel modules: grants/safety, knowledge routing, scribe documentation service, stabilizer, scaffold, autonomic loop |
+| `ptah/` | **PTAH**: software-engineering agent kernel - event-sourced reasoning-action loop over audited tools (terminal, file editor, grep, task tracker, verify-gate runner, memory), risk-classified actions with confirmation gating, keyword-triggered skills, REST control plane on 127.0.0.1:43903. Offline-scriptable (`--demo`), provider-agnostic LLM brain (OpenAI-compatible/Anthropic). Verify: `python ptah/verify_ptah.py`; nightly self-check: `python -m ptah selfcheck` |
 | `image-toolkit/` | Shared image-processing toolkit (Node) |
 
 ## Infrastructure

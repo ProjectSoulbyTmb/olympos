@@ -53,5 +53,7 @@ jobs:
         run: python zeus/verify_zeus.py
       - name: Hades provenance gate
         run: python hades/verify_hades.py
+      - name: Ptah agent-kernel gate
+        run: python ptah/verify_ptah.py
       - name: Doctor stabilization gate
         run: python doctor.py --ci

@@ -132,7 +132,10 @@ def gate_defs():
                           os.path.join("vulcan", "verify_vulcan.py")],
          HERE, None),
         ("hades suite", [PY, "-u",
-                         os.path.join("hades", "verify_hades.py")],
+                          os.path.join("hades", "verify_hades.py")],
+         HERE, None),
+        ("ptah suite", [PY, "-u",
+                        os.path.join("ptah", "verify_ptah.py")],
          HERE, None),
     ]
     if shutil.which("node") and \
@@ -198,7 +201,7 @@ def main():
 
     if opts.list:
         print("\n".join(["zeus suite", "vulcan suite", "hades suite",
-                         "venus heart*"]))
+                         "ptah suite", "venus heart*"]))
         print("* runs when node is present and assistant/ is checked out")
         return 0
     if opts.doctor:

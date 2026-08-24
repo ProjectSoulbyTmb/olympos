@@ -33,6 +33,7 @@ SUITES = [
     ("zeus", os.path.join("zeus", "verify_zeus.py")),
     ("vulcan", os.path.join("vulcan", "verify_vulcan.py")),
     ("hades", os.path.join("hades", "verify_hades.py")),
+    ("ptah", os.path.join("ptah", "verify_ptah.py")),
 ]
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [
@@ -40,7 +41,7 @@ ENSURE_DIRS = [
     os.path.join("zeus", "data", "quarantine"),
 ]
 BASELINE_MAX_AGE_S = 7 * 24 * 3600
-OWNED_PORTS = [43901, 43902]
+OWNED_PORTS = [43901, 43902, 43903]
 PYCACHE_SKIP = {".git", "node_modules", "dist", "release"}
 REPORT_PATH = os.path.join("data", "health_report.json")
 SUITE_TIMEOUT_S = 240
