@@ -1,20 +1,28 @@
 {
   "realms": [
     {
-      "name": "vulcan",
-      "kind": "automation",
-      "engine": "building-sandbox",
-      "port": 43901,
-      "sdk": "VulcanSDK",
-      "path": "vulcan/host.py"
-    },
-    {
       "name": "zeus",
       "kind": "protection",
       "engine": "protection-kernel",
       "port": 43902,
       "sdk": "ZeusSDK",
-      "path": "zeus/server.py"
+      "path": "zeus/server.py",
+      "tier": 1,
+      "lang": "python",
+      "verify": ["python", "zeus/verify_zeus.py"],
+      "profile": "admin"
+    },
+    {
+      "name": "vulcan",
+      "kind": "automation",
+      "engine": "building-sandbox",
+      "port": 43901,
+      "sdk": "VulcanSDK",
+      "path": "vulcan/host.py",
+      "tier": 2,
+      "lang": "python",
+      "verify": ["python", "vulcan/verify_vulcan.py"],
+      "profile": "operator"
     },
     {
       "name": "ptah",
@@ -22,7 +30,67 @@
       "engine": "agent-kernel",
       "port": 43903,
       "sdk": "PtahSDK",
-      "path": "ptah/server.py"
+      "path": "ptah/server.py",
+      "tier": 1,
+      "lang": "python",
+      "verify": ["python", "ptah/verify_ptah.py"],
+      "profile": "operator"
+    },
+    {
+      "name": "hades",
+      "kind": "provenance",
+      "engine": "notary",
+      "sdk": "HadesSDK",
+      "path": "hades/",
+      "tier": 2,
+      "lang": "python",
+      "verify": ["python", "hades/verify_hades.py"],
+      "profile": "operator"
+    },
+    {
+      "name": "ratatosk",
+      "kind": "bus",
+      "engine": "post-office",
+      "sdk": null,
+      "path": "ratatosk/",
+      "tier": 1,
+      "lang": "python",
+      "verify": ["python", "ratatosk/verify_ratatosk.py"],
+      "profile": "watcher"
+    },
+    {
+      "name": "norn",
+      "kind": "memory",
+      "engine": "clockwork-replay-witness",
+      "sdk": null,
+      "path": "norn/",
+      "tier": 1,
+      "lang": "python",
+      "verify": ["python", "norn/verify_norn.py"],
+      "profile": "watcher"
+    },
+    {
+      "name": "hypnos",
+      "kind": "tasks",
+      "engine": "task-organ",
+      "sdk": null,
+      "path": "hypnos/",
+      "tier": 1,
+      "lang": "python",
+      "verify": ["python", "hypnos/verify_hypnos.py"],
+      "profile": "watcher"
+    },
+    {
+      "name": "gaia",
+      "kind": "health",
+      "engine": "vitals-scorer",
+      "sdk": null,
+      "path": "gaia/",
+      "tier": 1,
+      "lang": "node",
+      "verify": ["npm", "test"],
+      "workdir": "gaia",
+      "profile": "watcher"
     }
   ]
 }

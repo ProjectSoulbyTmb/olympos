@@ -124,25 +124,41 @@ def gate(name, cmd, cwd=None, env_extra=None):
 
 
 def gate_defs():
-    """Every runnable gate with its exact command, cwd and env."""
-    defs = [
-        ("zeus suite", [PY, "-u",
-                        os.path.join("zeus", "verify_zeus.py")], HERE, None),
-        ("vulcan suite", [PY, "-u",
-                          os.path.join("vulcan", "verify_vulcan.py")],
-         HERE, None),
-        ("hades suite", [PY, "-u",
-                          os.path.join("hades", "verify_hades.py")],
-         HERE, None),
-        ("ptah suite", [PY, "-u",
-                        os.path.join("ptah", "verify_ptah.py")],
-         HERE, None),
-        ("ratatosk suite", [PY, "-u",
-                            os.path.join("ratatosk",
-                                         "verify_ratatosk.py")],
-         HERE, None),
+    """Every runnable gate with its exact command, cwd and env.
+
+    Realm suites derive from realms/registry.json - the single source of
+    membership (STRATEGY.md gap #3): adding a realm becomes one manifest
+    entry plus its verifier, no edits here. Workspace-infrastructure gates
+    stay declared below.
+    """
+    import realms  # repo-root package; script dir is on sys.path
+
+    def _resolve(raw):
+        parts = list(raw)
+        if parts and parts[0] == "python":
+            return [PY, "-u"] + parts[1:]
+        if parts and parts[0] in ("npm", "npx"):
+            found = shutil.which(parts[0])
+            if found:
+                return [found] + parts[1:]
+        return parts
+
+    defs = []
+    for realm in realms.all_realms():
+        raw = realm.get("verify")
+        if not raw:
+            continue
+        cwd = os.path.join(HERE, realm["workdir"]) \
+            if realm.get("workdir") else HERE
+        if realm.get("lang") == "node" and \
+                not os.path.exists(os.path.join(cwd, "node_modules")):
+            continue  # same courtesy as the venus gate below
+        defs.append((f"{realm['name']} suite", _resolve(raw), cwd, None))
+
+    defs += [
         ("buskit contract", [PY, "-u", "verify_buskit.py"], HERE, None),
         ("scope guard", [PY, "-u", "verify_scope.py"], HERE, None),
+        ("sindri forge", [PY, "-u", "verify_sindri.py"], HERE, None),
     ]
     if shutil.which("node") and \
             os.path.exists(os.path.join(HERE, "assistant",
@@ -206,11 +222,11 @@ def main():
     opts = ap.parse_args()
 
     if opts.list:
-        print("\n".join(["zeus suite", "vulcan suite", "hades suite",
-                         "ptah suite", "ratatosk suite",
-                         "buskit contract", "scope guard",
-                         "venus heart*"]))
-        print("* runs when node is present and assistant/ is checked out")
+        for name, _cmd, _cwd, _env in gate_defs():
+            print(name)
+        print("* gaia suite runs when node_modules is present;")
+        print("* venus heart runs when node is present and "
+              "assistant/ is checked out")
         return 0
     if opts.doctor:
         ok, _ = doctor()
