@@ -206,6 +206,13 @@ class Kernel:
                        content.AUDIT_PATH + ".1.jsonl")
         except OSError:
             pass
+        try:
+            # keep the live path in existence: readers must never race
+            # a missing audit file between rotate and next append
+            with open(content.AUDIT_PATH, "a", encoding="utf-8"):
+                pass
+        except OSError:
+            pass
         return True
 
     def _state_snapshot(self):
@@ -367,6 +374,8 @@ class Kernel:
                 continue
             if self.enqueue(job):
                 try:
+                    # archive the consumed spec next to its future
+                    # result: data/dropin/done holds the full story
                     os.replace(src, os.path.join(content.DROPIN_DONE,
                                                  fname))
                 except OSError:

@@ -299,7 +299,9 @@ def dropin_files_become_work_and_archive_results():
         assert os.path.exists(
             os.path.join(content.WORKSPACE, "swept.txt"))
         done = os.listdir(content.DROPIN_DONE)
-        assert len(done) == 1 and done[0].endswith(".result.json"), done
+        results = [f for f in done if f.endswith(".result.json")]
+        assert len(results) == 1, done
+        assert "sweep-me.task.json" in done, done  # original archived
 
 
 @check
