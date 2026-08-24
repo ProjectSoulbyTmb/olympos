@@ -264,6 +264,21 @@
         "verify_learning.py"
       ],
       "profile": "watcher"
+    },
+    {
+      "name": "relay",
+      "kind": "bridge",
+      "engine": "bus-relay",
+      "port": null,
+      "sdk": null,
+      "path": "relay/",
+      "tier": 1,
+      "lang": "python",
+      "verify": [
+        "python",
+        "relay/verify_relay.py"
+      ],
+      "profile": "watcher"
     }
   ]
 }

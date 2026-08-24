@@ -62,7 +62,10 @@ SUITES = [
     ("coverage", "verify_coverage.py"),
     ("template", os.path.join("templates", "verify_template.py")),
     ("system", "verify_system.py"),
+    ("relay", os.path.join("relay", "verify_relay.py")),
     ("learning", "verify_learning.py"),
+    ("godot-blueprint", "verify_godot_blueprint.py"),
+    ("deskmate", "verify_deskmate.py"),
 ]
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [
