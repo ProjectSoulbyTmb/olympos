@@ -266,6 +266,21 @@
       "profile": "watcher"
     },
     {
+      "name": "relay",
+      "kind": "bridge",
+      "engine": "bus-relay",
+      "port": null,
+      "sdk": null,
+      "path": "relay/",
+      "tier": 1,
+      "lang": "python",
+      "verify": [
+        "python",
+        "relay/verify_relay.py"
+      ],
+      "profile": "watcher"
+    },
+    {
       "name": "hebe",
       "kind": "scribe",
       "engine": "legal-dictation-lane",
@@ -279,5 +294,6 @@
         "hebe/verify_hebe.py"
       ],
       "profile": "operator"
-    }  ]
+    }
+  ]
 }

@@ -310,6 +310,7 @@ BLUEPRINTS = {
         "gate": [sys.executable, "verify_health.py"],
         "faults": {},
     },
+
     "kv-store": {
         "description": "persistent JSON-lines key/value store",
         "files": {"kv_server.py": KV_SERVER,
@@ -333,7 +334,36 @@ BLUEPRINTS = {
                            "range(BEATS)", "range(0)"),
         },
     },
+    # Godot 4.x orb-collector: weave-time-baked world; the self-test
+    # gate is a pure-Python deterministic twin proving replay + WIN
+    # headlessly (no engine binary needed). See blueprint_godot.py.
+
 }
+try:
+    from daedalus.blueprint_godot import FILES as _GODOT_FILES, \
+        FAULTS as _GODOT_FAULTS
+    BLUEPRINTS["godot-game"] = {
+        "description": "deterministic Godot orb-collector "
+                       "(python-twin proven)",
+        "files": _GODOT_FILES,
+        "gate": [sys.executable, "verify_game_twin.py"],
+        "faults": dict(_GODOT_FAULTS),
+    }
+except ImportError:  # pragma: no cover - optional target
+    pass
+
+try:
+    from daedalus.blueprint_deskmate import FILES as _DESK_FILES, \
+        FAULTS as _DESK_FAULTS
+    BLUEPRINTS["deskmate"] = {
+        "description": "local project-design desk for VENUS "
+                       "(card template/validate/scaffold)",
+        "files": _DESK_FILES,
+        "gate": [sys.executable, "verify_deskmate.py"],
+        "faults": dict(_DESK_FAULTS),
+    }
+except ImportError:  # pragma: no cover - optional target
+    pass
 
 
 def blueprint_names():

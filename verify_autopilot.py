@@ -79,11 +79,13 @@ def bootstrap_installs_every_hosted_daemon():
               encoding="utf-8-sig") as fh:
         ps = fh.read()
     for daemon, marker in (("zeus", "-m zeus.server"),
-                           ("hypnos", "-m hypnos.daemon")):
+                           ("hypnos", "-m hypnos.daemon"),
+                           ("relay", "-m relay watch")):
         assert marker in ps, f"bootstrap does not host {daemon}"
     for script in ("register-zeus-task.ps1",
                    "register-hypnos-task.ps1",
-                   "register-thoth-task.ps1"):
+                   "register-thoth-task.ps1",
+                   "register-relay-task.ps1"):
         assert os.path.exists(os.path.join(HERE, script)), \
             f"installer vanished: {script}"
 
@@ -93,7 +95,8 @@ def task_names_match_per_organ_installers():
     """Bootstrap and per-organ installers must agree on task names, or
     re-registration silently duplicates guardians."""
     names = {}
-    for script in ("register-zeus-task.ps1", "register-hypnos-task.ps1"):
+    for script in ("register-zeus-task.ps1", "register-hypnos-task.ps1",
+                   "register-relay-task.ps1"):
         with open(os.path.join(HERE, script),
                   encoding="utf-8-sig") as fh:
             m = re.search(r'\$taskName\s*=\s*"([^"]+)"', fh.read())

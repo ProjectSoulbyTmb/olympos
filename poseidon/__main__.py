@@ -13,14 +13,15 @@ import argparse
 import json
 import sys
 
-from .kernel import ROOT, TideEngine, default_mode
+from .kernel import ROOT, TideEngine, default_interval, default_mode
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="poseidon")
     ap.add_argument("--mode", default=default_mode(),
                     choices=("squash", "review", "local"))
-    ap.add_argument("--interval", type=float, default=300.0)
+    ap.add_argument("--interval", type=float,
+                    default=default_interval())
     ap.add_argument("--root", default=ROOT,
                     help="workspace root (default: this checkout)")
     sub = ap.add_subparsers(dest="cmd", required=True)
