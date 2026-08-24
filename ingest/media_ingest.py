@@ -420,20 +420,48 @@ SEED_SOURCES = [
     {"name": "burningangel-tube", "adapter": "dbnaked_channel",
      "domain": "burningangel.com", "realm": "bdsm", "kind": "tube"},
     {"name": "pornpics-goth", "adapter": "pornpics_query", "queries":
-        ["goth", "gothic"]},
+        ["goth", "gothic", "alt girl", "emo"]},
     {"name": "pornpics-tattoo", "adapter": "pornpics_query",
-     "queries": ["tattooed", "tattoo"]},
+     "queries": ["tattooed", "tattoo", "pierced", "inked"]},
     {"name": "pornpics-feet", "adapter": "pornpics_query",
-     "queries": ["feet", "foot fetish"]},
+     "queries": ["feet", "foot fetish", "foot worship", "barefoot"]},
     {"name": "imagefap-goth-feet", "adapter": "imagefap_search",
      "search": "goth feet", "pages": 8},
+    {"name": "imagefap-goth-tattoo", "adapter": "imagefap_search",
+     "search": "goth tattoo", "pages": 8},
+    {"name": "imagefap-tattooed-feet", "adapter": "imagefap_search",
+     "search": "tattooed feet", "pages": 8},
     {"name": "babesource-goth", "adapter": "babesource_search",
-     "queries": ["goth", "gothic"]},
+     "queries": ["goth", "gothic", "emo"]},
     {"name": "babesource-tattoo", "adapter": "babesource_search",
-     "queries": ["tattoo", "tattooed"]},
+     "queries": ["tattoo", "tattooed", "pierced", "inked"]},
     {"name": "babesource-feet", "adapter": "babesource_search",
-     "queries": ["feet", "foot fetish"]},
+     "queries": ["feet", "foot fetish", "barefoot"]},
 ]
+
+AESTHETIC_PATTERN = (r"foot|feet|tattoo|goth|punk|/alt$|alt/|ink|"
+                     r"pierc|emo")
+DYNAMIC_CAP = 12
+
+
+def discover_dynamic_sources(fetcher, known_paths):
+    dn = DbNaked(fetcher)
+    found = dn.discover_categories(realms=("general", "bdsm"),
+                                   media=("pictures", "tube"),
+                                   pattern=AESTHETIC_PATTERN)
+    specs = []
+    for path in sorted(found):
+        if path in known_paths:
+            continue
+        kind = "tube" if "/tube/" in path else "pictures"
+        slug = (path.replace("/categories/", "")
+                .strip("/").replace("/", "-").lower())
+        slug = re.sub(r"[^a-z0-9\-]+", "-", slug)
+        specs.append({"name": f"auto-{slug}", "adapter": "dbnaked_category",
+                      "path": path, "kind": kind, "dynamic": True})
+        if len(specs) >= DYNAMIC_CAP:
+            break
+    return specs
 
 
 def enumerate_source(src, fetcher, female_filter=True):
@@ -522,7 +550,21 @@ def save_json(path, obj):
 def cmd_discover(args):
     fetcher = Fetcher(delay_scale=args.speed)
     master = load_json(args.catalog, {"v": VERSION, "sources": {}})
-    for src in SEED_SOURCES:
+    if not args.no_discover_extra:
+        known_paths = {s.get("path") for s in SEED_SOURCES if s.get("path")}
+        for info in master["sources"].values():
+            spath = load_json(os.path.join(info["dir"], "_source.json"),
+                              None)
+            if spath and spath["spec"].get("path"):
+                known_paths.add(spath["spec"]["path"])
+        extra = discover_dynamic_sources(fetcher, known_paths)
+        for spec in extra:
+            log(f"dynamic source discovered: {spec['name']} -> "
+                f"{spec['path']}")
+        sources = list(SEED_SOURCES) + extra
+    else:
+        sources = list(SEED_SOURCES)
+    for src in sources:
         if args.only and args.only.lower() not in src["name"].lower():
             continue
         log(f"source {src['name']} [{src['adapter']}]")
@@ -679,6 +721,7 @@ def main(argv=None):
     p.add_argument("--include-non-hd", dest="hd_only",
                    action="store_false")
     p.add_argument("--no-female-filter", action="store_true")
+    p.add_argument("--no-discover-extra", action="store_true")
     p.add_argument("--only", default=None)
     p.add_argument("--speed", type=float, default=1.0)
     args = p.parse_args(argv)
