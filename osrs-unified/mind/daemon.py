@@ -48,53 +48,83 @@ def cmd_status(root, state):
     return 2 if status["critical"] else 0
 
 
+def _drain_venus(root, state, execute=False):
+    """Best-effort Venus companion request drain; never raises."""
+    try:
+        from mind import venus_link
+        return venus_link.drain(root, state, execute=execute)
+    except Exception as e:
+        state.log("venus", "drain-error", f"{type(e).__name__}: {e}")
+        return {"pending": 0, "executed": 0, "results": []}
+
+
 def cmd_patrol(root, state, loop=0, llm=False, base_url=None, model=None,
                skip_tests=False):
+    consecutive_failures = 0
     while True:
         t0 = time.time()
-        state.log("moderator", "patrol-start")
-        findings = moderator.patrol(root)
-        fixed = sum(1 for f in findings if f.action == "auto-fixed")
-        critical = [f for f in findings if f.severity == "critical"]
-        state.log("moderator", "patrol-done",
-                  f"{len(findings)} findings, {fixed} auto-fixed")
-        test_result = {"ok": True, "ran": 0}
-        if not critical and not skip_tests:
-            state.log("engineer", "tests-start")
-            test_result = engineer.run_tests(root)
-            state.log("engineer", "tests-done",
-                      f"ok={test_result['ok']} ran={test_result['ran']} "
-                      f"({test_result['duration_s']}s)")
-            if not test_result["ok"]:
-                advice = engineer.diagnose(test_result)
-                for a in advice:
-                    state.log("engineer", "diagnosis",
-                              f"[{a['kind']}] {a['fix']}")
-                healed = engineer.auto_heal(root, state)
-                for h in healed:
-                    state.log("engineer", "healed", h)
-                if llm and all(a["kind"] != "auto-fixable" for a in advice):
-                    result = engineer.llm_diagnose(root, test_result,
-                                                   base_url, model)
-                    state.log("engineer", "llm-proposal",
-                              result.get("saved", result.get("error", "")))
-        state.write_status({
-            "last_patrol": time.time(),
-            "patrol_seconds": round(time.time() - t0, 1),
-            "findings": [f.as_dict() for f in findings],
-            "tests_ok": test_result["ok"],
-            "tests_ran": test_result.get("ran", 0),
-            "healthy": not critical and test_result["ok"],
-        })
         try:
-            _relay(root).publish("mind.status", {
-                "findings": len(findings),
-                "critical": len(critical),
-                "tests_ok": test_result["ok"]})
-        except Exception:
-            pass
-        if loop <= 0:
-            return 0 if (test_result["ok"] and not critical) else 1
+            state.log("moderator", "patrol-start")
+            findings = moderator.patrol(root)
+            fixed = sum(1 for f in findings if f.action == "auto-fixed")
+            critical = [f for f in findings if f.severity == "critical"]
+            state.log("moderator", "patrol-done",
+                      f"{len(findings)} findings, {fixed} auto-fixed")
+            test_result = {"ok": True, "ran": 0}
+            if not critical and not skip_tests:
+                state.log("engineer", "tests-start")
+                test_result = engineer.run_tests(root)
+                state.log("engineer", "tests-done",
+                          f"ok={test_result['ok']} ran={test_result['ran']} "
+                          f"({test_result['duration_s']}s)")
+                if not test_result["ok"]:
+                    advice = engineer.diagnose(test_result)
+                    for a in advice:
+                        state.log("engineer", "diagnosis",
+                                  f"[{a['kind']}] {a['fix']}")
+                    healed = engineer.auto_heal(root, state)
+                    for h in healed:
+                        state.log("engineer", "healed", h)
+                    if llm and all(a["kind"] != "auto-fixable"
+                                   for a in advice):
+                        result = engineer.llm_diagnose(root, test_result,
+                                                       base_url, model)
+                        state.log("engineer", "llm-proposal",
+                                  result.get("saved",
+                                             result.get("error", "")))
+            venus = _drain_venus(root, state)
+            state.write_status({
+                "last_patrol": time.time(),
+                "patrol_seconds": round(time.time() - t0, 1),
+                "findings": [f.as_dict() for f in findings],
+                "tests_ok": test_result["ok"],
+                "tests_ran": test_result.get("ran", 0),
+                "venus_pending": venus.get("pending", 0),
+                "healthy": not critical and test_result["ok"],
+            })
+            try:
+                _relay(root).publish("mind.status", {
+                    "findings": len(findings),
+                    "critical": len(critical),
+                    "tests_ok": test_result["ok"]})
+            except Exception:
+                pass
+            consecutive_failures = 0
+            if loop <= 0:
+                return 0 if (test_result["ok"] and not critical) else 1
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            consecutive_failures += 1
+            state.log("watchdog", "cycle-failed",
+                      f"{type(e).__name__}: {e} "
+                      f"(streak {consecutive_failures})")
+            state.write_status({
+                "last_patrol": time.time(),
+                "watchdog_failures": consecutive_failures,
+                "healthy": False})
+            if loop <= 0:
+                return 1
         time.sleep(loop * 60)
 
 
@@ -264,6 +294,30 @@ def cmd_venus(root, state, execute=False):
     return 0
 
 
+def cmd_propose(root, state, args_line, dry_run=False, no_verify=False):
+    sub = args_line[0] if args_line else "list"
+    if sub == "list":
+        props = engineer.list_proposals(root)
+        print(f"{len(props)} proposal(s)")
+        for p in props:
+            print(f"  {p['file']} ({p['size']} bytes)")
+        return 0
+    if sub == "apply" and len(args_line) >= 2:
+        result = engineer.apply_proposal(root, args_line[1],
+                                         dry_run=dry_run,
+                                         verify=not no_verify,
+                                         state=state)
+        print(json.dumps(result, indent=1))
+        return 0 if result.get("ok") else 1
+    if sub == "show" and len(args_line) >= 2:
+        p = os.path.join(root, args_line[1])
+        with open(p, encoding="utf-8") as f:
+            print(f.read()[:4000])
+        return 0
+    print("usage: propose list|show <file>|apply <file> [--dry-run]")
+    return 2
+
+
 def cmd_heal(root, state, dry_run=False, verify=False):
     from mind import healer
     result = healer.heal(root, dry_run=dry_run, verify=verify,
@@ -330,14 +384,28 @@ def cmd_metrics(root, state):
     return 0
 
 
+JOB_RUNNERS = {
+    "patrol": lambda root, state: cmd_patrol(root, state, loop=0),
+    "knowledge-refresh": cmd_update_data,
+    "network-check": lambda root, state: cmd_net(root, state),
+    "metrics-snapshot": cmd_metrics,
+    "venus-drain": lambda root, state: cmd_venus(root, state,
+                                                 execute=False),
+    "autonomic": lambda root, state: cmd_autonomic(root, state),
+    "heal": lambda root, state: cmd_heal(root, state),
+}
+
+
 def cmd_schedule(root, state, args_line):
     sub = args_line[0] if args_line else "list"
     if sub == "list":
         for job in scheduler.list_jobs(state):
             last = job.get("last_run")
             age = f"{(time.time() - last) / 60:.0f}m ago" if last else "never"
-            print(f"  {job['name']:<22} every {job['every_minutes']}m  "
-                  f"last={age}")
+            wired = "*" if job["name"] in JOB_RUNNERS else " "
+            print(f"  {wired} {job['name']:<22} every "
+                  f"{job['every_minutes']}m  last={age}")
+        print("  (* = has a runner; others need JOB_RUNNERS or code)")
         return 0
     if sub == "add" and len(args_line) >= 3:
         scheduler.add_job(state, args_line[1], int(args_line[2]))
@@ -351,14 +419,16 @@ def cmd_schedule(root, state, args_line):
         due = scheduler.tick(state)
         print("due now: " + (", ".join(due) or "nothing"))
         for name in due:
-            if name == "patrol":
-                cmd_patrol(root, state, loop=0)
-            elif name == "knowledge-refresh":
-                cmd_update_data(root, state)
-            elif name == "network-check":
-                cmd_net(root, state)
-            elif name == "metrics-snapshot":
-                cmd_metrics(root, state)
+            runner = JOB_RUNNERS.get(name)
+            if runner is None:
+                state.log("scheduler", "no-runner",
+                          f"job '{name}' is due but has no runner")
+                continue
+            try:
+                runner(root, state)
+            except Exception as e:
+                state.log("scheduler", "job-failed",
+                          f"{name}: {type(e).__name__}: {e}")
         return 0
     print("usage: schedule list|add <name> <minutes>|remove <name>|tick")
     return 2
@@ -396,6 +466,10 @@ def cmd_autonomic(root, state, dry_run=False, no_release=False):
     alerts = Sentinel(root, state).sweep()
     steps["sentinel_alerts"] = alerts
     plan.append(f"sentinel alerts: {len(alerts)}")
+
+    venus = _drain_venus(root, state)
+    steps["venus"] = {k: venus.get(k) for k in ("pending", "executed")}
+    plan.append(f"venus link: {venus.get('pending', 0)} pending")
 
     net = network.sweep(root, state, bus=_relay(root))
     steps["network"] = {"healthy": net["healthy"],
@@ -584,6 +658,9 @@ def main(argv=None):
     if cmd == "heal":
         return cmd_heal(root, state, dry_run=a.dry_run,
                         verify=extra and "verify" in extra)
+    if cmd == "propose":
+        return cmd_propose(root, state, rest, dry_run=a.dry_run,
+                           no_verify="no-verify" in extra)
     if cmd == "build":
         return cmd_build(root, state, exe=not a.no_build)
     if cmd == "revise":
@@ -591,8 +668,8 @@ def main(argv=None):
                           not in extra)
     if cmd == "metrics":
         return cmd_metrics(root, state)
-    if cmd == "net":
-        ap3 = argparse.ArgumentParser(prog="osrs mind net")
+    if cmd == "sweep":
+        ap3 = argparse.ArgumentParser(prog="osrs mind sweep")
         ap3.add_argument("--loop", type=int, default=0, metavar="MINUTES")
         ap3.add_argument("--timeout", type=float, default=5.0)
         a3, _ = ap3.parse_known_args(rest)
@@ -603,12 +680,25 @@ def main(argv=None):
         return cmd_autonomic(root, state, dry_run=a.dry_run,
                              no_release=a.no_build)
     if cmd == "net":
-        sub = rest[0] if rest else "policy"
+        sub = rest[0] if rest else "sweep"
         rest = rest[1:]
-        if sub == "serve":
-            return cmd_net_serve(root, state)
-        if sub == "gym":
-            return cmd_net_gym(root, state)
+        if sub == "sweep":
+            ap3 = argparse.ArgumentParser(prog="osrs mind net sweep")
+            ap3.add_argument("--loop", type=int, default=0,
+                             metavar="MINUTES")
+            ap3.add_argument("--timeout", type=float, default=5.0)
+            a3, _ = ap3.parse_known_args(rest)
+            return cmd_net(root, state, loop=a3.loop, timeout=a3.timeout)
+        if sub in ("serve", "gym"):
+            ap5 = argparse.ArgumentParser(prog=f"osrs mind net {sub}")
+            ap5.add_argument("--port", type=int,
+                             default=5731 if sub == "serve" else 43594)
+            ap5.add_argument("--host", default="127.0.0.1")
+            a5, _ = ap5.parse_known_args(rest)
+            if sub == "serve":
+                return cmd_net_serve(root, state, port=a5.port,
+                                     host=a5.host)
+            return cmd_net_gym(root, state, port=a5.port, host=a5.host)
         if sub == "send" and len(rest) >= 3:
             return cmd_net_send(root, state, rest[0], int(rest[1]),
                                 rest[2], rest[3] if len(rest) > 3 else None)
@@ -617,8 +707,8 @@ def main(argv=None):
         if sub == "sources":
             return cmd_net_sources(root, state,
                                    rest[0] if rest else "all")
-        print("usage: net serve|gym|send <host> <port> <type> [json]|"
-              "policy ...|sources [name|all]")
+        print("usage: net [sweep]|serve|gym|send <host> <port> <type> "
+              "[json]|policy ...|sources [name|all]")
         return 2
     if cmd == "venus":
         ap4 = argparse.ArgumentParser(prog="osrs mind venus")
@@ -646,7 +736,7 @@ def main(argv=None):
         return 2
     print(f"unknown command '{cmd}' - use status|patrol|update-data|"
           "release|install-tasks|heal|build|revise|metrics|schedule|"
-          "autonomic|relay|net")
+          "autonomic|relay|net|sweep|propose")
     return 2
 
 

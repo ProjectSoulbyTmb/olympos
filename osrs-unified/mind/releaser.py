@@ -141,6 +141,57 @@ def build_artifacts(root, exe=True, log=print):
     return results
 
 
+def publish(root, target, zip_path=None, log=print):
+    """Push the release commit+tag and (best effort) create a GitHub
+    release with the zip attached. Never raises; reports per step."""
+    steps = {}
+    r = _git(root, "remote", "get-url", "origin")
+    has_remote = r.returncode == 0
+    if not has_remote:
+        log("publish: no git remote 'origin' - skipping push")
+        steps["push"] = {"skipped": "no remote"}
+        return steps
+    push = _git(root, "push", "origin", "HEAD",
+                f"v{target}", "--follow-tags")
+    steps["push"] = {"ok": push.returncode == 0,
+                     "detail": ((push.stderr or push.stdout) or "")[-400:]}
+    if push.returncode != 0:
+        log("publish: push failed:\n" + steps["push"]["detail"])
+        return steps
+    gh = _gh_release(target, zip_path)
+    steps["github_release"] = gh
+    if gh.get("error"):
+        log(f"publish: gh release skipped/failed: {gh['error']}")
+    return steps
+
+
+def _gh_release(target, zip_path):
+    import shutil as _shutil
+    gh = _shutil.which("gh")
+    if not gh:
+        return {"skipped": "gh CLI not installed"}
+    if not os.environ.get("GH_TOKEN") and \
+            subprocess.run([gh, "auth", "status"],
+                           capture_output=True).returncode != 0:
+        return {"skipped": "gh not authenticated"}
+    args = [gh, "release", "create", f"v{target}",
+            "--title", f"osrs-unified {target}",
+            "--notes", f"Automated maintenance release by MIND "
+                       f"(v{target}). See CHANGELOG.md."]
+    if zip_path and os.path.exists(zip_path):
+        args.append(zip_path)
+    else:
+        args.append("--draft")
+    r = subprocess.run(args, capture_output=True, text=True,
+                       errors="replace")
+    if r.returncode == 0:
+        return {"ok": True, "url": (r.stdout or "").strip()}
+    err = (r.stderr or "")
+    if "already_exists" in err:
+        return {"ok": True, "note": "release already existed"}
+    return {"error": err[-300:]}
+
+
 def release(root, level="patch", dry_run=False, do_build=True, log=print):
     plan = {"level": level}
     current = read_version(root)
@@ -192,4 +243,8 @@ def release(root, level="patch", dry_run=False, do_build=True, log=print):
                     zf.write(exe_src, arcname)
             log(f"zip: bundled OSRS-Suite.exe ({os.path.getsize(exe_src) // 1024} KB)")
     plan["committed"] = True
+    try:
+        plan["publish"] = publish(root, target, plan.get("zip"), log=log)
+    except Exception as e:
+        plan["publish"] = {"error": f"{type(e).__name__}: {e}"}
     return plan

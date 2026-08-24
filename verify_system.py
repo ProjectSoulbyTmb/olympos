@@ -245,19 +245,17 @@ def t_expansion():
             rat_dead = True
             break
     assert rat_dead and w.xp["magic"] > 0
-    # thieving: gate at level 5, then steal once past cooldown
-    try:
-        g.walk("fruit_stall")
-        g.thieve("fruit_stall")
-        raise AssertionError("thieving level gate failed")
-    except GameError as e:
-        assert "level" in str(e)
-    w.xp["thieving"] = float(lvl_xp(6))
+    # thieving: entry stall is level 1 now (no dead-end); steal past cooldown
+    w.xp["thieving"] = 0.0
+    g.walk("fruit_stall")
     stole = False
     for _ in range(8):
-        if g.thieve("fruit_stall"):
-            stole = True
-            break
+        try:
+            if g.thieve("fruit_stall"):
+                stole = True
+                break
+        except GameError:
+            pass
         g.wait(12)
     assert stole and w.xp["thieving"] > 0
     # steel bar: coal + iron at furnace (mining level boosted)

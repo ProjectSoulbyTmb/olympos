@@ -15,8 +15,9 @@ Controls:
   L agility lap               Q plant/harvest herbs
   N fletch best bow           X craft leather best
   Z quaff best potion         J slayer master (assign/claim)
-  P toggle run                H help overlay
-  ESC quit
+  C cut planks (workshop)     F build furniture (workshop)
+  V lay/check bird snare      P toggle run
+  H help overlay              ESC quit
 """
 import os
 import sys
@@ -310,6 +311,42 @@ class Game:
             self.act(self.sdk.claim_slayer)
         else:
             self.act(self.sdk.assign_slayer)
+
+    def do_planks(self):
+        r = self.act(self.sdk.cut_planks)
+        if r:
+            self.audio.play("chop")
+
+    def do_build(self):
+        inv = self.sdk.inventory()
+        lvl = self.sdk.skills("construction")
+        for name, req in (("wooden_chair", 8),
+                          ("wooden_bookcase", 4),
+                          ("crude_wooden_chair", 1)):
+            if lvl >= req and inv.get("plank"):
+                r = self.act(self.sdk.build, name)
+                if r:
+                    self.audio.play("chop")
+                    return
+        self._flash("need planks + nails + saw/hammer at the workshop")
+
+    def do_trap(self):
+        st = self.st
+        adj = [n for n in st["nodes"] if n["kind"] == "hunting"
+               and n["distance"] <= 1]
+        if not adj:
+            self._flash("stand next to the hunting ground")
+            return
+        traps = st.get("traps", {})
+        ready = [k for k, t in traps.items()
+                 if st["tick"] >= t.get("ready_at", 0)]
+        if ready:
+            if self.act(self.sdk.check_trap):
+                self.audio.play("steal")
+        elif self.sdk.inventory().get("bird_snare"):
+            self.act(self.sdk.lay_trap)
+        else:
+            self._flash("no bird snares (buy one at the shop)")
 
     def do_eat(self):
         inv = self.sdk.inventory()
@@ -760,6 +797,12 @@ class Game:
                         self.do_quaff()
                     elif k == self.pg.K_j:
                         self.do_slayer()
+                    elif k == self.pg.K_c:
+                        self.do_planks()
+                    elif k == self.pg.K_f:
+                        self.do_build()
+                    elif k == self.pg.K_v:
+                        self.do_trap()
                     elif k == self.pg.K_p:
                         new_run = not self.st["run"]
                         self.act(self.sdk.set_run, new_run)

@@ -14,7 +14,6 @@ class Sentinel:
     def _best_regressions(self):
         regressions = []
         runs = os.path.join(self.root, "runs")
-        best_path = os.path.join(runs, "wc_xp_best.json")
         marker_path = os.path.join(runs, "sentinel_marks.json")
         marks = {}
         try:
@@ -22,17 +21,27 @@ class Sentinel:
                 marks = json.load(f)
         except (OSError, json.JSONDecodeError):
             pass
-        if os.path.exists(best_path):
+        try:
+            best_files = [fn for fn in os.listdir(runs)
+                          if fn.endswith("_best.json")]
+        except OSError:
+            best_files = []
+        for fn in sorted(best_files):
+            task = fn[:-len("_best.json")] or "unknown"
+            path = os.path.join(runs, fn)
             try:
-                with open(best_path, encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     score = (json.load(f) or {}).get("score", 0)
-                prev = marks.get("wc_xp_best")
-                if prev is not None and score < prev * 0.5:
-                    regressions.append(f"wc_xp best collapsed "
+                prev = marks.get(task)
+                if prev is None:
+                    prev = marks.get(f"{task}_best")  # legacy marker key
+                if (prev is not None and score >= 0 and
+                        score < prev * 0.5 and prev > 0):
+                    regressions.append(f"{task} best collapsed "
                                        f"{prev}->{score}")
-                marks["wc_xp_best"] = max(prev or 0, score)
+                marks[task] = max(prev or 0, score)
             except (OSError, json.JSONDecodeError):
-                pass
+                continue
         tmp = marker_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(marks, f)

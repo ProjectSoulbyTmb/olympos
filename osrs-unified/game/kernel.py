@@ -1,5 +1,7 @@
+import collections
 import heapq
 import itertools
+import json
 
 
 class MIND:
@@ -10,10 +12,13 @@ class MIND:
         "session_start", "session_end")
       - a tick-accurate scheduler (schedule / every)
       - strategy-session lifecycle (run_strategy) with result capture
+      - a bounded recent-event ring (recent_events / export_events)
 
     Attach with MIND(world); the world then emits engine events through
     this kernel. A world without a kernel keeps working as before.
     """
+
+    RING_SIZE = 512
 
     def __init__(self, world=None):
         self.world = None
@@ -21,6 +26,7 @@ class MIND:
         self._jobs = []
         self._job_seq = itertools.count()
         self._last_result = None
+        self._events = collections.deque(maxlen=self.RING_SIZE)
         if world is not None:
             self.attach(world)
 
@@ -40,6 +46,7 @@ class MIND:
         self._handlers.clear()
         self._jobs.clear()
         self._last_result = None
+        self._events.clear()
 
     def has_listeners(self, event):
         return bool(self._handlers.get(event))
@@ -63,6 +70,8 @@ class MIND:
             pass
 
     def emit(self, event, **data):
+        self._events.append((self.world.tick if self.world else 0,
+                             event, dict(data)))
         errors = []
         for fn in list(self._handlers.get(event, ())):
             try:
@@ -72,6 +81,19 @@ class MIND:
                     getattr(fn, "__name__", fn), type(e).__name__, e))
         if errors and event != "handler_error":
             self.emit("handler_error", source_event=event, errors=errors)
+
+    def recent_events(self, limit=50):
+        """The last `limit` events as (tick, name, data) tuples."""
+        if limit >= len(self._events):
+            return list(self._events)
+        return list(self._events)[-limit:]
+
+    def export_events(self, path):
+        with open(path, "w", encoding="utf-8") as f:
+            for tick, name, data in self._events:
+                f.write(json.dumps({"tick": tick, "event": name,
+                                    "data": data}) + "\n")
+        return len(self._events)
 
     def schedule(self, delay_ticks, fn):
         if self.world is None:
@@ -141,4 +163,4 @@ class MIND:
         return sup
 
 Kernel = MIND
-MIND_VERSION = '1.0'
+MIND_VERSION = '1.1'

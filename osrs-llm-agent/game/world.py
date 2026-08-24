@@ -3,14 +3,19 @@ import math
 
 from .content import (AGILITY_LAP_TICKS, AGILITY_LAP_XP, ARROWS,
                       ARMOURS, ARMOUR_ACC_REDUCTION, ARMOUR_BLOCK_DIVISOR,
-                      BONES_BURY_XP, BONES_OFFER_XP, BOWS, COMBAT_STYLES,
-                      ENERGY_PER_AGILITY, FOOD, FLETCHING, HERBS,
+                      BONES_BURY_XP, BONES_OFFER_XP, BOWS, BIRDS,
+                      COMBAT_STYLES,
+                      CONSTRUCTION, CONSTRUCTION_TICKS, ENERGY_PER_AGILITY,
+                      FOOD, FLETCHING, HERBS,
                       HITPOINTS_START_XP, LEATHER,
-                      NPCS, NPC_SPAWNS, POTIONS, PRAYER_DEFENCE_FACTOR,
+                      MAX_TRAPS_NEARBY, NPCS, NPC_SPAWNS, PLANKING_TICKS,
+                      PLANKS, POTIONS, PRAYER_DEFENCE_FACTOR,
                       RUNE_EXTRA_CAP, RUNE_EXTRA_CHANCE_STEP, RUNES,
+                      SAWMILL_FEE,
                       SLAYER_REWARD_COINS, SLAYER_REWARD_XP,
                       SLAYER_TASK_POOL, SLAYER_XP_PER_TASK_KILL, SPELLS,
-                      STALLS, WEAPONS)
+                      STALLS, TRAP_LOOT_FEATHERS, TRAP_READY_TICKS,
+                      WEAPONS)
 
 # _EXTRA_FALLBACK: tolerate import-list drift for extension registries
 for _n in ('QUESTS_EXTRA', 'COOKABLES_EXTRA', 'FIREMAKING_XP_EXTRA',
@@ -43,9 +48,7 @@ SKILLS = ("woodcutting", "mining", "fishing", "cooking", "firemaking",
           "smithing", "attack", "strength", "defence", "hitpoints",
           "prayer", "ranged", "magic", "runecrafting", "thieving",
           "agility", "herblore", "crafting", "fletching", "slayer",
-          "farming")
-
-GRID = 24
+          "farming", "construction", "hunter")
 
 GRID = 24
 
@@ -99,11 +102,14 @@ class World:
         self.stall_cd = {}
         self.buffs = {}
         self.patches = {}
+        self.traps = {}
         self.slayer_task = None
         self.on_tick = None
         self.energy = 100.0
         self.run = False
         self._moving = False
+        self.energy_regen_mult = 1.0
+        self.claims = set()
         self.quests = {q: "not_started" for q in QUESTS}
         for name, (_kind, _res, _pos) in LOCATIONS.items():
             if _kind in ("tree", "rock"):
@@ -136,7 +142,7 @@ class World:
 
     def save(self):
         return {
-            "version": 4,
+            "version": 6,
             "tick": self.tick,
             "tick_budget": self.tick_budget,
             "uim": self.uim,
@@ -155,18 +161,21 @@ class World:
             "stall_cd": dict(self.stall_cd),
             "buffs": {k: dict(v) for k, v in self.buffs.items()},
             "patches": {k: dict(v) for k, v in self.patches.items()},
+            "traps": {k: dict(v) for k, v in self.traps.items()},
             "slayer_task": dict(self.slayer_task) if self.slayer_task else None,
             "xp_timeline": self.xp_timeline[-5000:],
             "coin_timeline": self.coin_timeline[-5000:],
             "log": self.log[-200:],
             "energy": self.energy,
             "run": self.run,
+            "energy_regen_mult": float(self.energy_regen_mult),
+            "claims": sorted(self.claims),
             "quests": dict(self.quests),
             "rng_state": self.rng.getstate(),
         }
 
     def load_snapshot(self, data):
-        if data.get("version") not in (1, 2, 3, 4):
+        if data.get("version") not in (1, 2, 3, 4, 5, 6):
             raise ValueError("unsupported session version")
         self.reset()
         self.tick = data["tick"]
@@ -202,6 +211,7 @@ class World:
         self.buffs = {k: dict(v) for k, v in data.get("buffs", {}).items()}
         self.patches = {k: dict(v) for k, v in
                         data.get("patches", {}).items()}
+        self.traps = {k: dict(v) for k, v in data.get("traps", {}).items()}
         st = data.get("slayer_task")
         self.slayer_task = dict(st) if st else None
         self.xp_timeline = [tuple(x) for x in data["xp_timeline"]]
@@ -209,6 +219,10 @@ class World:
         self.log = list(data["log"])
         self.energy = data.get("energy", 100.0)
         self.run = data.get("run", False)
+        self.energy_regen_mult = max(0.5, min(2.0,
+                                       float(data.get("energy_regen_mult",
+                                                      1.0))))
+        self.claims = set(data.get("claims", []))
         saved_quests = data.get("quests")
         if saved_quests:
             self.quests.update(saved_quests)
@@ -254,8 +268,9 @@ class World:
         if self.coins != old_coins:
             self.coin_timeline.append((self.tick, self.coins))
             coin_changed = True
-        if not self._moving and self.energy < 100.0:
-            self.energy = min(self.energy_cap, self.energy + 0.5 * n)
+        if not self._moving and self.energy < self.energy_cap:
+            self.energy = min(self.energy_cap,
+                              self.energy + 0.5 * self.energy_regen_mult * n)
         if self.on_tick is not None:
             cur = self.tick
             for t in range(cur - n + 1, cur + 1):
@@ -776,6 +791,22 @@ class World:
         self.advance(n)
         return n
 
+    def search_chest(self):
+        if chebyshev(self.pos,
+                     LOCATIONS["stronghold_of_security"][2]) > 1:
+            raise GameError("stand next to the stronghold chest to search "
+                            "it")
+        if "stronghold_chest" in self.claims:
+            self.note("the stronghold chest is already emptied")
+            return False
+        self.claims.add("stronghold_chest")
+        reward = 500
+        self.coins += reward
+        self.note(f"you find {reward} coins in the stronghold chest")
+        self.spend(2)
+        self.advance(2)
+        return True
+
     def craft_rune(self, rune_name):
         if rune_name not in RUNES:
             raise GameError(f"unknown rune '{rune_name}' "
@@ -854,6 +885,135 @@ class World:
         return stole
 
     # ------------- agility / farming / herblore / production -------------
+
+    def cut_planks(self, log_item=None):
+        if chebyshev(self.pos, LOCATIONS["workshop"][2]) > 1:
+            raise GameError("stand next to the workshop sawmill to cut "
+                            "planks")
+        candidates = [l for l in PLANKS
+                      if self.inventory.get(l, 0) > 0]
+        if log_item is None:
+            log_item = candidates[0] if candidates else None
+            if log_item is None:
+                raise GameError("no logs to cut into planks")
+        elif log_item not in PLANKS:
+            raise GameError(f"cannot plank '{log_item}' "
+                            f"(valid: {', '.join(PLANKS)})")
+        if self.inventory.get(log_item, 0) <= 0:
+            raise GameError(f"no {log_item} in inventory")
+        fee = SAWMILL_FEE[log_item]
+        if self.coins < fee:
+            raise GameError(f"the sawmill charges {fee} coins per log")
+        self.coins -= fee
+        self.inventory[log_item] -= 1
+        if self.inventory[log_item] == 0:
+            del self.inventory[log_item]
+        if not self.inv_add(PLANKS[log_item]):
+            raise GameError("inventory full")
+        self.note(f"sawmill cut a {PLANKS[log_item]} from {log_item} "
+                  f"(-{fee} coins)")
+        self.spend(PLANKING_TICKS)
+        self.advance(PLANKING_TICKS)
+        return PLANKS[log_item]
+
+    def build(self, furniture_name):
+        if furniture_name not in CONSTRUCTION:
+            raise GameError(f"unknown furniture '{furniture_name}' "
+                            f"(valid: {', '.join(CONSTRUCTION)})")
+        if chebyshev(self.pos, LOCATIONS["workshop"][2]) > 1:
+            raise GameError("stand next to the workshop workbench to build")
+        spec = CONSTRUCTION[furniture_name]
+        lvl = self.skill_level("construction")
+        if lvl < spec["req"]:
+            raise GameError(f"{furniture_name} needs construction level "
+                            f"{spec['req']}")
+        if "saw" not in self.tools:
+            raise GameError("you need a saw (buy one)")
+        if "hammer" not in self.tools:
+            raise GameError("you need a hammer (buy one)")
+        for mat, need in spec["mats"].items():
+            if self.inventory.get(mat, 0) < need:
+                raise GameError(f"{furniture_name} needs {need}x {mat}")
+        for mat, need in spec["mats"].items():
+            self.inventory[mat] -= need
+            if self.inventory[mat] == 0:
+                del self.inventory[mat]
+        if not self.inv_add(furniture_name):
+            raise GameError("inventory full - make room for the furniture")
+        self.add_xp("construction", spec["xp"])
+        self.note(f"built a {furniture_name}")
+        self.spend(CONSTRUCTION_TICKS)
+        self.advance(CONSTRUCTION_TICKS)
+        return furniture_name
+
+    # ------------------------------- hunter ------------------------------
+
+    def _hunting_ground(self):
+        node = LOCATIONS.get("hunting_ground")
+        if node is None or chebyshev(self.pos, node[2]) > 1:
+            raise GameError("move next to the hunting ground")
+        return node
+
+    def lay_trap(self):
+        self._hunting_ground()
+        if len(self.traps) >= MAX_TRAPS_NEARBY:
+            raise GameError(f"you may only tend {MAX_TRAPS_NEARBY} snares "
+                            "at once - check them first")
+        if self.inventory.get("bird_snare", 0) <= 0:
+            raise GameError("no bird_snare in inventory (buy one)")
+        self.inventory["bird_snare"] -= 1
+        if self.inventory["bird_snare"] == 0:
+            del self.inventory["bird_snare"]
+        lvl = self.skill_level("hunter")
+        birds = [b for b, s in BIRDS.items() if lvl >= s["req"]]
+        bird = max(birds, key=lambda b: BIRDS[b]["req"])
+        self.traps[str(len(self.traps)) + "_" + bird] = {
+            "bird": bird, "ready_at": self.tick + TRAP_READY_TICKS}
+        self.note(f"laid a bird snare for the {bird.replace('_', ' ')}")
+        self.spend(2)
+        self.advance(2)
+        return True
+
+    def check_trap(self):
+        self._hunting_ground()
+        ready = [(k, t) for k, t in self.traps.items()
+                 if self.tick >= t["ready_at"]]
+        if not ready:
+            waiting = sum(1 for t in self.traps.values()
+                          if self.tick < t["ready_at"])
+            if waiting:
+                raise GameError("your snare is still being set - wait a bit")
+            raise GameError("no snares laid - use lay_trap() first")
+        key, trap = ready[0]
+        del self.traps[key]
+        spec = BIRDS[trap["bird"]]
+        lvl = self.skill_level("hunter")
+        catch = min(0.95, 0.39 + (lvl - spec["req"]) * 0.02)
+        caught = False
+        if self.rng.random() < catch:
+            loot = []
+            for item, n in (("bones", 1), ("raw_bird_meat", 1),
+                            (spec["feather"],
+                             self.rng.randint(*TRAP_LOOT_FEATHERS))):
+                if item == "bones":
+                    if not self.inv_add(item, n):
+                        self.note("inventory full - left the bones")
+                        continue
+                else:
+                    if not self.inv_add(item, n):
+                        continue
+                loot.append(f"{item} x{n}")
+            self.add_xp("hunter", spec["xp"])
+            self.note(f"caught a {trap['bird'].replace('_', ' ')}: "
+                      + ", ".join(loot))
+            caught = True
+        else:
+            self.note("the snare was triggered but empty - resetting it")
+        if not self.inv_add("bird_snare", 1):
+            self.note("a bird_snare was lost (inventory full)")
+        self.spend(2)
+        self.advance(2)
+        return caught
 
     def run_lap(self):
         if chebyshev(self.pos, LOCATIONS["agility_course"][2]) > 1:
@@ -1199,6 +1359,19 @@ class World:
                     status = f"(ready {HERBS[p['seed']]['crop']})"
                 else:
                     status = f"(growing, ~{p['ready_at'] - self.tick}t)"
+            elif kind == "workshop":
+                status = "(sawmill + workbench: cut_planks/build)"
+            elif kind == "hunting":
+                ready = sum(1 for t in self.traps.values()
+                            if self.tick >= t["ready_at"])
+                waiting = len(self.traps) - ready
+                bits = []
+                if waiting:
+                    bits.append(f"{waiting} snare(s) arming")
+                if ready:
+                    bits.append(f"{ready} caught")
+                status = " (" + ", ".join(bits) + ")" if bits \
+                    else " (no snares)"
             nearby.append({"name": name, "kind": kind, "resource": res,
                            "pos": pos, "distance": d, **{"status": status}})
         recent_log = self.log[-12:]
@@ -1222,6 +1395,7 @@ class World:
             "mode": "ultimate_ironman" if self.uim else "normal",
             "energy": round(self.energy, 1),
             "run": self.run,
+            "traps": {k: dict(v) for k, v in self.traps.items()},
             "quests": dict(self.quests),
             "bank_contents": ("LOCKED - no bank access in Ultimate Ironman"
                               if self.uim else dict(self.bank_items)),
@@ -1243,6 +1417,7 @@ class World:
         return best
 
     def score_task(self, task):
+        self._last_scored_task = task
         start_coins = self.coin_timeline[0][1]
         result = {
             "task": task,

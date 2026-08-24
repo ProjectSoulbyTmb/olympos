@@ -4,6 +4,8 @@ import subprocess
 import sys
 import time
 
+from mind import releaser
+
 HEURISTICS = [
     (re.compile(r"ModuleNotFoundError: No module named 'torch'"),
      "install torch: pip install torch",
@@ -114,3 +116,125 @@ def llm_diagnose(root, test_result, base_url=None, model=None):
         pass
     return {"saved": os.path.join("mind", "proposals", name),
             "answer": answer}
+
+
+def list_proposals(root):
+    d = os.path.join(root, "mind", "proposals")
+    if not os.path.isdir(d):
+        return []
+    out = []
+    for fn in sorted(os.listdir(d)):
+        if fn.endswith(".md"):
+            p = os.path.join(d, fn)
+            out.append({"file": os.path.relpath(p, root),
+                        "mtime": os.path.getmtime(p),
+                        "size": os.path.getsize(p)})
+    return out
+
+
+def parse_patch(text):
+    """Extract the largest unified diff from a proposal markdown."""
+    blocks = re.findall(r"```(?:diff)?\s*\n(.*?)```", text, re.S)
+    candidates = [b for b in blocks if b.lstrip().startswith("---")]
+    if not candidates:
+        lines = text.splitlines()
+        idx = next((i for i, ln in enumerate(lines)
+                    if ln.startswith("---")), None)
+        candidates = ["\n".join(lines[idx:])] if idx is not None else []
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda b: len(b.splitlines()))
+    return best.rstrip() + "\n" if best.strip() else None
+
+
+def apply_proposal(root, proposal_path, dry_run=False, verify=True,
+                   state=None, log=print):
+    """Conservatively apply a proposed patch.
+
+    Requires: clean git tree, parseable unified diff, `git apply --check`
+    passing. After a real apply the test suite must pass again or the
+    change is reverted.
+    """
+    import json as _json
+    path = proposal_path
+    if not os.path.isabs(path):
+        path = os.path.join(root, path)
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except OSError as e:
+        return {"ok": False, "error": f"unreadable proposal: {e}"}
+    patch = parse_patch(text)
+    if not patch:
+        return {"ok": False,
+                "error": "no unified diff found in proposal"}
+    if _tree_dirty_ignoring_proposals(root):
+        return {"ok": False,
+                "error": "working tree dirty - refusing to apply"}
+    check = _git_apply(root, patch, check_only=True)
+    if check.returncode != 0:
+        return {"ok": False,
+                "error": "git apply --check failed",
+                "detail": (check.stderr or check.stdout)[-800:]}
+    if dry_run:
+        return {"ok": True, "dry_run": True,
+                "patch_lines": len(patch.splitlines())}
+    applied = _git_apply(root, patch, check_only=False)
+    if applied.returncode != 0:
+        return {"ok": False, "error": "git apply failed",
+                "detail": (applied.stderr or applied.stdout)[-800:]}
+    result = {"ok": True, "applied": True}
+    if verify:
+        tr = run_tests(root)
+        result["tests_ok"] = tr["ok"]
+        result["tests_ran"] = tr["ran"]
+        if not tr["ok"]:
+            releaser._git(root, "checkout", "--", ".")
+            _git_apply_undo_untracked(root)
+            result["reverted"] = True
+            result["ok"] = False
+            log("tests failed after apply - reverted")
+    if result.get("ok"):
+        try:
+            from mind.bus import EventBus
+            EventBus(root).publish("thoth.proposal.applied",
+                                   {"file": os.path.relpath(path, root),
+                                    "tests_ran": result.get(
+                                        "tests_ran")},
+                                   source="mind")
+        except Exception:
+            pass
+        if state is not None:
+            state.log("engineer", "proposal-applied",
+                      os.path.relpath(path, root))
+    return result
+
+
+def _tree_dirty_ignoring_proposals(root):
+    """Dirty check that ignores queued proposals under mind/proposals."""
+    r = releaser._git(root, "status", "--porcelain", "--",
+                      ":(exclude)mind/proposals")
+    return bool((r.stdout or "").strip())
+
+
+def _git_apply(root, patch, check_only):
+    args = ["apply"]
+    if check_only:
+        args.append("--check")
+    return subprocess.run(["git", *args, "-"], cwd=root,
+                          input=patch, capture_output=True, text=True,
+                          errors="replace")
+
+
+def _git_apply_undo_untracked(root):
+    """git checkout cannot remove files a patch created - drop them."""
+    r = releaser._git(root, "status", "--porcelain")
+    for ln in (r.stdout or "").splitlines():
+        if ln.startswith("?? ") and len(ln) > 3:
+            junk = os.path.join(root, ln[3:].strip().strip('"'))
+            if os.path.isfile(junk) and (os.sep + "mind" + os.sep
+                                         not in junk):
+                try:
+                    os.remove(junk)
+                except OSError:
+                    pass

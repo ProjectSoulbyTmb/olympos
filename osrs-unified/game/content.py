@@ -115,7 +115,7 @@ RUNE_EXTRA_CAP = 0.9
 # -------------------------------------------------------------- thieving --
 STALLS = {
     # stall: level_req, cooldown_ticks, xp, drops
-    "fruit_stall": {"req": 5, "cooldown": 10, "xp": 10.0,
+    "fruit_stall": {"req": 1, "cooldown": 10, "xp": 10.0,
                     "loot": [("coins", 1.0, 10, 30)]},
     "cake_stall": {"req": 15, "cooldown": 14, "xp": 16.0,
                    "loot": [("cake", 1.0, 1, 1), ("coins", 0.5, 5, 15)]},
@@ -159,7 +159,7 @@ ARMOUR_BLOCK_DIVISOR = 8      # every 8 points blocks 1 damage
 # -------------------------------------------------------------- potions --
 POTIONS = {
     # potion: herblore_req, herb, xp, stat boosted, amount, duration ticks
-    "attack_potion": {"req": 3, "herb": "guam_leaf", "xp": 25.0,
+    "attack_potion": {"req": 1, "herb": "guam_leaf", "xp": 25.0,
                       "boost_skill": "attack", "boost": 3, "ticks": 60},
     "strength_potion": {"req": 12, "herb": "tarromin_leaf", "xp": 42.0,
                         "boost_skill": "strength", "boost": 3, "ticks": 60},
@@ -180,7 +180,7 @@ HERBS = {
 # ------------------------------------------------------------ fletching --
 FLETCHING = {
     # log: (bow produced, fletching_req, xp)
-    "logs": ("shortbow", 5, 10.0),
+    "logs": ("shortbow", 1, 10.0),
     "oak_logs": ("oak_bow", 20, 17.5),
     "willow_logs": ("oak_bow", 30, 21.5),
 }
@@ -207,6 +207,38 @@ SLAYER_XP_PER_TASK_KILL = 15.0
 SLAYER_REWARD_COINS = 100
 SLAYER_REWARD_XP = 200.0
 
+# ---------------------------------------------------------- construction --
+# Sawmill fees are original approximations of the sawmill operator cost;
+# furniture levels/xp follow the OSRS wiki (crude wooden chair 57,
+# wooden chair 87, wooden bookcase 115).
+SAWMILL_FEE = {"logs": 20, "oak_logs": 40, "willow_logs": 40}
+PLANKS = {"logs": "plank", "oak_logs": "plank", "willow_logs": "plank"}
+CONSTRUCTION = {
+    # furniture: level_req, {material: qty}, xp, shop value
+    "crude_wooden_chair": {"req": 1,
+                           "mats": {"plank": 2, "steel_nails": 2},
+                           "xp": 57.0, "value": 40},
+    "wooden_bookcase": {"req": 4,
+                        "mats": {"plank": 4, "steel_nails": 4},
+                        "xp": 115.0, "value": 110},
+    "wooden_chair": {"req": 8,
+                     "mats": {"plank": 3, "steel_nails": 3},
+                     "xp": 87.0, "value": 75},
+}
+CONSTRUCTION_TICKS = 5      # build time per OSRS (5 ticks)
+PLANKING_TICKS = 3
+
+# --------------------------------------------------------------- hunter --
+# Bird snare tiers follow OSRS: crimson swift (lvl 1, 34 xp),
+# copper longtail (lvl 9, 61.2 xp); catch rate ~39% at lvl 1.
+TRAP_READY_TICKS = 6
+BIRDS = {
+    "crimson_swift": {"req": 1, "xp": 34.0, "feather": "red_feather"},
+    "copper_longtail": {"req": 9, "xp": 61.2, "feather": "orange_feather"},
+}
+TRAP_LOOT_FEATHERS = (5, 10)
+MAX_TRAPS_NEARBY = 2        # snares you may have deployed at once
+
 # ------------------------------------------------------- world content --
 # Single source of truth for every game-data table. world.py re-exports
 # these names so existing imports keep working.
@@ -226,6 +258,8 @@ FISH = {
 COOKABLES = {
     "raw_shrimp": {"req": 1, "xp": 30.0, "item": "shrimp", "stop_burn": 34},
     "raw_beef": {"req": 1, "xp": 30.0, "item": "cooked_meat", "stop_burn": 31},
+    "raw_bird_meat": {"req": 1, "xp": 30.0, "item": "cooked_meat",
+                      "stop_burn": 31},
 }
 AXES = {"bronze_axe": 0.0, "iron_axe": 0.05, "steel_axe": 0.10}
 PICKAXES = {"bronze_pickaxe": 0.0, "iron_pickaxe": 0.05, "steel_pickaxe": 0.10}
@@ -274,17 +308,24 @@ SHOP_PRICES = {
     "cowhide": 20,
     "leather_gloves": 30, "leather_body": 80,
     "bronze_chainbody": 60, "iron_chainbody": 180, "steel_chainbody": 480,
+    "saw": 15, "hammer": 5, "steel_nails": 3,
+    "bird_snare": 27, "red_feather": 6, "orange_feather": 8,
+    "plank": 30, "crude_wooden_chair": 40, "wooden_bookcase": 110,
+    "wooden_chair": 75,
 }
 SHOP_STOCK = ["iron_axe", "steel_axe", "iron_pickaxe", "steel_pickaxe",
               "bronze_sword", "iron_sword", "steel_sword",
               "shortbow", "bronze_arrow", "iron_arrow",
               "air_rune", "fire_rune", "cake",
               "knife", "needle", "thread", "vial_of_water",
+              "cowhide",
               "guam_seed", "tarromin_seed", "ranarr_seed",
               "leather_gloves", "leather_body",
-              "bronze_chainbody", "iron_chainbody", "steel_chainbody"]
+              "bronze_chainbody", "iron_chainbody", "steel_chainbody",
+              "saw", "hammer", "steel_nails", "bird_snare"]
 UNIQUE_TOOLS = (set(AXES) | set(PICKAXES) | set(WEAPONS) | set(BOWS)
-                | set(ARMOURS) | {"knife", "needle"})
+                | set(ARMOURS)
+                | {"knife", "needle", "saw", "hammer"})
 
 LOCATIONS = {
     "tree_1": ("tree", "tree", (3, 3)),
@@ -313,5 +354,7 @@ LOCATIONS = {
     "herb_patch_3": ("patch", None, (4, 20)),
     "slayer_master": ("master", None, (10, 17)),
     "stronghold_of_security": ("stronghold", None, (2, 20)),
+    "workshop": ("workshop", None, (14, 18)),
+    "hunting_ground": ("hunting", None, (3, 21)),
 }
 SPAWN = (8, 9)

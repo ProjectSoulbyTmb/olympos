@@ -130,16 +130,21 @@ def check_data_freshness(root, max_age_hours=48):
 
 def audit_best_scores(root):
     findings = []
-    best_path = os.path.join(root, "runs", "wc_xp_best.json")
-    if os.path.exists(best_path):
+    runs = os.path.join(root, "runs")
+    try:
+        best_files = [fn for fn in os.listdir(runs)
+                      if fn.endswith("_best.json")]
+    except OSError:
+        return findings
+    for fn in sorted(best_files):
+        path = os.path.join(runs, fn)
         try:
-            with open(best_path, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 best = json.load(f)
             score = best.get("score", 0) if isinstance(best, dict) else 0
             if score <= 0:
                 findings.append(Finding("low", "scores",
-                                        "wc_xp_best.json has no positive "
-                                        "score"))
+                                        f"{fn} has no positive score"))
         except (json.JSONDecodeError, OSError):
             pass
     return findings

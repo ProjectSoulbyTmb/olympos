@@ -28,9 +28,7 @@ function repoRoot() {
 }
 
 async function scanner() {
-  const url = new URL(
-    `file:///${repoRoot().split(path.sep).join('/')}/scripts/design-scan.mjs`
-  );
+  const url = new URL(`file:///${repoRoot().split(path.sep).join('/')}/scripts/design-scan.mjs`);
   return import(url.href);
 }
 
@@ -117,7 +115,8 @@ export function startWatch(engine, relay) {
         // Compliance rides the same cadence (standards/rules.json).
         try {
           const { scanCompliance } = await import(
-            new URL(`file:///${repoRoot().split(path.sep).join('/')}/scripts/compliance-scan.mjs`).href
+            new URL(`file:///${repoRoot().split(path.sep).join('/')}/scripts/compliance-scan.mjs`)
+              .href
           );
           const crep = scanCompliance({ fix: false });
           engine.state.thoth.compliance = {
@@ -183,8 +182,11 @@ export function regressionReport(stored) {
   const last = stored.lastAudit;
   const prev = history.length >= 2 ? history[history.length - 2] : null;
   const newCount = last?.newCount ?? 0;
-  const lines = [`Last audit ${last?.at || 'n/a'}: ${totalFindings(last || {})} findings (${newCount} new).`];
-  if (prev) lines.push(`Previous tick: ${prev.total}. Delta: ${totalFindings(last || {}) - prev.total}.`);
+  const lines = [
+    `Last audit ${last?.at || 'n/a'}: ${totalFindings(last || {})} findings (${newCount} new).`,
+  ];
+  if (prev)
+    lines.push(`Previous tick: ${prev.total}. Delta: ${totalFindings(last || {}) - prev.total}.`);
   const byCat = last?.counts?.byCategory || {};
   for (const cat of PRIORITY) {
     if (byCat[cat]) lines.push(`  ${cat}: ${byCat[cat]}`);

@@ -51,8 +51,11 @@ class RemoteGameSDK:
             raise RspsError(resp.get("error"))
         return resp["docs"]
 
-    def skills(self):
-        return {s: v["level"] for s, v in self.state()["skills"].items()}
+    def skills(self, name=None):
+        if name is None:
+            return {s: v["level"]
+                    for s, v in self.state()["skills"].items()}
+        return self._call("skills", name)
 
     def inventory(self):
         inv = {}
@@ -155,6 +158,73 @@ class RemoteGameSDK:
 
     def shop_stock(self):
         return self._call("shop_stock")
+
+    def cut_planks(self, log=None):
+        return self._call("cut_planks", log)
+
+    def build(self, furniture):
+        return self._call("build", furniture)
+
+    def lay_trap(self):
+        return self._call("lay_trap")
+
+    def check_trap(self):
+        return self._call("check_trap")
+
+    def call(self, name, *args):
+        """Generic passthrough for any GameSDK action over the wire."""
+        return self._call(name, *args)
+
+    def eat(self, item):
+        return self._call("eat", item)
+
+    def cast(self, spell, npc_name):
+        return self._call("cast", spell, npc_name)
+
+    def bury_bones(self):
+        return self._call("bury_bones")
+
+    def offer_bones(self):
+        return self._call("offer_bones")
+
+    def craft_rune(self, rune):
+        return self._call("craft_rune", rune)
+
+    def thieve(self, stall):
+        return self._call("thieve", stall)
+
+    def run_lap(self):
+        return self._call("run_lap")
+
+    def plant(self, seed):
+        return self._call("plant", seed)
+
+    def harvest(self):
+        return self._call("harvest")
+
+    def make_potion(self, potion):
+        return self._call("make_potion", potion)
+
+    def quaff(self, potion):
+        return self._call("quaff", potion)
+
+    def fletch(self, log=None):
+        return self._call("fletch", log)
+
+    def craft_leather(self, item):
+        return self._call("craft_leather", item)
+
+    def assign_slayer(self):
+        return self._call("assign_slayer")
+
+    def claim_slayer(self):
+        return self._call("claim_slayer")
+
+    def search_chest(self):
+        return self._call("search_chest")
+
+    def get_location(self):
+        return self._call("get_location")
 
     def close(self):
         try:

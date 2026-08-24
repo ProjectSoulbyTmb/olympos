@@ -19,6 +19,8 @@ class GameSDK:
               "run_lap()", "plant(seed)", "harvest()",
               "make_potion(p)", "quaff(p)", "fletch(log=None)",
               "craft_leather(item)", "assign_slayer()", "claim_slayer()",
+              "cut_planks(log=None)", "build(furniture)",
+              "lay_trap()", "check_trap()",
               "ge_price(item)", "tools()", "bank()", "claims()",
               "search_chest()", "set_energy_regen(rate)",
               "talk_quest(q=None)", "deposit_all()", "deposit(i,n=None)",
@@ -243,6 +245,18 @@ class GameSDK:
     def claim_slayer(self):
         return self._w.claim_slayer()
 
+    def cut_planks(self, log=None):
+        return self._w.cut_planks(str(log) if log else None)
+
+    def build(self, furniture):
+        return self._w.build(str(furniture))
+
+    def lay_trap(self):
+        return self._w.lay_trap()
+
+    def check_trap(self):
+        return self._w.check_trap()
+
     def ge_price(self, item):
         """Live Grand Exchange price from the updater snapshot (or None)."""
         from .market import ge_price
@@ -260,13 +274,14 @@ drop(i,n=None) wait(t) set_run(bool) shop_prices() shop_stock() npcs()
 attack(npc) eat(food) set_combat_style(style) cast(spell,npc)
 bury_bones() offer_bones() craft_rune(rune) thieve(stall)
 run_lap() plant(seed) harvest() make_potion(p) quaff(p) fletch(log=None)
-craft_leather(item) assign_slayer() claim_slayer()
+craft_leather(item) assign_slayer() claim_slayer() cut_planks(log=None)
+build(furniture) lay_trap() check_trap()
 - game.state() -> full snapshot: position, coins, hp{current,max},
-  combat_style, inventory (str), skills (21), buffs{}, slayer_task,
+  combat_style, inventory (str), skills (23), buffs{}, slayer_task,
   nodes[], npcs[], events[]
-- game.skills() -> 21 skills incl. combat, prayer, ranged, magic,
+- game.skills() -> 23 skills incl. combat, prayer, ranged, magic,
   runecrafting, thieving, agility, herblore, crafting, fletching,
-  slayer, farming
+  slayer, farming, construction, hunter
 New loops:
 - game.run_lap()            30 ticks at the course: agility xp + energy refilled (cap rises with agility level)
 - game.plant("guam_seed") / game.harvest()   at herb patches; herbs grow over ticks
@@ -292,15 +307,27 @@ Runecrafting:
 - game.craft_rune("air_rune")  or "fire_rune" at the matching altar;
   bonus runes at higher levels
 Thieving:
-- game.thieve("fruit_stall") lvl 5 / ("cake_stall") lvl 15; cooldown while
+- game.thieve("fruit_stall") lvl 1 / ("cake_stall") lvl 15; cooldown while
   the owner watches
+Construction (at the workshop, walk target "workshop"):
+- game.cut_planks()        sawmill: logs/oak_logs/willow_logs -> plank
+                           (+sawmill fee in coins)
+- game.build("crude_wooden_chair")  lvl 1 / "wooden_bookcase" lvl 4 /
+  "wooden_chair" lvl 8; needs saw + hammer + planks + steel_nails;
+  furniture is sellable at the shop
+Hunter (at the hunting ground, walk target "hunting_ground"):
+- game.lay_trap()          needs a bird_snare (shop ~27 coins); up to 2
+                           snares at once; arms over ~6 ticks
+- game.check_trap()        collect: crimson_swift (lvl 1, 34 xp) or
+                           copper_longtail (lvl 9, 61.2 xp); yields bones,
+                           raw_bird_meat and feathers; failed snares reset
 Death = safe respawn with items. Shop stocks bows/arrows/runes/cake.
 Movement:
 - game.move_to(x, y) -> walks (1 tick/tile; 2 tiles/tick with run, drains energy)
 - game.set_run(True|False) -> run mode toggle; idle regen 0.5 energy/tick
 - game.walk("tree_1"|"tree_2"|"tree_oak"|"rock_copper"|"rock_tin"|
              "rock_iron"|"fishing_spot_1"|"range"|"bank"|"shop"|
-             "furnace"|"quest_giver")
+             "furnace"|"quest_giver"|"workshop"|"hunting_ground")
 Skilling (each attempt = 4 ticks; returns True if an item landed in inventory):
 - game.chop()   must stand next to a tree node
 - game.mine()   next to a rock node

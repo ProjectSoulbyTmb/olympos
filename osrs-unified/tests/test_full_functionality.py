@@ -93,7 +93,7 @@ class TestStrongholdChest(unittest.TestCase):
         g.walk("stronghold_of_security")
         g.search_chest()
         snap = w.save()
-        self.assertEqual(snap["version"], 5)
+        self.assertEqual(snap["version"], 6)
         w2 = World(seed=11)
         w2.load_snapshot(snap)
         self.assertEqual(GameSDK(w2).claims(), ["stronghold_chest"])

@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { scoreSystem, discoverSystems } from '../gaia.mjs';
+import {
+  scoreSystem, discoverSystems, detectRegressions, freshAlerts, advise,
+} from '../gaia.mjs';
 
 test('scoreSystem: fully healthy repo scores 100', () => {
   const { score, band } = scoreSystem({
@@ -57,4 +59,77 @@ test('discoverSystems finds git-bearing siblings and skips noise', () => {
   const found = discoverSystems(ws).map(s => s.name);
   assert.deepEqual(found, ['alpha']);
   for (const d of [ws]) fs.rmSync(d, { recursive: true, force: true });
+});
+
+test('detectRegressions: flags score drops >=10 and band slides only', () => {
+  const current = { composite: 80, systems: [
+    { name: 'dropper', score: 60, band: 'watch' },
+    { name: 'slider', score: 92, band: 'unwell' },
+    { name: 'steady', score: 90, band: 'healthy' },
+    { name: 'newcomer', score: 0, band: 'critical' },
+    { name: 'nudge', score: 84, band: 'healthy' },
+  ] };
+  const previous = { composite: 88, systems: [
+    { name: 'dropper', score: 75, band: 'watch' },
+    { name: 'slider', score: 95, band: 'watch' },
+    { name: 'steady', score: 90, band: 'healthy' },
+    { name: 'gone', score: 50, band: 'watch' },
+    { name: 'nudge', score: 88, band: 'healthy' },
+  ] };
+  const regs = detectRegressions(current, previous);
+  assert.deepEqual(regs.map(r => r.system).sort(), ['dropper', 'slider']);
+});
+
+test('detectRegressions: sharp score drop and composite drop are caught', () => {
+  const current = { composite: 70, systems: [
+    { name: 'a', score: 60, band: 'watch' },
+  ] };
+  const previous = { composite: 88, systems: [
+    { name: 'a', score: 75, band: 'watch' },
+  ] };
+  const regs = detectRegressions(current, previous);
+  assert.ok(regs.some(r => r.system === 'a' && /score 75->60/.test(r.reasons.join('; '))));
+  assert.ok(regs.some(r => r.system === 'ecosystem' && /composite 88->70/.test(r.reasons[0])));
+});
+
+test('detectRegressions: no previous history means no regressions', () => {
+  assert.deepEqual(detectRegressions({ composite: 1, systems: [{ name: 'x', score: 1, band: 'critical' }] }, null), []);
+});
+
+test('freshAlerts: suppresses identical alerts inside cooldown window', () => {
+  const now = Date.now();
+  const alert = { severity: 'warning', system: 'osrs-unified', reasons: ['mind stale'] };
+  const recentLedger = `${JSON.stringify({ at: new Date(now - 5 * 60_000).toISOString(), ...alert })}\n`;
+  assert.deepEqual(freshAlerts([alert], recentLedger, now), []);
+
+  const oldLedger = `${JSON.stringify({ at: new Date(now - 2 * 60_60_000).toISOString(), ...alert })}\n`;
+  assert.deepEqual(freshAlerts([alert], oldLedger, now), [alert]);
+
+  const otherAlert = { ...alert, system: 'assistant' };
+  assert.deepEqual(freshAlerts([otherAlert], recentLedger, now), [otherAlert]);
+  assert.deepEqual(freshAlerts([alert], '', now), [alert]);
+
+  const corrupt = 'not json at all\n';
+  assert.deepEqual(freshAlerts([alert], corrupt, now), [alert]);
+});
+
+test('advise: maps every failing vital to a concrete action', () => {
+  const dirty = advise({ branch: 'main', synced: false, diverged: true,
+                         behind: 3, ahead: 2, dirty: 4, ci: 'failure',
+                         net: { offlineMode: false, down: ['ge-api'] },
+                         mind: { fresh: false, ageSec: 3_600_000 },
+                         thoth: { openIncidents: 2 } });
+  assert.ok(dirty.some(s => /pull --rebase/.test(s)));
+  assert.ok(dirty.some(s => /commit or stash 4/.test(s)));
+  assert.ok(dirty.some(s => /gh run view/.test(s)));
+  assert.ok(dirty.some(s => /restore endpoints: ge-api/.test(s)));
+  assert.ok(dirty.some(s => /MIND heartbeat stale 60m/.test(s)));
+  assert.ok(dirty.some(s => /close 2 THOTH incident/.test(s)));
+
+  const aheadOnly = advise({ branch: 'main', synced: false, diverged: false,
+                             behind: 0, ahead: 1, dirty: 0 });
+  assert.deepEqual(aheadOnly, ['git push (1 ahead)']);
+
+  assert.deepEqual(advise({ gitError: true }), ['inspect repository access - git unreadable']);
+  assert.deepEqual(advise({ repo: false, branch: undefined }), []);
 });

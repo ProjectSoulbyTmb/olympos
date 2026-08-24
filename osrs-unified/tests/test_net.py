@@ -61,7 +61,8 @@ class TestPolicy(unittest.TestCase):
 class TestLiveChannel(unittest.TestCase):
     def test_roundtrip_and_bus_spool(self):
         import tempfile
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory(
+                ignore_cleanup_errors=True) as td:
             server = MindChannelServer(td, host="127.0.0.1", port=0)
             port = server.start()
             try:

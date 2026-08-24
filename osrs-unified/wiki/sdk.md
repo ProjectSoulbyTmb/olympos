@@ -29,6 +29,22 @@ Your snippet receives `game` (class GameSDK) and must define `def run(game):`.
   one time per session, +500 coins. Returns True on first claim.
   Best first move of any run - funds tool upgrades.
 
+## Construction (workshop, walk target "workshop")
+- game.cut_planks() - sawmill: logs/oak_logs/willow_logs -> plank,
+  charges a sawmill fee in coins
+- game.build("crude_wooden_chair") - lvl 1, 2 plank + 2 steel_nails,
+  57 xp / "wooden_bookcase" lvl 4, 4+4, 115 xp /
+  "wooden_chair" lvl 8, 3+3, 87 xp; needs saw + hammer;
+  furniture sells at the shop
+
+## Hunter (walk target "hunting_ground")
+- game.lay_trap() - consumes a bird_snare (shop ~27 coins), up to 2
+  snares armed at once, resolves after ~6 ticks
+- game.check_trap() - collect: crimson_swift (lvl 1, 34 xp) or
+  copper_longtail (lvl 9, 61.2 xp); loot: bones + raw_bird_meat +
+  5-10 feathers; empty snares reset to your inventory
+- raw_bird_meat cooks into cooked_meat at the range
+
 ## Energy
 - game.set_energy_regen(rate) - idle regen multiplier, clamped [0.5, 2.0]
 - game.set_run(True|False), set_run(False) saves energy

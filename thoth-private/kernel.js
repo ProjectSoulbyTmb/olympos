@@ -16,6 +16,7 @@
  *       when the main process proves an administrator session for that call.
  */
 import { buildTools } from './tools.js';
+import { recordToolUse } from './learn.js';
 
 const GRANTABLE_CLASSES = new Set(['L0', 'L1']);
 const COMMAND_PREFIX = /^(?:thoth|\/thoth|\/t|operator)\b[\s:,-]*/i;
@@ -52,7 +53,12 @@ export function attachToEngine(engine, { relay } = {}) {
   const thothState = coerceState(engine.state.thoth);
   thothState.attachedAt = Date.now();
   if (!thothState.creative || typeof thothState.creative !== 'object') {
-    thothState.creative = { ideas: [], drafts: [], themes: [], appliedTheme: null };
+    thothState.creative = {
+      ideas: [],
+      drafts: [],
+      themes: [],
+      appliedTheme: null,
+    };
   }
   engine.state.thoth = thothState;
 
@@ -81,7 +87,10 @@ export function attachToEngine(engine, { relay } = {}) {
       const created = engine.createBackup();
       name = typeof created === 'string' ? created : created?.name || 'auto-safety';
     } catch (err) {
-      return { failed: true, reason: String(err?.message || err).slice(0, 120) };
+      return {
+        failed: true,
+        reason: String(err?.message || err).slice(0, 120),
+      };
     }
     thothState.lastSafetyBackupAt = Date.now();
     return { created: name };
@@ -93,7 +102,9 @@ export function attachToEngine(engine, { relay } = {}) {
 
   function effectiveClass(tool) {
     // L2 is per-call elevated only; standing grants top out at L1.
-    return tool.klass === 'L2' ? null : grantedClass(tool.name) || (tool.klass === 'L0' ? 'L0' : null);
+    return tool.klass === 'L2'
+      ? null
+      : grantedClass(tool.name) || (tool.klass === 'L0' ? 'L0' : null);
   }
 
   const kernel = {
@@ -169,17 +180,24 @@ export function attachToEngine(engine, { relay } = {}) {
 
     async handleCommand(parsed, ctx = {}) {
       const adminAuthorized = ctx.adminAuthorized === true;
-      const replyOf = text => ({ ok: true, reply: String(text).slice(0, 2000) });
+      const replyOf = text => ({
+        ok: true,
+        reply: String(text).slice(0, 2000),
+      });
 
       if (parsed?.tool === 'master') {
         if (!adminAuthorized) {
-          return replyOf('The master switch is administrator-only (Ctrl+A, away from text fields).');
+          return replyOf(
+            'The master switch is administrator-only (Ctrl+A, away from text fields).'
+          );
         }
         const arg = String(parsed.args || '').toLowerCase();
         const enable = ['on', 'enable', 'true', 'resume'].includes(arg);
         const disable = ['off', 'disable', 'false', 'pause'].includes(arg);
         if (!enable && !disable) {
-          return replyOf(`Master is ${thothState.masterEnabled ? 'ON' : 'OFF'}. Use "thoth master on|off".`);
+          return replyOf(
+            `Master is ${thothState.masterEnabled ? 'ON' : 'OFF'}. Use "thoth master on|off".`
+          );
         }
         thothState.masterEnabled = enable;
         persist();
@@ -230,10 +248,20 @@ export function attachToEngine(engine, { relay } = {}) {
       try {
         const out = await tool.run(engine, parsed.args ?? '', { adminAuthorized }, byName, kernel);
         persist();
+        // Usage signal for the learning loop: advisory, never blocking.
+        try {
+          recordToolUse(process.cwd(), tool.name);
+        } catch {
+          /* counters are advisory */
+        }
         const result =
           typeof out === 'string'
             ? replyOf(out)
-            : { ok: true, data: out?.data, reply: String(out.reply ?? '').slice(0, 2000) };
+            : {
+                ok: true,
+                data: out?.data,
+                reply: String(out.reply ?? '').slice(0, 2000),
+              };
         const elevated = tool.klass === 'L2';
         if (elevated && thothState.adminMode) {
           thothState.adminUsage = [
@@ -250,7 +278,12 @@ export function attachToEngine(engine, { relay } = {}) {
         });
         return result;
       } catch (err) {
-        emit('command', { tool: tool.name, ok: false, error: true, klass: tool.klass });
+        emit('command', {
+          tool: tool.name,
+          ok: false,
+          error: true,
+          klass: tool.klass,
+        });
         return {
           ok: false,
           error: 'tool-failed',
@@ -270,7 +303,8 @@ export function attachToEngine(engine, { relay } = {}) {
       }
       const wanted = String(klass || '').toUpperCase();
       if (!GRANTABLE_CLASSES.has(wanted)) throw new Error(`class not grantable: ${klass}`);
-      if (tool.klass === 'L2') throw new Error(`${tool.name} is elevated-only and can never be granted`);
+      if (tool.klass === 'L2')
+        throw new Error(`${tool.name} is elevated-only and can never be granted`);
       if (wanted !== 'L0' && wanted !== 'L1') throw new Error(`bad class: ${klass}`);
       if (tool.klass === 'L1' && wanted === 'L0') throw new Error(`${tool.name} requires L1`);
       thothState.grants[tool.name] = wanted;

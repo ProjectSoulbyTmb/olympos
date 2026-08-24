@@ -30,7 +30,7 @@ export const knowledge = {
     thothTools: {
       title: 'THOTH toolbox',
       reply:
-        'Beyond status and doctor, THOTH operates your workspace: remember/forget memory edits, scratchpad capture, focus sessions, backups and restores, mood mixes, widget pinning, palette lookups, last-reply explanations, repo git posture (branch/status/log, read-only), and the continuous design loop. Say "thoth help <tool>" for exact usage; classes tell you what needs a grant or an administrator.',
+        'Beyond status and doctor, THOTH operates your workspace: remember/forget memory edits, scratchpad capture, focus sessions, backups and restores, mood mixes, widget pinning, palette lookups, last-reply explanations, repo git posture (branch/status/log, read-only), fleet rollup with incident memory and self-learning, the continuous design loop, compliance scanning, and the proposal lane. Say "thoth help <tool>" for exact usage; classes tell you what needs a grant or an administrator.',
     },
     thothAiBridge: {
       title: 'Local model bridge',
@@ -52,6 +52,31 @@ export const knowledge = {
       reply:
         'Administrators can arm session-scoped elevation so elevated operations run without per-call confirmation - but arming requires an active administrator authorization, every elevated run takes an automatic safety backup first, each use is persisted and relay-audited, and the mode dies with the admin session. Outside that window nothing changes: destructive tools stay refused.',
     },
+    thothFleet: {
+      title: 'Fleet federation and incident memory',
+      reply:
+        '"thoth fleet" rolls up every sibling system this kernel can see (MIND-managed, git-bearing, node) with network posture and attention flags - read-only, bounded to 24 systems, all local. "thoth incidents" correlates only what needs action, most urgent first, and persists each condition as a stable-id ledger entry that stays open across sweeps, auto-closes when a sweep comes back clean, and banks MTTR minutes on close. "thoth incidents --all" adds resolved history with median/worst MTTR so reliability becomes a measured metric instead of tribal memory.',
+    },
+    thothCreative: {
+      title: 'Proposal lane',
+      reply:
+        'THOTH can propose autonomously through "thoth ideate" (severity-ranked ideas grounded in live audits and goal documents), "thoth changelog" (drafts from actual git history), and accessible theme palettes - while every application of a proposal stays behind an explicit human gate. Generators synthesize only local, verifiable inputs; nothing is invented beyond what the repository shows. "thoth creations" lists what the proposal lane has produced.',
+    },
+    thothCompliance: {
+      title: 'Compliance scanning',
+      reply:
+        '"thoth compliance" scans this repository against standing standards: supply-chain integrity, privacy egress, CSP posture, accessibility, and safety copy. Findings are severity-ranked with file citations, and "thoth comply-fix" applies only the mechanical subset - anything judgment-shaped is reported for a human. The scanner reads your tree; it never phones home.',
+    },
+    thothLearn: {
+      title: 'Self-learning loop',
+      reply:
+        'THOTH learns automatically from what its sweeps already see: every incidents/fleet sweep and audit tick reconciles durable facts into a local ledger - which systems run fragile, which finding categories have gone chronic, your median fleet MTTR, and the tools you rely on most. Each fact carries an evidence count; observed facts expire after about two weeks of silence. You can add permanent knowledge with "thoth teach <fact>", review everything with "thoth learn", or remove taught facts with "thoth unteach <text>". All of it stays in .operator/ on this PC.',
+    },
+    thothWisdom: {
+      title: 'Operational wisdom and guided remediation',
+      reply:
+        'THOTH carries an advanced knowledge layer: a workspace topology map ("thoth topology" - supervised systems, integration seams, verified environment facts like the local model endpoint and sync directions), incident playbooks matched by signature, and an escalation policy that fixes what automation may do per severity. When incidents fire, the sweep names the matching playbooks, and "thoth advise" prints diagnosis plus step-by-step remediation marked [auto-ok], [L0]/[L1], or [human]. "thoth advise --apply" executes only the first step your existing standing grants allow - one action per call, never chaining mutations, never touching elevated or human-gated steps. Automation depth equals your grants; judgment stays with you.',
+    },
     thothAdultWellness: {
       title: 'Adult wellness and control',
       reply:
@@ -59,10 +84,8 @@ export const knowledge = {
     },
   },
   rules: [
-    {
-      id: 'thoth',
-      re: /\b(thoth|operator\s+console|operator\s+kernel)\b/i,
-    },
+    // Specific lanes first; the bare "thoth" catch-all stays last so a
+    // phrase like "thoth fleet" routes to its lane, not this generic card.
     {
       id: 'thothGrants',
       re: /\b(thoth\s+(?:grant|grants|permission|permissions|classes?)|L[012]\s+(?:grant|class|tool))\b/i,
@@ -98,6 +121,30 @@ export const knowledge = {
     {
       id: 'thothAdmin',
       re: /\b(session[- ]scoped|admin\s+mode|elevation\s+mode|break[- ]glass)\b/i,
+    },
+    {
+      id: 'thothFleet',
+      re: /\b(fleet|incident[sz]?|mttr|mean\s+time|sibling\s+systems?|cross[- ]system)\b/i,
+    },
+    {
+      id: 'thothCreative',
+      re: /\b(ideate|proposals?|idea\s+list|changelog\s+draft|creations?|theme\s+palette)\b/i,
+    },
+    {
+      id: 'thothCompliance',
+      re: /\b(compliance|comply[- ]fix|standards?\s+scan|supply[- ]chain\s+scan|privacy\s+egress)\b/i,
+    },
+    {
+      id: 'thothLearn',
+      re: /\b(self[- ]learn|thoth\s+(?:learn|teach|unteach)|teach(?:ing)?\s+thoth|what\s+(?:have\s+you\s+)?learned)\b/i,
+    },
+    {
+      id: 'thothWisdom',
+      re: /\b(playbooks?|advise|remediation|topology|escalation|runbooks?|guided\s+fix)\b/i,
+    },
+    {
+      id: 'thoth',
+      re: /\b(thoth|operator\s+console|operator\s+kernel)\b/i,
     },
   ],
 };

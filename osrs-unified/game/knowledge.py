@@ -89,6 +89,16 @@ def collect(world_module=None):
         "agility": {"lap_ticks": C.AGILITY_LAP_TICKS,
                     "lap_xp": C.AGILITY_LAP_XP,
                     "max_energy_bonus_per_level": C.ENERGY_PER_AGILITY},
+        "construction_planks": [
+            {"log": k, "plank": v, "sawmill_fee": C.SAWMILL_FEE[k]}
+            for k, v in C.PLANKS.items()],
+        "construction_furniture": [
+            {"furniture": k,
+             "mats": _fmt(v["mats"]),
+             **{kk: vv for kk, vv in v.items() if kk != "mats"}}
+            for k, v in C.CONSTRUCTION.items()],
+        "hunter_birds": [
+            {"bird": k, **v} for k, v in getattr(C, "BIRDS", {}).items()],
         "thieving_stalls": [
             {"stall": k, **v, "loot": _drops(v["loot"])}
             for k, v in C.STALLS.items()],
@@ -141,7 +151,9 @@ def collect(world_module=None):
 
 _ORDER = ["overview", "gathering_trees", "gathering_rocks", "gathering_fishing",
           "cooking", "smelting", "firemaking", "fletching", "crafting_leather",
-          "farming_herbs", "herblore_potions", "agility", "thieving_stalls",
+          "farming_herbs", "herblore_potions", "agility",
+          "construction_planks", "construction_furniture", "hunter_birds",
+          "thieving_stalls",
           "runecrafting", "magic_spells", "combat_styles_trained_skill",
           "melee_weapons", "armours", "bows", "arrows", "food_heals", "bones",
           "prayer_defence_factor_per_level", "slayer", "npcs", "npc_spawns",
@@ -161,6 +173,9 @@ _TITLES = {
     "farming_herbs": "Farming herbs (seeds at herb patches)",
     "herblore_potions": "Herblore potions",
     "agility": "Agility course",
+    "construction_planks": "Construction planks (sawmill at workshop)",
+    "construction_furniture": "Construction furniture (build at workshop)",
+    "hunter_birds": "Hunter birds (bird snares at hunting ground)",
     "thieving_stalls": "Thieving stalls",
     "runecrafting": "Runecrafting (essence at altars)",
     "magic_spells": "Magic spells (cast)",

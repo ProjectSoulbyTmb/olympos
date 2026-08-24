@@ -19,10 +19,12 @@ import {
 import { deriveIdeas, draftChangelogFromGit, buildTheme } from './creative.js';
 import { explainFile, findSymbol, conventions } from './intel.js';
 import { fleetStatus, incidents, reconcileIncidents } from './federation.js';
+import { observeFromSweeps, summarize, teach, unteach } from './learn.js';
+import { ESCALATION, FACTS, TOPOLOGY, adviseFor } from './wisdom.js';
 
 async function complianceScanner() {
   const root = process.cwd();
-  const url = new URL(`file:///${root.split(path.sep).join("/")}/scripts/compliance-scan.mjs`);
+  const url = new URL(`file:///${root.split(path.sep).join('/')}/scripts/compliance-scan.mjs`);
   return import(url.href);
 }
 
@@ -47,7 +49,9 @@ export function buildTools() {
       summary: 'List THOTH commands and the grant each one needs.',
       usage: 'thoth help [command]',
       run(engine, args, ctx, all) {
-        const wanted = String(args || '').toLowerCase().trim();
+        const wanted = String(args || '')
+          .toLowerCase()
+          .trim();
         if (wanted && wanted !== 'all') {
           const tool = all.get(wanted);
           if (!tool) return `No such command: ${wanted}`;
@@ -119,13 +123,13 @@ export function buildTools() {
         const rows = fleet.entries.map(entry => {
           const net = entry.net
             ? `net ${entry.net.healthy ?? '?'} ok / ${entry.net.down} down`
-            : (entry.kinds.join('+') || 'unknown');
+            : entry.kinds.join('+') || 'unknown';
           const flag = entry.attention.length ? ' !' : '';
           return `- ${entry.name}${flag}: ${net}`;
         });
         return [
-          `Fleet: ${fleet.systems} systems, ${fleet.managed} MIND-managed, `
-            + `${fleet.attention} need attention.`,
+          `Fleet: ${fleet.systems} systems, ${fleet.managed} MIND-managed, ` +
+            `${fleet.attention} need attention.`,
           ...rows,
         ].join('\n');
       },
@@ -139,30 +143,157 @@ export function buildTools() {
         const showAll = /\b--all\b/.test(String(args || ''));
         const report = incidents(process.cwd());
         const ledger = reconcileIncidents(process.cwd(), report);
+        // Automatic learning: every sweep reconciles durable facts.
+        try {
+          observeFromSweeps(process.cwd(), { incidentsReport: report, ledger });
+        } catch {
+          /* learning is advisory */
+        }
         if (!report.count)
-          return 'No open incidents across the fleet.'
-            + (ledger.mttr
-                ? `\nMTTR so far: median ${ledger.mttr.medianMinutes}m `
-                  + `over ${ledger.mttr.count} resolved`
-                  + ` (worst ${ledger.mttr.worstMinutes}m).`
-                : '');
+          return (
+            'No open incidents across the fleet.' +
+            (ledger.mttr
+              ? `\nMTTR so far: median ${ledger.mttr.medianMinutes}m ` +
+                `over ${ledger.mttr.count} resolved` +
+                ` (worst ${ledger.mttr.worstMinutes}m).`
+              : '')
+          );
         const lines = report.incidents.map(
-          incident => `[${incident.severity}] ${incident.system}:\n`
-            + incident.items.map(item => `  - ${item}`).join('\n')
+          incident =>
+            `[${incident.severity}] ${incident.system}:\n` +
+            incident.items.map(item => `  - ${item}`).join('\n')
         );
         let mttrLine = '';
         if (ledger.mttr)
-          mttrLine = `\n\nMTTR: median ${ledger.mttr.medianMinutes}m over `
-            + `${ledger.mttr.count} resolved (worst ${ledger.mttr.worstMinutes}m).`;
+          mttrLine =
+            `\n\nMTTR: median ${ledger.mttr.medianMinutes}m over ` +
+            `${ledger.mttr.count} resolved (worst ${ledger.mttr.worstMinutes}m).`;
         let closedLine = '';
         if (showAll && ledger.recentlyClosed.length)
-          closedLine = '\n\nRecently closed:\n'
-            + ledger.recentlyClosed.map(
-                r => `  - [resolved ${r.mttrMinutes}m] ${r.system}: `
-                  + r.items.join('; ')
-              ).join('\n');
-        return `Incidents (${report.count}):\n${lines.join('\n')}`
-          + mttrLine + closedLine;
+          closedLine =
+            '\n\nRecently closed:\n' +
+            ledger.recentlyClosed
+              .map(r => `  - [resolved ${r.mttrMinutes}m] ${r.system}: ` + r.items.join('; '))
+              .join('\n');
+        const base = `Incidents (${report.count}):\n${lines.join('\n')}` + mttrLine + closedLine;
+        const advice = adviseFor(report);
+        const adviceLine = advice.length
+          ? `\n\nAdvised playbooks: ${advice
+              .map(m => m.playbook.title)
+              .join(', ')}. Run "thoth advise --apply" for guided remediation.`
+          : '';
+        return base + adviceLine;
+      },
+    },
+    {
+      name: 'advise',
+      klass: 'L0',
+      summary:
+        'Playbook advice for live incidents; --apply runs the first step your standing grants allow.',
+      usage: 'thoth advise [--apply]',
+      async run(engine, args, _ctx, _all, kernel) {
+        const apply = /--apply\b/.test(String(args || ''));
+        const report = incidents(process.cwd());
+        const matches = adviseFor(report);
+        if (!matches.length) {
+          return report.count
+            ? `No playbook matches ${report.count} incident(s); judgment required.`
+            : 'No open incidents - nothing to advise on.';
+        }
+        const granted = new Map((kernel?.listTools() || []).map(tool => [tool.name, tool.granted]));
+        const blocks = [];
+        for (const { playbook } of matches) {
+          const lines = [`${playbook.title}:`, `  ${playbook.diagnosis}`];
+          for (const step of playbook.steps) {
+            const toolName = /"thoth\s+(\w+)/.exec(step.text)?.[1];
+            const runnable =
+              !step.human && step.klass === 'L0' && toolName && granted.has(toolName);
+            const mark = step.human ? '[human]' : runnable ? '[auto-ok]' : `[${step.klass}]`;
+            lines.push(`  ${mark} ${step.text}`);
+          }
+          blocks.push(lines.join('\n'));
+        }
+        if (apply) {
+          for (const { playbook } of matches) {
+            for (const step of playbook.steps) {
+              const toolName = /"thoth\s+(\w+)/.exec(step.text)?.[1];
+              if (step.human || step.klass !== 'L0' || !toolName || !granted.has(toolName))
+                continue;
+              const result = await kernel.handleCommand({ tool: toolName, args: '' }, {});
+              return `Applied "${playbook.title}" first auto step (${toolName}):\n${result.reply}`;
+            }
+          }
+          return 'No auto-runnable step in the matched playbooks - everything needs you.';
+        }
+        return `${blocks.join('\n\n')}\n\nEscalation: ${ESCALATION.map(
+          rule => `${rule.severity}=>${rule.automation.split(';')[0]}`
+        ).join('; ')}. Re-run with --apply to execute the first step your grants allow.`;
+      },
+    },
+    {
+      name: 'topology',
+      klass: 'L0',
+      summary: 'Workspace map: supervised systems, integration seams, verified environment facts.',
+      usage: 'thoth topology',
+      run() {
+        const systems = TOPOLOGY.map(
+          system => `- ${system.name}${system.managed ? ' (supervised)' : ''}: ${system.role}`
+        );
+        const facts = [
+          `Soul provider: ${FACTS.soulProvider.service} at ${FACTS.soulProvider.endpoint} (${FACTS.soulProvider.models.join(', ')})`,
+          `Kernel sync: ${FACTS.canonicalSync.source} -> ${FACTS.canonicalSync.installed}`,
+          `Writer lane: ${FACTS.writerLanes.lockdir}`,
+          `Scheduled: ${FACTS.scheduledTasks.join(' | ')}`,
+          `Learning artifacts: ${Object.values(FACTS.artifacts).join(', ')}`,
+        ];
+        return `TOPOLOGY\n${systems.join('\n')}\n\nENVIRONMENT\n${facts
+          .map(f => `- ${f}`)
+          .join('\n')}`;
+      },
+    },
+    {
+      name: 'learn',
+      klass: 'L0',
+      summary: 'What THOTH has learned from sweeps, usage, and your teaching.',
+      usage: 'thoth learn',
+      run(engine) {
+        const history = engine.state.thoth?.design?.lastAudit?.history;
+        const result = observeFromSweeps(process.cwd(), {
+          incidentsReport: incidents(process.cwd()),
+          ledger: undefined,
+          auditHistory: Array.isArray(history) ? history : [],
+        });
+        const digest = summarize(process.cwd());
+        let head = `Known facts (${digest.count})`;
+        if (result.learned || result.expired || result.refreshed.length) {
+          head +=
+            ` - this sweep: +${result.learned} new` +
+            `, ${result.refreshed.length} refreshed` +
+            (result.expired ? `, ${result.expired} expired` : '');
+        }
+        return `${head}:\n${digest.text}`;
+      },
+    },
+    {
+      name: 'teach',
+      klass: 'L1',
+      summary: 'Teach THOTH a durable fact (persisted until you remove it).',
+      usage: 'thoth teach <fact>',
+      run(_engine, args) {
+        const fact = teach(process.cwd(), args);
+        return `Learned permanently: ${fact.statement}`;
+      },
+    },
+    {
+      name: 'unteach',
+      klass: 'L1',
+      summary: 'Remove taught facts matching the given text.',
+      usage: 'thoth unteach <text>',
+      run(_engine, args) {
+        const removed = unteach(process.cwd(), args);
+        return removed
+          ? `Removed ${removed} taught fact(s).`
+          : `No taught fact matches "${clip(args, 80)}".`;
       },
     },
     {
@@ -201,7 +332,9 @@ export function buildTools() {
       run(engine, args) {
         const query = String(args || '').trim();
         const items = engine.paletteItems(query) || [];
-        return clip(`Palette${query ? ` ~ "${query}"` : ''}:\n${list(items.slice(0, 12).map(i => i.label || i.id || String(i)))}`);
+        return clip(
+          `Palette${query ? ` ~ "${query}"` : ''}:\n${list(items.slice(0, 12).map(i => i.label || i.id || String(i)))}`
+        );
       },
     },
     {
@@ -282,7 +415,10 @@ export function buildTools() {
       summary: 'Start or stop a focus session.',
       usage: 'thoth focus start [minutes] | thoth focus stop',
       run(engine, args) {
-        const parts = String(args || '').toLowerCase().split(/\s+/).filter(Boolean);
+        const parts = String(args || '')
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(Boolean);
         const verb = parts[0] || 'start';
         if (verb === 'stop') {
           engine.stopFocusSession();
@@ -299,7 +435,11 @@ export function buildTools() {
       summary: 'Create a profile backup now.',
       usage: 'thoth backup now',
       run(engine, args) {
-        if (String(args || '').toLowerCase().trim() !== 'now') {
+        if (
+          String(args || '')
+            .toLowerCase()
+            .trim() !== 'now'
+        ) {
           return 'Usage: thoth backup now';
         }
         const created = engine.createBackup();
@@ -324,10 +464,14 @@ export function buildTools() {
       summary: 'Media mix for a mood.',
       usage: 'thoth mood <focus|unwind|...>',
       run(engine, args) {
-        const mood = String(args || '').trim().toLowerCase();
+        const mood = String(args || '')
+          .trim()
+          .toLowerCase();
         if (!mood) return 'Usage: thoth mood <mood>';
         const mix = engine.moodMix(mood) || [];
-        return clip(`Mood mix "${mood}":\n${list(mix.slice(0, 8).map(t => t.title || t.name || String(t)))}`);
+        return clip(
+          `Mood mix "${mood}":\n${list(mix.slice(0, 8).map(t => t.title || t.name || String(t)))}`
+        );
       },
     },
     {
@@ -360,7 +504,11 @@ export function buildTools() {
       summary: 'Reset the whole local profile (elevated, destructive).',
       usage: 'thoth reset confirm',
       run(engine, args) {
-        if (String(args || '').toLowerCase().trim() !== 'confirm') {
+        if (
+          String(args || '')
+            .toLowerCase()
+            .trim() !== 'confirm'
+        ) {
           return 'This erases the local profile. Run "thoth reset confirm" to proceed.';
         }
         engine.reset();
@@ -406,7 +554,9 @@ export function buildTools() {
         }
         return [
           `memories: ${mems.length} (span ${oldest} to ${newest})`,
-          `by source: ${Object.entries(sources).map(([k, v]) => `${k}=${v}`).join(', ')}`,
+          `by source: ${Object.entries(sources)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(', ')}`,
         ].join('\n');
       },
     },
@@ -417,10 +567,12 @@ export function buildTools() {
       usage: 'thoth conversations [n]',
       run(engine, args) {
         const n = Math.min(Math.max(Number(args) || 5, 1), 20);
-        const convos = Array.isArray(engine.snapshot().conversations) ? engine.snapshot().conversations : [];
+        const convos = Array.isArray(engine.snapshot().conversations)
+          ? engine.snapshot().conversations
+          : [];
         if (!convos.length) return 'No conversations stored yet.';
         const rows = convos.slice(-n).map(c => {
-          const turns = Array.isArray(c.messages) ? c.messages.length : c.turnCount ?? '?';
+          const turns = Array.isArray(c.messages) ? c.messages.length : (c.turnCount ?? '?');
           return `- ${(c.id || 'id?').slice(0, 12)} turns=${turns}${c.startedAt ? ` at ${new Date(c.startedAt).toISOString().slice(0, 16)}` : ''}`;
         });
         return `Recent conversations (${rows.length}/${convos.length}):\n${rows.join('\n')}`;
@@ -456,7 +608,10 @@ export function buildTools() {
       summary: 'Local git posture of the connected repository (read-only).',
       usage: 'thoth repo [branch|status|log]',
       run(engine, args) {
-        const sub = String(args || '').toLowerCase().trim() || 'status';
+        const sub =
+          String(args || '')
+            .toLowerCase()
+            .trim() || 'status';
         const rootGuess = process.cwd();
         const cmds = {
           branch: ['git', ['rev-parse', '--abbrev-ref', 'HEAD']],
@@ -469,15 +624,26 @@ export function buildTools() {
           execFile(
             entry[0],
             entry[1],
-            { cwd: rootGuess, timeout: 8000, windowsHide: true, maxBuffer: 200_000 },
+            {
+              cwd: rootGuess,
+              timeout: 8000,
+              windowsHide: true,
+              maxBuffer: 200_000,
+            },
             (err, stdout) => {
               if (err && !stdout) {
-                resolve(`git ${sub} unavailable here (${String(err.message).split('\n')[0].slice(0, 60)}).`);
+                resolve(
+                  `git ${sub} unavailable here (${String(err.message).split('\n')[0].slice(0, 60)}).`
+                );
                 return;
               }
               const out = String(stdout || '').trim();
               if (sub === 'status') {
-                resolve(out ? `${out.split('\n').length} uncommitted file(s):\n${out.slice(0, 400)}` : 'Working tree clean.');
+                resolve(
+                  out
+                    ? `${out.split('\n').length} uncommitted file(s):\n${out.slice(0, 400)}`
+                    : 'Working tree clean.'
+                );
                 return;
               }
               resolve(out ? out.slice(0, 900) : `(no output)`);
@@ -508,13 +674,22 @@ export function buildTools() {
       usage: 'thoth ideate',
       async run(engine, _args, _ctx, _all, kernel) {
         const { report } = await auditNow(engine, kernel?.relay);
-        const ideas = deriveIdeas(report).map((idea, i) => ({ ...idea, n: i + 1 }));
+        const ideas = deriveIdeas(report).map((idea, i) => ({
+          ...idea,
+          n: i + 1,
+        }));
         const box = engine.state.thoth?.creative;
         if (box) {
-          box.ideas = [...ideas.map(i => ({ ...i, at: Date.now() })), ...(box.ideas || [])].slice(0, 20);
+          box.ideas = [...ideas.map(i => ({ ...i, at: Date.now() })), ...(box.ideas || [])].slice(
+            0,
+            20
+          );
         }
         engine.store.save(engine.state);
-        kernel?.relay?.emit?.('creation', { kind: 'ideas', count: ideas.length });
+        kernel?.relay?.emit?.('creation', {
+          kind: 'ideas',
+          count: ideas.length,
+        });
         return ideas.length
           ? `Proposals (advisory - nothing applied):\n${ideas.map(i => `${i.n}. [${i.severityHint}] ${i.title}`).join('\n')}\nSay "thoth creations" for full bodies.`
           : 'Clean audit; no proposals warranted. THOTH invents only from evidence.';
@@ -532,9 +707,14 @@ export function buildTools() {
           parts.push(`Ideas (${c.ideas.length}):`);
           for (const i of c.ideas.slice(0, 3)) parts.push(`  - ${i.title}`);
         }
-        if (c.drafts?.length) parts.push(`Changelog drafts: ${c.drafts.length} (latest ${c.drafts[0]?.at ? new Date(c.drafts[0].at).toISOString().slice(0, 10) : ''})`);
+        if (c.drafts?.length)
+          parts.push(
+            `Changelog drafts: ${c.drafts.length} (latest ${c.drafts[0]?.at ? new Date(c.drafts[0].at).toISOString().slice(0, 10) : ''})`
+          );
         if (c.themes?.length) parts.push(`Themes: ${c.themes.map(t => t.name).join(', ')}`);
-        return parts.join('\n') || 'Creative inbox is empty. Try "thoth ideate" or "thoth changelog".';
+        return (
+          parts.join('\n') || 'Creative inbox is empty. Try "thoth ideate" or "thoth changelog".'
+        );
       },
     },
     {
@@ -549,7 +729,12 @@ export function buildTools() {
           execFile(
             'git',
             ['log', '--oneline', `-n`, String(n)],
-            { cwd: rootGuess, timeout: 8000, windowsHide: true, maxBuffer: 200_000 },
+            {
+              cwd: rootGuess,
+              timeout: 8000,
+              windowsHide: true,
+              maxBuffer: 200_000,
+            },
             (err, stdout) => {
               if (err && !stdout) {
                 resolve(`Git history unavailable here. Run from a repository clone.`);
@@ -562,7 +747,11 @@ export function buildTools() {
                 engine.store.save(engine.state);
                 kernel?.relay?.emit?.('creation', { kind: 'changelog' });
               }
-              resolve(draft ? 'Draft stored in the creative inbox:\n' + draft : 'Nothing changelog-worthy found.');
+              resolve(
+                draft
+                  ? 'Draft stored in the creative inbox:\n' + draft
+                  : 'Nothing changelog-worthy found.'
+              );
             }
           );
         });
@@ -574,13 +763,18 @@ export function buildTools() {
       summary: 'Compose an accessible dark theme variant into the creative inbox.',
       usage: 'thoth theme <name> [hue]',
       run(engine, args) {
-        const parts = String(args || '').trim().split(/\s+/);
+        const parts = String(args || '')
+          .trim()
+          .split(/\s+/);
         const name = (parts[0] || '').replace(/[^a-z0-9-]/gi, '');
         const hue = Math.min(Math.max(Number(parts[1]) || 145, 0), 359);
         if (!name) return 'Usage: thoth theme <name> [hue 0-359]';
         const theme = buildTheme(name, hue);
         const c = engine.state.thoth.creative;
-        c.themes = [{ ...theme, at: Date.now() }, ...(c.themes || []).filter(t => t.name !== name)].slice(0, 8);
+        c.themes = [
+          { ...theme, at: Date.now() },
+          ...(c.themes || []).filter(t => t.name !== name),
+        ].slice(0, 8);
         engine.store.save(engine.state);
         return (
           `Theme "${name}" composed (WCAG-checked ink per surface).\n` +
@@ -594,7 +788,9 @@ export function buildTools() {
       summary: 'Adult session wellness: private mode, elapsed minutes, limit headroom.',
       usage: 'thoth adult [limit <min>|private on|off]',
       async run(engine, args) {
-        const raw = String(args || '').toLowerCase().trim();
+        const raw = String(args || '')
+          .toLowerCase()
+          .trim();
         const status = await window?.soul?.adultSessionStatus?.();
         const cfg = engine.state.assistant || {};
         void cfg;
@@ -633,7 +829,10 @@ export function buildTools() {
       summary: 'Probe the local model bridge (Ollama): version, models, loaded state.',
       usage: 'thoth ai [models|loaded]',
       async run(_engine, args) {
-        const view = String(args || '').toLowerCase().trim() || 'models';
+        const view =
+          String(args || '')
+            .toLowerCase()
+            .trim() || 'models';
         const base = 'http://127.0.0.1:11434';
         try {
           if (view === 'loaded') {
@@ -641,11 +840,15 @@ export function buildTools() {
             const rows = (ps.models || []).map(
               m => `${m.name} - vram ${(m.size_vram / 1073741824).toFixed(2)} GB`
             );
-            return rows.length ? `Loaded models:\n${rows.join('\n')}` : 'No models loaded right now.';
+            return rows.length
+              ? `Loaded models:\n${rows.join('\n')}`
+              : 'No models loaded right now.';
           }
           const tags = await (await fetch(`${base}/api/tags`)).json();
           const names = (tags.models || []).map(m => m.name);
-          return names.length ? `Local models:\n${names.map(n => `- ${n}`).join('\n')}` : 'Bridge is up but no models are installed.';
+          return names.length
+            ? `Local models:\n${names.map(n => `- ${n}`).join('\n')}`
+            : 'Bridge is up but no models are installed.';
         } catch (err) {
           return `Local model bridge unreachable (${String(err.message).split('.')[0]}). Start Ollama and retry.`;
         }
@@ -682,7 +885,10 @@ export function buildTools() {
       usage: 'thoth regress',
       run(engine) {
         const design = engine.state.thoth?.design || {};
-        return regressionReport({ ...design.lastAudit, history: design.lastAudit?.history });
+        return regressionReport({
+          ...design.lastAudit,
+          history: design.lastAudit?.history,
+        });
       },
     },
     {
@@ -694,7 +900,11 @@ export function buildTools() {
         const { scanCompliance } = await complianceScanner();
         const report = scanCompliance({ fix: false });
         const c = engine.state.thoth || {};
-        c.compliance = { at: report.generatedAt, counts: report.counts, findings: report.findings.slice(0, 25) };
+        c.compliance = {
+          at: report.generatedAt,
+          counts: report.counts,
+          findings: report.findings.slice(0, 25),
+        };
         engine.store.save(engine.state);
         kernel?.relay?.emit?.('compliance', {
           total: report.findings.length,
@@ -781,12 +991,16 @@ export function buildTools() {
       summary: 'Continuous mode: re-audit every 30 min into the local profile.',
       usage: 'thoth watch on|off|status',
       run(engine, args, _ctx, _all, kernel) {
-        const arg = String(args || '').toLowerCase().trim() || 'status';
+        const arg =
+          String(args || '')
+            .toLowerCase()
+            .trim() || 'status';
         if (arg === 'on') {
           const on = startWatch(engine, kernel?.relay);
           return on ? 'Design watch enabled (30-min loop).' : 'Already watching.';
         }
-        if (arg === 'off') return stopWatch(engine) ? 'Design watch disabled.' : 'Watch was already off.';
+        if (arg === 'off')
+          return stopWatch(engine) ? 'Design watch disabled.' : 'Watch was already off.';
         return `Design watch is ${engine.state.thoth?.design?.watch ? 'ON' : 'OFF'}.`;
       },
     },

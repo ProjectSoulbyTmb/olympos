@@ -86,6 +86,21 @@ osrs mind autonomic            # patrol -> heal -> parity -> tests ->
 osrs mind autonomic --dry-run  # plan only
 ```
 
+## MIND proposal pipeline
+
+LLM diagnoses land in `mind/proposals/` as markdown with unified diffs.
+Turn them into reviewed commits:
+
+```powershell
+osrs mind propose list                 # queued proposals
+osrs mind propose apply <file> --dry-run
+osrs mind propose apply <file>         # git apply + test gate;
+                                       # auto-reverts on red tests
+```
+
+Releases now push the commit+tag to `origin` and publish a GitHub
+release (zip attached) via the `gh` CLI when available.
+
 ## MIND <-> Thoth relay
 
 Durable event bus (`runs/osrs_bus/`, spool+archive) connecting this repo's
@@ -140,10 +155,14 @@ LLM config falls back to env vars: `LLM_BASE_URL` (default local Ollama),
 Skilling: `wc_xp`, `gold`, `total_xp`, `cook_xp`, `uim_total_xp`
 (Ultimate Ironman — bank locked, manage 28 slots). Scoring reports total XP,
 per-skill breakdown, net coins, peak XP rate, final levels.
-See `docs/README-skilling-agent.md`.
+23 skills are trainable: the 21 originals plus **Construction**
+(sawmill planks -> furniture at the workshop) and **Hunter** (bird snares
+at the hunting ground). See `docs/README-skilling-agent.md`.
 
 PvP: PPO (clip 0.2, GAE, opponent pool snapshots every 10 iters) over real
 OSRS hit/defence roll formulas, food/prayer/movement on a 1D tile line.
+Combat styles: melee (adjacent), **ranged** (5 tiles, consumes ammo) and
+**magic** (full range, consumes runes) — 8 actions, 16-dim observations.
 See `docs/README-pvp-rl.md`.
 
 ## Notes

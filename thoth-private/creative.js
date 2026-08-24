@@ -92,7 +92,9 @@ export function draftChangelogFromGit(logText, versionLabel = 'Unreleased') {
     if (!m) continue;
     const type = m[2].toLowerCase();
     const bucket = Object.keys(TYPE_ORDER).find(k => type.startsWith(k)) || 'chore';
-    (groups[bucket] ||= []).push(`- ${m[3].replace(/^\w/, c => c.toUpperCase())} (${m[1].slice(0, 7)})`);
+    (groups[bucket] ||= []).push(
+      `- ${m[3].replace(/^\w/, c => c.toUpperCase())} (${m[1].slice(0, 7)})`
+    );
   }
   const ordered = Object.keys(groups).sort((a, b) => TYPE_ORDER[a] - TYPE_ORDER[b]);
   if (!ordered.length) return null;

@@ -7,20 +7,26 @@ class GameSDK:
     """The only object strategy snippets receive. Each action advances
     the tick clock; a 3000-tick budget is enforced by the world."""
 
-    _VALID = ("state()", "skills()", "inventory()", "coins()", "ticks_left()",
-              "log()", "quest_status()", "shop_prices()", "shop_stock()",
-              "npcs()", "move_to(x,y)", "walk(name)", "chop()", "mine()",
-              "fish()", "cook(raw=None)", "light_fire()", "smelt(bar)",
+    _VALID = ("state()", "skills(name=None)", "inventory()", "coins()",
+              "ticks_left()", "log()", "quest_status()", "quest(q=None)",
+              "shop_prices()", "shop_stock()", "npcs()",
+              "get_location()", "move_to(x,y)", "walk(name)", "chop()",
+              "cut_log()", "mine()", "mine_ore()", "fish()", "catch_fish()",
+              "cook(raw=None)", "light_fire()", "smelt(bar)",
               "attack(npc)", "eat(food)", "set_combat_style(style)",
               "cast(spell,npc)", "bury_bones()", "offer_bones()",
               "craft_rune(rune)", "thieve(stall)",
               "run_lap()", "plant(seed)", "harvest()",
               "make_potion(p)", "quaff(p)", "fletch(log=None)",
               "craft_leather(item)", "assign_slayer()", "claim_slayer()",
-              "ge_price(item)",
+              "cut_planks(log=None)", "build(furniture)",
+              "lay_trap()", "check_trap()",
+              "ge_price(item)", "tools()", "bank()", "claims()",
+              "search_chest()", "set_energy_regen(rate)",
               "talk_quest(q=None)", "deposit_all()", "deposit(i,n=None)",
               "withdraw(i,n=None)", "sell(i,n=None)", "buy(item,n=1)",
-              "drop(i,n=None)", "wait(t)", "set_run(bool)")
+              "drop(i,n=None)", "wait(t)", "set_run(bool)",
+              "get_score(task='total_xp')")
 
     def __init__(self, world):
         self._w = world
@@ -35,11 +41,79 @@ class GameSDK:
     def state(self):
         return self._w.state()
 
-    def skills(self):
-        return {s: self._w.skill_level(s) for s in self._w.xp}
+    def skills(self, name=None):
+        if name is None:
+            return {s: self._w.skill_level(s) for s in self._w.xp}
+        key = str(name).lower()
+        if key not in self._w.xp:
+            raise GameError(f"unknown skill '{name}' (valid: "
+                            f"{', '.join(sorted(self._w.xp))})")
+        return self._w.skill_level(key)
 
     def inventory(self):
         return dict(self._w.inventory)
+
+    def get_location(self):
+        pos = tuple(self._w.pos)
+        best, best_d = None, None
+        for name, spec in LOCATIONS.items():
+            d = max(abs(pos[0] - spec[2][0]), abs(pos[1] - spec[2][1]))
+            if best_d is None or d < best_d:
+                best, best_d = name, d
+        return {"pos": [pos[0], pos[1]], "nearest": best,
+                "distance": int(best_d)}
+
+    def tools(self):
+        owned = list(getattr(self._w, "tools", []))
+        return {
+            "axes": [t for t in owned if t.endswith("_axe")],
+            "pickaxes": [t for t in owned if t.endswith("_pickaxe")],
+            "weapons": [t for t in owned if t.endswith("_sword")
+                        or t.endswith("bow")],
+            "other": [t for t in owned
+                      if not (t.endswith("_axe") or t.endswith("_pickaxe")
+                              or t.endswith("_sword") or t.endswith("bow"))],
+        }
+
+    def bank(self):
+        return dict(self._w.bank_items)
+
+    def claims(self):
+        return sorted(getattr(self._w, "claims", set()))
+
+    def search_chest(self):
+        return self._w.search_chest()
+
+    def set_energy_regen(self, rate):
+        try:
+            rate = float(rate)
+        except (TypeError, ValueError):
+            raise GameError("set_energy_regen(rate) needs a number")
+        clamped = max(0.5, min(2.0, rate))
+        self._w.energy_regen_mult = clamped
+        return clamped
+
+    def quest(self, q=None):
+        status = self._w.quest_status()
+        if q is None:
+            return dict(status)
+        key = str(q)
+        if key not in status:
+            raise GameError(f"unknown quest '{q}' (valid: "
+                            f"{', '.join(sorted(status))})")
+        return status[key]
+
+    def cut_log(self):
+        return self.chop()
+
+    def mine_ore(self):
+        return self.mine()
+
+    def catch_fish(self):
+        return self.fish()
+
+    def get_score(self, task="total_xp"):
+        return self._w.score_task(str(task))
 
     def coins(self):
         return self._w.coins
@@ -171,6 +245,18 @@ class GameSDK:
     def claim_slayer(self):
         return self._w.claim_slayer()
 
+    def cut_planks(self, log=None):
+        return self._w.cut_planks(str(log) if log else None)
+
+    def build(self, furniture):
+        return self._w.build(str(furniture))
+
+    def lay_trap(self):
+        return self._w.lay_trap()
+
+    def check_trap(self):
+        return self._w.check_trap()
+
     def ge_price(self, item):
         """Live Grand Exchange price from the updater snapshot (or None)."""
         from .market import ge_price
@@ -188,13 +274,14 @@ drop(i,n=None) wait(t) set_run(bool) shop_prices() shop_stock() npcs()
 attack(npc) eat(food) set_combat_style(style) cast(spell,npc)
 bury_bones() offer_bones() craft_rune(rune) thieve(stall)
 run_lap() plant(seed) harvest() make_potion(p) quaff(p) fletch(log=None)
-craft_leather(item) assign_slayer() claim_slayer()
+craft_leather(item) assign_slayer() claim_slayer() cut_planks(log=None)
+build(furniture) lay_trap() check_trap()
 - game.state() -> full snapshot: position, coins, hp{current,max},
-  combat_style, inventory (str), skills (21), buffs{}, slayer_task,
+  combat_style, inventory (str), skills (23), buffs{}, slayer_task,
   nodes[], npcs[], events[]
-- game.skills() -> 21 skills incl. combat, prayer, ranged, magic,
+- game.skills() -> 23 skills incl. combat, prayer, ranged, magic,
   runecrafting, thieving, agility, herblore, crafting, fletching,
-  slayer, farming
+  slayer, farming, construction, hunter
 New loops:
 - game.run_lap()            30 ticks at the course: agility xp + energy refilled (cap rises with agility level)
 - game.plant("guam_seed") / game.harvest()   at herb patches; herbs grow over ticks
@@ -220,15 +307,27 @@ Runecrafting:
 - game.craft_rune("air_rune")  or "fire_rune" at the matching altar;
   bonus runes at higher levels
 Thieving:
-- game.thieve("fruit_stall") lvl 5 / ("cake_stall") lvl 15; cooldown while
+- game.thieve("fruit_stall") lvl 1 / ("cake_stall") lvl 15; cooldown while
   the owner watches
+Construction (at the workshop, walk target "workshop"):
+- game.cut_planks()        sawmill: logs/oak_logs/willow_logs -> plank
+                           (+sawmill fee in coins)
+- game.build("crude_wooden_chair")  lvl 1 / "wooden_bookcase" lvl 4 /
+  "wooden_chair" lvl 8; needs saw + hammer + planks + steel_nails;
+  furniture is sellable at the shop
+Hunter (at the hunting ground, walk target "hunting_ground"):
+- game.lay_trap()          needs a bird_snare (shop ~27 coins); up to 2
+                           snares at once; arms over ~6 ticks
+- game.check_trap()        collect: crimson_swift (lvl 1, 34 xp) or
+                           copper_longtail (lvl 9, 61.2 xp); yields bones,
+                           raw_bird_meat and feathers; failed snares reset
 Death = safe respawn with items. Shop stocks bows/arrows/runes/cake.
 Movement:
 - game.move_to(x, y) -> walks (1 tick/tile; 2 tiles/tick with run, drains energy)
 - game.set_run(True|False) -> run mode toggle; idle regen 0.5 energy/tick
 - game.walk("tree_1"|"tree_2"|"tree_oak"|"rock_copper"|"rock_tin"|
              "rock_iron"|"fishing_spot_1"|"range"|"bank"|"shop"|
-             "furnace"|"quest_giver")
+             "furnace"|"quest_giver"|"workshop"|"hunting_ground")
 Skilling (each attempt = 4 ticks; returns True if an item landed in inventory):
 - game.chop()   must stand next to a tree node
 - game.mine()   next to a rock node
@@ -260,4 +359,19 @@ Shop (adjacent to shop):
 - game.buy("iron_axe"|...|"steel_sword") (one-off tools/weapons)
 Other:
 - game.drop(item, n=None) / game.wait(ticks)
-- game.log() -> recent event messages"""
+- game.log() -> recent event messages
+Introspection (safe to call anywhere):
+- game.skills("woodcutting")  -> int level for one skill; game.skills() -> all
+- game.get_location()         -> {"pos": [x,y], "nearest": place, "distance": n}
+- game.tools()                -> {"axes": [...], "pickaxes": [...],
+                                  "weapons": [...], "other": [...]}
+- game.bank()                 -> dict of bank contents (what you deposited)
+- game.quest("logs_fetch")    -> status string of one quest; quest() -> all
+- game.get_score(task="total_xp") -> live scoring snapshot incl. "score"
+- game.claims()               -> one-time claims done, e.g. ["stronghold_chest"]
+Stronghold of Security (walk target "stronghold_of_security"):
+- game.search_chest()   stand next to the chest; one time per session gives
+  +500 coins. Returns True on first claim, False afterwards.
+Energy:
+- game.set_energy_regen(1.5)  idle regen multiplier, clamped to [0.5, 2.0]
+Aliases: cut_log()==chop(), mine_ore()==mine(), catch_fish()==fish()."""

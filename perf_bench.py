@@ -101,6 +101,7 @@ def b_rsps_rtt():
             t0 = time.perf_counter()
             g.state()
             lat.append((time.perf_counter() - t0) * 1000)
+            time.sleep(0.012)   # stay under the server's 100 req/s cap
         med = statistics.median(lat)
         g.close()
         return f"{med:.2f} ms", f"median of 300 state round-trips"

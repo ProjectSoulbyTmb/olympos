@@ -11,7 +11,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'dist-mac', '.git', 'coverage', '_publish', 'playwright-report', 'test-results']);
+const SKIP_DIRS = new Set([
+  'node_modules',
+  'dist',
+  'dist-mac',
+  '.git',
+  'coverage',
+  '_publish',
+  'playwright-report',
+  'test-results',
+]);
 const FROZEN = [
   'src/electron/main.js',
   'src/renderer/index.html',
@@ -61,7 +70,9 @@ export function buildIndex(root = repoRoot(), force = false) {
       continue;
     }
     const lines = text.split('\n').length;
-    const namedExports = [...text.matchAll(/export\s+(?:async\s+)?(?:function|const|class|let)\s+([A-Za-z0-9_$]+)/g)].map(m => m[1]);
+    const namedExports = [
+      ...text.matchAll(/export\s+(?:async\s+)?(?:function|const|class|let)\s+([A-Za-z0-9_$]+)/g),
+    ].map(m => m[1]);
     const frozen = FROZEN.includes(norm);
     const zone = norm.startsWith('src/core/')
       ? 'core'
@@ -85,7 +96,10 @@ export function buildIndex(root = repoRoot(), force = false) {
 }
 
 export function explainFile(target) {
-  const want = String(target || '').split(path.sep).join('/').toLowerCase();
+  const want = String(target || '')
+    .split(path.sep)
+    .join('/')
+    .toLowerCase();
   const index = buildIndex();
   const entry =
     index.files.find(f => f.file.toLowerCase().endsWith(want)) ||
@@ -95,8 +109,14 @@ export function explainFile(target) {
     `${entry.file} (${entry.zone} zone, ${entry.lines} lines${entry.frozen ? ', STARTUP-FROZEN - boot-smoke required' : ''})`,
     entry.namedExports.length ? `exports: ${entry.namedExports.join(', ')}` : 'no named exports',
   ];
-  if (entry.zone === 'core') facts.push('core zone: may import providers/other core only; feature access goes through the registry seam.');
-  if (entry.zone === 'feature') facts.push('feature zone: registers via src/core/feature-registry.js; may import core modules.');
+  if (entry.zone === 'core')
+    facts.push(
+      'core zone: may import providers/other core only; feature access goes through the registry seam.'
+    );
+  if (entry.zone === 'feature')
+    facts.push(
+      'feature zone: registers via src/core/feature-registry.js; may import core modules.'
+    );
   return facts.join('\n');
 }
 
@@ -115,7 +135,12 @@ export function findSymbol(symbol) {
       hits.push(`file ${f.file}`);
     }
   }
-  return hits.length ? `Symbol matches:\n${hits.slice(0, 12).map(h => `- ${h}`).join('\n')}` : `No export or file matches "${name}".`;
+  return hits.length
+    ? `Symbol matches:\n${hits
+        .slice(0, 12)
+        .map(h => `- ${h}`)
+        .join('\n')}`
+    : `No export or file matches "${name}".`;
 }
 
 export function conventions() {
@@ -129,7 +154,13 @@ export function conventions() {
   const rules = text
     .split('\n')
     .filter(l => /^#{1,3}\s+\d/.test(l) || /^-\s+\*\*/.test(l))
-    .map(l => l.replace(/^#+\s*/, '').replace(/^-\s*/, '').replace(/\*\*/g, '').trim())
+    .map(l =>
+      l
+        .replace(/^#+\s*/, '')
+        .replace(/^-\s*/, '')
+        .replace(/\*\*/g, '')
+        .trim()
+    )
     .slice(0, 14);
   return ['Convention contract (AGENTS.md):', ...rules.map(r => `- ${r}`)].join('\n');
 }

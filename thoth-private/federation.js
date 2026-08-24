@@ -12,12 +12,29 @@
  * Everything here is read-only, bounded, and fail-open-to-empty: a missing
  * file or unreadable sibling degrades that system's entry, never the sweep.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 
 const SKIP_DIRS = new Set([
-  'node_modules', '.git', 'dist', 'dist-mac', 'archive', '.wrangler',
-  'playwright-report', 'test-results', 'sbom', '_publish', 'release',
+  'node_modules',
+  '.git',
+  'dist',
+  'dist-mac',
+  'archive',
+  '.wrangler',
+  'playwright-report',
+  'test-results',
+  'sbom',
+  '_publish',
+  'release',
 ]);
 const MAX_SYSTEMS = 24;
 const FRESH_MS = 30 * 60 * 1000;
@@ -101,24 +118,23 @@ function mindSummary(dir) {
 
 /** One rollup entry per discovered system. */
 export function systemEntry(system) {
-  const entry = { name: system.name, self: !!system.self,
-                  kinds: classifySystem(system.dir) };
+  const entry = {
+    name: system.name,
+    self: !!system.self,
+    kinds: classifySystem(system.dir),
+  };
   entry.net = entry.kinds.includes('mind') ? netSummary(system.dir) : null;
   entry.mind = entry.net ? mindSummary(system.dir) : null;
   const pkg = readJson(path.join(system.dir, 'package.json'));
   entry.version = pkg?.version ?? null;
   entry.attention = [];
   if (entry.net) {
-    if (entry.net.offlineMode)
-      entry.attention.push('offline mode - network automation deferred');
+    if (entry.net.offlineMode) entry.attention.push('offline mode - network automation deferred');
     else if (entry.net.down > 0)
-      entry.attention.push(`${entry.net.down} endpoint(s) down: `
-        + entry.net.downNames.join(', '));
-    else if (entry.net.degraded > 0)
-      entry.attention.push(`${entry.net.degraded} degraded`);
+      entry.attention.push(`${entry.net.down} endpoint(s) down: ` + entry.net.downNames.join(', '));
+    else if (entry.net.degraded > 0) entry.attention.push(`${entry.net.degraded} degraded`);
   }
-  if (entry.mind && entry.mind.fresh === false)
-    entry.attention.push('mind daemon stale (>30m)');
+  if (entry.mind && entry.mind.fresh === false) entry.attention.push('mind daemon stale (>30m)');
   return entry;
 }
 
@@ -142,16 +158,22 @@ export function incidents(root) {
     .filter(entry => entry.attention.length > 0)
     .map(entry => ({
       system: entry.name,
-      severity: entry.net?.offlineMode ? 'critical'
-        : entry.net?.down > 0 ? 'high'
-        : entry.kinds.includes('mind') ? 'medium' : 'low',
+      severity: entry.net?.offlineMode
+        ? 'critical'
+        : entry.net?.down > 0
+          ? 'high'
+          : entry.kinds.includes('mind')
+            ? 'medium'
+            : 'low',
       items: [...entry.attention],
     }))
-    .sort((a, b) => ['critical', 'high', 'medium', 'low'].indexOf(a.severity)
-      - ['critical', 'high', 'medium', 'low'].indexOf(b.severity));
+    .sort(
+      (a, b) =>
+        ['critical', 'high', 'medium', 'low'].indexOf(a.severity) -
+        ['critical', 'high', 'medium', 'low'].indexOf(b.severity)
+    );
   return { at: fleet.at, count: ranked.length, incidents: ranked };
 }
-
 
 /**
  * Persistent incident ledger (.operator/fleet_incidents.json).
@@ -180,10 +202,10 @@ function loadLedger(root) {
 function saveLedger(root, ledger) {
   ledger.resolved = ledger.resolved.slice(-RESOLVED_KEEP);
   const file = ledgerFile(root);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  mkdirSync(path.dirname(file), { recursive: true });
   const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify({ ...ledger, savedAt: new Date().toISOString() }, null, 1));
-  fs.renameSync(tmp, file);
+  writeFileSync(tmp, JSON.stringify({ ...ledger, savedAt: new Date().toISOString() }, null, 1));
+  renameSync(tmp, file);
 }
 
 function fingerprint(system, items) {
@@ -268,6 +290,7 @@ function statisticsMedian(values) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid]
+  return sorted.length % 2
+    ? sorted[mid]
     : Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 10) / 10;
 }

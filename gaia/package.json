@@ -1,12 +1,14 @@
 {
   "name": "gaia",
-  "version": "1.0.0",
-  "description": "GAIA - ecosystem health kernel. Watches every system in the pantheon (THOTH, MIND, VENUS and all repositories) as one living organism.",
+  "version": "1.1.0",
+  "description": "GAIA - ecosystem health kernel. Watches every system in the pantheon (THOTH, MIND, VENUS and all repositories) as one living organism. Scores vitals 0-100, detects regressions between pulses, suppresses repeat alerts, and prescribes remediation.",
   "type": "module",
   "bin": { "gaia": "./gaia.mjs" },
   "scripts": {
-    "test": "node --test tests/",
+    "test": "node --test tests/*.test.js",
     "pulse": "node gaia.mjs pulse",
+    "doctor": "node gaia.mjs doctor",
+    "trend": "node gaia.mjs trend",
     "watch": "node gaia.mjs pulse --watch --every 15m"
   },
   "license": "SEE LICENSE IN ../project---soul/LICENSE"

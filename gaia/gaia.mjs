@@ -206,9 +206,78 @@ export function scoreSystem(vitals) {
   return { score, band, reasons };
 }
 
+// ---------- regression, alert hygiene, advice (pure) ----------
+
+const BAND_RANK = { healthy: 0, watch: 1, unwell: 2, critical: 3 };
+const REGRESSION_DROP = 10;
+const ALERT_COOLDOWN_MS = 60 * 60_000;
+
+const signatureOf = a =>
+  `${a.severity}:${a.system}:${[...a.reasons].sort().join('|')}`;
+
+/** Flag systems whose score dropped sharply or slid a band since last pulse. */
+export function detectRegressions(report, previous) {
+  if (!previous?.systems?.length) return [];
+  const out = [];
+  const prevByName = new Map(previous.systems.map(s => [s.name, s]));
+  for (const s of report.systems) {
+    const p = prevByName.get(s.name);
+    if (!p) continue;
+    const slid = (BAND_RANK[s.band] ?? 0) > (BAND_RANK[p.band] ?? 0);
+    if (slid || p.score - s.score >= REGRESSION_DROP)
+      out.push({ severity: 'regression', system: s.name,
+                 reasons: [`score ${p.score}->${s.score}`, `band ${p.band}->${s.band}`] });
+  }
+  if (report.composite != null && previous.composite != null &&
+      previous.composite - report.composite >= REGRESSION_DROP)
+    out.push({ severity: 'regression', system: 'ecosystem',
+               reasons: [`composite ${previous.composite}->${report.composite}`] });
+  return out;
+}
+
+/** Suppress ledger repeats inside the cooldown so watch mode stays quiet. */
+export function freshAlerts(alerts, ledgerText, now = Date.now()) {
+  const lastSeen = new Map();
+  for (const line of String(ledgerText ?? '').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const e = JSON.parse(line);
+      lastSeen.set(signatureOf(e), Date.parse(e.at));
+    } catch { /* skip corrupt ledger line */ }
+  }
+  return alerts.filter(a => {
+    const at = lastSeen.get(signatureOf(a));
+    return at == null || now - at >= ALERT_COOLDOWN_MS;
+  });
+}
+
+/** Concrete next actions for one scored system; empty array means nothing to do. */
+export function advise(v) {
+  const steps = [];
+  if (v.gitError) return ['inspect repository access - git unreadable'];
+  if (v.repo !== false && v.branch) {
+    if (v.diverged) steps.push('git pull --rebase, resolve, then push (diverged)');
+    else if (v.behind > 0) steps.push(`git pull --ff-only (${v.behind} behind)`);
+    else if (v.ahead > 0) steps.push(`git push (${v.ahead} ahead)`);
+    if ((v.dirty ?? 0) > 0) steps.push(`commit or stash ${v.dirty} pending change(s)`);
+  }
+  if ((v.lastCommitAgeDays ?? 0) > 90) steps.push(`dormant ${v.lastCommitAgeDays}d - archive or revive`);
+  else if ((v.lastCommitAgeDays ?? 0) > 30) steps.push(`quiet ${v.lastCommitAgeDays}d - review roadmap`);
+  if (v.ci === 'failure') steps.push('triage CI: gh run view --log-failed');
+  if (v.net) {
+    if (v.net.offlineMode) steps.push('network offline - restore connectivity / rerun MIND sweep');
+    else if (v.net.down.length) steps.push(`restore endpoints: ${v.net.down.join(', ')}`);
+  }
+  if (v.mind?.fresh === false)
+    steps.push(`MIND heartbeat stale ${Math.round((v.mind.ageSec ?? 0) / 60_000)}m - restart daemon`);
+  if ((v.thoth?.openIncidents ?? 0) > 0)
+    steps.push(`close ${v.thoth.openIncidents} THOTH incident(s)`);
+  return steps;
+}
+
 // ---------- pulse ----------
 
-export function pulse({ withCi = false, workspaceRoot } = {}) {
+export function pulse({ withCi = false, workspaceRoot, previous = null } = {}) {
   const systems = discoverSystems(workspaceRoot).map(s => collectVitals(s, { withCi }));
   const scored = systems.map(v => ({ ...v, ...scoreSystem(v) }));
   const composite = scored.length
@@ -220,6 +289,7 @@ export function pulse({ withCi = false, workspaceRoot } = {}) {
       alerts.push({ severity: s.band === 'critical' ? 'critical' : 'warning',
                     system: s.name, reasons: s.reasons });
   }
+  alerts.push(...detectRegressions({ composite, systems: scored }, previous));
   return { at: new Date().toISOString(), composite, systems: scored, alerts };
 }
 
@@ -231,7 +301,9 @@ export function savePulse(report) {
     .filter(f => f.startsWith('pulse-2') && f.endsWith('.json'))
     .sort();
   while (history.length > HISTORY_CAP) fs.unlinkSync(path.join(HISTORY_DIR, history.shift()));
-  for (const alert of report.alerts) {
+  let ledgerText = '';
+  try { ledgerText = fs.readFileSync(ALERTS_PATH, 'utf8'); } catch { /* first run */ }
+  for (const alert of freshAlerts(report.alerts, ledgerText)) {
     fs.appendFileSync(ALERTS_PATH,
       `${JSON.stringify({ at: report.at, ...alert })}\n`);
   }
@@ -269,6 +341,27 @@ function render(report) {
   return lines.join('\n');
 }
 
+function renderDoctor(report) {
+  const lines = [`GAIA doctor @ ${report.at} — remediation plan`];
+  let anyStep = false;
+  for (const s of report.systems) {
+    const steps = advise(s);
+    lines.push(`  ${String(s.name).padEnd(18)} ${s.score}/100 [${s.band}]`);
+    if (!steps.length) { lines.push('    nothing to do'); continue; }
+    anyStep = true;
+    for (const step of steps) lines.push(`    -> ${step}`);
+  }
+  if (!anyStep) lines.push('ecosystem clean - no action required');
+  return lines.join('\n');
+}
+
+function renderTrend(entries) {
+  if (!entries.length) return 'GAIA trend: no history yet';
+  return ['GAIA trend:',
+    ...entries.map(e => `  ${e.at}  ${String(e.composite ?? '?').padStart(3)}/100`),
+    `  ${entries.map(e => e.composite ?? '?').join(' → ')}`].join('\n');
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const cmd = args.find(a => !a.startsWith('-')) || 'pulse';
@@ -276,13 +369,27 @@ async function main() {
   const everyMs = Math.max(60_000,
     (Number(args.find(a => /^--every/.test(a))?.split('=')[1]?.replace(/\D/g, '')) || 15) * 60_000);
   const withCi = args.includes('--ci');
+  const asJson = args.includes('--json');
 
   do {
-    const report = pulse({ withCi });
+    if (cmd === 'trend') {
+      const entries = trend(20);
+      console.log(asJson ? JSON.stringify(entries, null, 1) : renderTrend(entries));
+      break;
+    }
+    const previous = readJson(path.join(HISTORY_DIR, 'pulse_latest.json'));
+    const report = pulse({ withCi, previous });
     savePulse(report);
-    console.log(render(report));
-    console.log(`trend: ${trend(5).map(t => t.composite).join(' → ')}`);
-    if (cmd === 'score' || cmd === 'status' || !watch) break;
+    if (cmd === 'doctor') {
+      console.log(asJson
+        ? JSON.stringify(report.systems.map(s =>
+            ({ name: s.name, score: s.score, band: s.band, advice: advise(s) })), null, 1)
+        : renderDoctor(report));
+    } else {
+      console.log(asJson ? JSON.stringify(report, null, 1) : render(report));
+    }
+    if (!asJson) console.log(`trend: ${trend(5).map(t => t.composite).join(' → ')}`);
+    if (!watch) break;
     await new Promise(r => setTimeout(r, everyMs));
   } while (watch);
 }

@@ -41,6 +41,28 @@ far from a bank and your inventory is full of cheap logs.
 
 Smelting takes 4 ticks. Bars sell at the shop (bronze 12, iron 30).
 
+## Construction (workshop at (14,18))
+Sawmill: any logs -> plank (fee: logs 20 / oak 40 / willow 40 coins), 3 ticks.
+| Furniture | Req | Materials | XP |
+|---|---|---|---|
+| crude_wooden_chair | 1 | 2 plank + 2 steel_nails | 57 |
+| wooden_bookcase | 4 | 4 plank + 4 steel_nails | 115 |
+| wooden_chair | 8 | 3 plank + 3 steel_nails | 87 |
+
+5-tick build; needs saw + hammer (shop). Numbers follow the OSRS wiki;
+furniture sells back at the shop.
+
+## Hunter (hunting ground at (3,21))
+Bird snares only (shop ~27 coins), max 2 armed, ~6 ticks to arm, 2-tick
+lay/check actions.
+| Bird | Req | XP | Loot |
+|---|---|---|---|
+| crimson_swift | 1 | 34 | bones, raw_bird_meat, 5-10 red feathers |
+| copper_longtail | 9 | 61.2 | bones, raw_bird_meat, 5-10 orange feathers |
+
+Catch rate 39% at req level, +2%/level above, cap 95%. Failed snares reset
+to your inventory. raw_bird_meat cooks into cooked_meat like beef.
+
 ## XP math worth knowing
 - A full inventory of 28 logs = 700 wc xp before walking/banking time.
 - Cooking a shrimp yields triple the fishing xp of catching it, so fish->cook
