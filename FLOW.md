@@ -61,3 +61,28 @@ powershell -File flow.ps1 ship  -Name hermes -Message "fix: thing"  # commit+pus
 writer there), pushes `auto/<name>`, opens/merges the PR, prunes the
 branch, then fast-forwards the mirror. Add `-NoMerge` to stop after the
 PR for human review instead.
+
+## Worker autonomy & learning contract
+
+Every writer - human or agent - operates with **full autonomy inside
+its own lane**, bounded only by mechanical gates:
+
+- **Autonomy.** Commits, edits, test runs, and branch pushes are
+  self-serve; no permission prompts exist between a writer and its
+  lane. The two checkpoints are machines, not people: the safeguards
+  pre-commit gate and the pre-push main guard. Neither takes judgment
+  calls, so neither needs your permission.
+- **Learning.** Durable insight is fleet property. When a task surfaces
+  a repeatable pattern or trap, append the next monotonic `L###` to
+  `knowledge/lessons.json` (source cited) inside your work PR, per the
+  fleet-learning pipeline. In this repository, also keep
+  `.opencode/skills/athena-codex` section 2 (disk truth) audited and
+  current in the same PR.
+- **Boundaries.** The five guarantees (INTEGRATION.md section 1) bind
+  all workers equally; changing one requires an ADR plus operator
+  sign-off. Mechanical gates are never "worked around" - fix causes,
+  not gates. Secrets never enter lessons, codices, or logs.
+
+Autonomy is per-lane sovereignty, not per-writer sameness: each agent's
+role defines which permissions are meaningful (the reviewer stays
+read-only because that IS its full power).
