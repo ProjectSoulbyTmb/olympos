@@ -1,5 +1,5 @@
 #!/bin/sh
-# Soul Platform guard: main is integration-only (canonical copy lives at
+# Project Olympos guard: main is integration-only (canonical copy lives at
 # hooks/pre-push in the repo; install with: powershell -File flow.ps1 install-hooks)
 # Updates land via pull requests - FLOW.md / flow.ps1 ship.
 while read local_ref local_sha remote_ref remote_sha; do

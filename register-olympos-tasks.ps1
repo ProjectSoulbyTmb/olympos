@@ -1,4 +1,4 @@
-# Registers (or removes) the full SOUL autopilot: every always-on
+# Registers (or removes) the full OLYMPOS autopilot: every always-on
 # organ as an elevated, restart-on-failure Windows Scheduled Task.
 # One command turns a fresh machine into a self-guarding,
 # self-verifying organism:
@@ -8,8 +8,8 @@
 #   GAIA    - fleet-health pulse scoring every organ, history kept
 #   POSEIDON - tide kernel: autonomous commit -> push workflow
 #
-#   powershell -ExecutionPolicy Bypass -File register-soul-tasks.ps1
-#   powershell -ExecutionPolicy Bypass -File register-soul-tasks.ps1 -Unregister
+#   powershell -ExecutionPolicy Bypass -File register-olympos-tasks.ps1
+#   powershell -ExecutionPolicy Bypass -File register-olympos-tasks.ps1 -Unregister
 #
 # Idempotent: re-running refreshes definitions (-Force). Individual
 # per-organ scripts keep working; task names match theirs.
@@ -57,23 +57,23 @@ function Install-OrganTask {
     }
 }
 
-Install-OrganTask "Yggdrasil ZEUS Guardian" $python `
+Install-OrganTask "Olympos ZEUS Guardian" $python `
     "-m zeus.server" $here $true
-Install-OrganTask "Yggdrasil HYPNOS Dreamworker" $python `
+Install-OrganTask "Olympos HYPNOS Dreamworker" $python `
     "-m hypnos.daemon" $here $false
-Install-OrganTask "Yggdrasil GAIA Pulse" $node `
+Install-OrganTask "Olympos GAIA Pulse" $node `
     "gaia.mjs pulse --watch --every 15m" (Join-Path $here "gaia") $false
-Install-OrganTask "Yggdrasil POSEIDON Tide" $python `
+Install-OrganTask "Olympos POSEIDON Tide" $python `
     "-m poseidon watch --interval 300" $here $false
 
 if ($Unregister) { exit 0 }
 
 Write-Output ""
 Write-Output "autopilot armed. starting what is registered..."
-foreach ($t in ("Yggdrasil ZEUS Guardian",
-                "Yggdrasil HYPNOS Dreamworker",
-                "Yggdrasil GAIA Pulse",
-                "Yggdrasil POSEIDON Tide")) {
+foreach ($t in ("Olympos ZEUS Guardian",
+                "Olympos HYPNOS Dreamworker",
+                "Olympos GAIA Pulse",
+                "Olympos POSEIDON Tide")) {
     $st = (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue)
     if ($st) { Start-ScheduledTask -TaskName $t }
 }

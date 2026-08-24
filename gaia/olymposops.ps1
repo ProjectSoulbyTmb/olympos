@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: LicenseRef-Eidovara-Source-Available-1.0
 <#
 .SYNOPSIS
-  SoulOps automation loop - GAIA watches, scores, alerts and (optionally) auto-fixes.
+  OlymposOps automation loop - GAIA watches, scores, alerts and (optionally) auto-fixes.
 .EXAMPLE
-  .\soulops.ps1                  # one supervised cycle: pulse + fix plan
-  .\soulops.ps1 -Execute         # cycle that also applies safe fixes
-  .\soulops.ps1 -Install         # register a 15-min Windows scheduled task (current user)
-  .\soulops.ps1 -Uninstall       # remove the scheduled task
+  .\OlymposOps.ps1                  # one supervised cycle: pulse + fix plan
+  .\OlymposOps.ps1 -Execute         # cycle that also applies safe fixes
+  .\OlymposOps.ps1 -Install         # register a 15-min Windows scheduled task (current user)
+  .\OlymposOps.ps1 -Uninstall       # remove the scheduled task
 #>
 param(
   [switch]$Execute,
@@ -18,8 +18,8 @@ param(
 
 $ErrorActionPreference = 'Continue'
 $GaiaDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Log = Join-Path $GaiaDir 'runs\soulops.log'
-$TaskName = 'SoulOps-GAIA'
+$Log = Join-Path $GaiaDir 'runs\OlymposOps.log'
+$TaskName = 'OlymposOps-GAIA'
 
 function Write-Log([string]$msg) {
   $line = "{0} {1}" -f (Get-Date -Format o), $msg
@@ -34,7 +34,7 @@ if ($Uninstall) {
 
 if ($Install) {
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$GaiaDir\soulops.ps1`"$(if ($Execute) { ' -Execute' })" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$GaiaDir\OlymposOps.ps1`"$(if ($Execute) { ' -Execute' })" `
     -WorkingDirectory $GaiaDir
   $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
     -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::FromDays(3650))

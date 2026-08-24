@@ -1,5 +1,5 @@
 {
-  "$schema": "yggdrasil/design-card-v0",
+  "$schema": "Olympos/design-card-v0",
   "name": "",
   "kind": "game | app",
   "target": "godot-game",

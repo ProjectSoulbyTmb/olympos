@@ -252,7 +252,7 @@ class TideEngine:
         if not _git(path, "config", "user.email", check=False):
             _git(path, "config", "user.name", "poseidon")
             _git(path, "config", "user.email",
-                 "poseidon@yggdrasil.local")
+                 "poseidon@olympos.local")
 
     def sync_branch(self, name=ORGAN):
         path = self.wt_path(name)

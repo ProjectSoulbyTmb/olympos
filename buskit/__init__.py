@@ -1,4 +1,4 @@
-"""BUSKIT: message-contract toolkit for Yggdrasil organ communication.
+"""BUSKIT: message-contract toolkit for Olympos organ communication.
 
 Implements the INTEGRATION.md section 4.1 letter envelope and the
 section 6 topic catalogue as data, plus a ledger linter (acceptance

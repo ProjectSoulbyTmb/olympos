@@ -1,4 +1,4 @@
-# Yggdrasil game output template (Godot 4.x)
+# Olympos game output template (Godot 4.x)
 
 The first sanctioned **codegen target** for the autonomous build loop.
 A generator copies this directory and replaces the marked bodies; the

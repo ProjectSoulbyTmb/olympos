@@ -1,6 +1,6 @@
 """SCOPE gate: retired-scope regression guard.
 
-Yggdrasil is an autonomous open-source game and app development
+Olympos is an autonomous open-source game and app development
 platform (INTEGRATION.md section 0). Content derived from the retired
 MMORPG sandbox is gone forever; this gate fails any tracked file that
 reintroduces its naming, so it can never creep back through a merge,

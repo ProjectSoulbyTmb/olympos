@@ -1,4 +1,4 @@
-"""Yggdrasil Sentinel - continuous verification and automatic repair.
+"""Olympos Sentinel - continuous verification and automatic repair.
 
 The foundational watchdog for the whole workspace. One command runs
 every product gate, applies safe automatic remediations first, and
@@ -237,7 +237,7 @@ def pass_gates():
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Yggdrasil Sentinel")
+    ap = argparse.ArgumentParser(description="Olympos Sentinel")
     ap.add_argument("--watch", type=int, metavar="SECONDS")
     ap.add_argument("--doctor", action="store_true")
     ap.add_argument("--list", action="store_true")

@@ -5,7 +5,7 @@
 #   .\register-poseidon-task.ps1 -AtLogon         # start at logon
 #
 # One-time registration must be run from an elevated PowerShell.
-# Remove with: Unregister-ScheduledTask -TaskName "Yggdrasil POSEIDON Tide"
+# Remove with: Unregister-ScheduledTask -TaskName "Olympos POSEIDON Tide"
 
 param(
     [int]$IntervalMinutes = 5,
@@ -14,7 +14,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$taskName = "Yggdrasil POSEIDON Tide"
+$taskName = "Olympos POSEIDON Tide"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
 if (-not (Test-Path $python)) { $python = "python" }

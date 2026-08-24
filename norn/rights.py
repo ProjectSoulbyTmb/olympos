@@ -7,7 +7,7 @@ unaffected.
 """
 
 PROFILES = {
-    # Yggdrasil realm. "player" == everything except administration,
+    # Olympos realm. "player" == everything except administration,
     # which is exactly what pre-NORN connections could do.
     "player": frozenset({"state", "chat", "docs", "live", "status",
                          "trade", "action"}),

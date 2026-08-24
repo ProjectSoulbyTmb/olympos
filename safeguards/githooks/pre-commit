@@ -1,5 +1,5 @@
 #!/bin/sh
-# Soul Platform pre-commit gate - engineering rule 16 / FLOW.md rule 4.
+# Project Olympos pre-commit gate - engineering rule 16 / FLOW.md rule 4.
 # Activated per clone or worktree via:
 #   git config core.hooksPath safeguards/githooks
 # (relative hooksPath resolves against the repo root of each checkout,

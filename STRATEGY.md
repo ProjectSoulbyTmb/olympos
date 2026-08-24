@@ -1,4 +1,4 @@
-# Yggdrasil - Architecture Strategy
+# Olympos - Architecture Strategy
 
 Working strategy for growing the ecosystem without losing the guarantees
 that make it trustworthy. Companion to `DESIGN.md` (what the architecture
@@ -6,7 +6,7 @@ that make it trustworthy. Companion to `DESIGN.md` (what the architecture
 
 ## 1. Current state (audited 2026-08-24)
 
-### Tracked core (the actual Yggdrasil repo)
+### Tracked core (the actual Olympos repo)
 
 | Layer | Members | Notes |
 |---|---|---|

@@ -1,1 +1,1 @@
-"""ZEUS - Yggdrasil workspace protection kernel."""
+"""ZEUS - Olympos workspace protection kernel."""

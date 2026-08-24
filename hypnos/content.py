@@ -18,7 +18,7 @@ TOPIC = "hypnos"
 # ---------- paths ----------
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WORKSPACE = os.path.dirname(HERE)          # Yggdrasil root
+WORKSPACE = os.path.dirname(HERE)          # Olympos root
 DATA_DIR = os.path.join(HERE, "data")
 AUDIT_PATH = os.path.join(DATA_DIR, "audit.jsonl")
 STATE_PATH = os.path.join(DATA_DIR, "state.json")

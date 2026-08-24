@@ -197,7 +197,7 @@ def _human(seconds):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="hypnos", description="silent task organ of Yggdrasil")
+        prog="hypnos", description="silent task organ of Olympos")
     sub = parser.add_subparsers(dest="cmd")
 
     sub.add_parser("status", help="queue depth + counters")

@@ -1,4 +1,4 @@
-"""HYPNOS - the silent task-handling organ of Yggdrasil.
+"""HYPNOS - the silent task-handling organ of Olympos.
 
 Task letters land in data/post/hypnos/inbox (or *.task.json drop-ins);
 HYPNOS claims the work before touching it, executes it headless,

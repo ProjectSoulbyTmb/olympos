@@ -11,7 +11,7 @@ Built-ins:
   file_editor   view / create / str_replace (no delete op: fail-safe)
   task_tracker  persistent plan with todo/doing/done states
   grep          regex content search across workspace files
-  verify_gate   run a Yggdrasil realm verify suite and report its tail
+  verify_gate   run a Olympos realm verify suite and report its tail
   memory        remember/recall lessons across conversations (JSONL)
 
 Deletion is deliberately absent from the editor; destructive shell work
@@ -56,7 +56,7 @@ class Observation:
 @dataclass
 class ToolContext:
     workspace: object                       # LocalWorkspace
-    repo_root: str = ""                     # Yggdrasil root when embedded
+    repo_root: str = ""                     # Olympos root when embedded
     state: dict = field(default_factory=dict)   # per-conversation scratch
     memory_path: str = ""                   # persistent lessons JSONL
 
@@ -311,7 +311,7 @@ REALM_GATES = {
 
 class VerifyGateTool(Tool):
     name = "verify_gate"
-    description = ("Run a Yggdrasil realm verification suite (proof of "
+    description = ("Run a Olympos realm verification suite (proof of "
                    "work). Never claim success without a green gate.")
     schema_text = '{"realm": "ptah|zeus|vulcan|hades"}'
 
