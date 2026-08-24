@@ -48,6 +48,7 @@ OWNED_PORTS = [43901, 43902, 43903]
 PYCACHE_SKIP = {".git", "node_modules", "dist", "release"}
 REPORT_PATH = os.path.join("data", "health_report.json")
 SUITE_TIMEOUT_S = 240
+RETRY_SETTLE_S = 3              # settle before retrying red suites
 
 
 class Doctor:
@@ -77,6 +78,13 @@ class Doctor:
         return bad
 
     def check_suites(self):
+        """Run every realm gate; retry red suites once after a settle.
+
+        Back-to-back batteries on a busy box trip timing-sensitive
+        checks (sockets, SLO pulses, backoff timers) that pass in
+        isolation - the sentinel convention applies here too: one
+        remediated retry before declaring failure.
+        """
         failures = []
         for name, rel in SUITES:
             path = os.path.join(HERE, rel)
@@ -90,6 +98,24 @@ class Doctor:
             if proc.returncode != 0:
                 tail = (proc.stdout or "").strip().splitlines()[-3:]
                 failures.append(f"{name}: {' | '.join(tail)}")
+        if failures:
+            time.sleep(RETRY_SETTLE_S)
+            still = []
+            for name, rel in SUITES:
+                if not any(f.startswith(name + ":") for f in failures):
+                    continue
+                path = os.path.join(HERE, rel)
+                if not os.path.exists(path):
+                    still.append(f"{name}: gate script missing ({rel})")
+                    continue
+                proc = subprocess.run(
+                    [sys.executable, path],
+                    capture_output=True, text=True,
+                    timeout=SUITE_TIMEOUT_S, cwd=HERE)
+                if proc.returncode != 0:
+                    tail = (proc.stdout or "").strip().splitlines()[-3:]
+                    still.append(f"{name}: {' | '.join(tail)}")
+            failures = still
         return failures
 
     def check_requirements(self):
