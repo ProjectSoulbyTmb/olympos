@@ -204,6 +204,14 @@
       "source": "dual-session purge collision",
       "lesson": "Two agents editing one repo concurrently will interleave edits inside single functions, shadow duplicate function definitions, and stage conflicting deletions. Assign disjoint file lanes, commit small and often, re-read files immediately before editing (never trust earlier reads), and reconcile duplicates by merging coverage rather than deleting wholesale.",
       "tags": ["agents", "coordination", "git"]
+    },
+    {
+      "id": "L026",
+      "title": "Log rotation must not reset sequence identity",
+      "category": "data-integrity",
+      "source": "ratatosk rotating topics",
+      "lesson": "Deriving record ids from line position breaks the moment a log rotates: segments reshuffle and every consumer cursor silently points at the wrong place. Allocate identity from a persistent counter file under the same exclusive lock as the append (counter written temp+replace), stamp the explicit seq into each record, and make tail/since sort and compare on that field - then segments are an implementation detail cursors can ignore. Seed the counter lazily from max(existing seqs, total lines) so pre-counter files migrate without collision.",
+      "tags": ["rotation", "sequences", "cursors", "append-only"]
     }
   ]
 }

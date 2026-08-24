@@ -13,7 +13,7 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 
 | Path | What it is |
 |---|---|
-| `ratatosk/` | Filesystem communication network: organ mailboxes under `data/post/`, atomic letters with per-sender sequence numbers, broadcast topics with consumer cursors, heartbeats. No ports, no daemons. `python -m ratatosk status` / `demo` |
+| `ratatosk/` | Filesystem communication network: organ mailboxes under `data/post/`, atomic letters with per-sender sequence numbers, correlated request/reply, priority lanes, broadcast topics with consumer cursors that survive rotation (continuous seqs), mailbox metrics, heartbeats. No ports, no daemons. `python -m ratatosk status` / `vitals --strict` / `demo` |
 | `zeus/` | Protection kernel: process sentinel, filesystem-churn oracle, integrity baseline (aegis), quarantine + bolt enforcement, circuit breakers around its own subsystems, JSON-lines server |
 | `hades/` | Provenance realm: SHA-256 seals with HMAC-signed manifests + independent anchor files, hash-chained audit trail, ghost detection via structural fingerprints, watermarks |
 | `norn/` | Shared machinery: capability rights profiles, beat-paced organs with SLO quarantine (pulse), attestation journals (witness), injected clock/RNG determinism seam (clockwork) |
