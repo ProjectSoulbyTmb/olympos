@@ -121,7 +121,10 @@ def tools_dir() -> Path | None:
 
 
 def find_tool(name: str) -> Path | None:
-    """Locate ffmpeg/ffprobe once; results cached process-wide."""
+    """Locate ffmpeg/ffprobe once; results cached process-wide.
+    Discovery order: --tools-dir flag / HARMONIA_TOOLS env ->
+    harmonia\\bin -> ..\\aphrodite\\bin (colocated checkout) ->
+    D:\\aphrodite\\bin (standalone repo home) -> PATH."""
     exe = f"{name}.exe" if sys.platform == "win32" else name
     with _TOOLS_LOCK:
         if name in _TOOLS:
@@ -130,9 +133,15 @@ def find_tool(name: str) -> Path | None:
         override = tools_dir()
         if override:
             cand.append(override / exe)
-        here = APP_DIR / "bin" / exe
-        cand.append(here)
+        env = os.environ.get("HARMONIA_TOOLS")
+        if env:
+            cand.append(Path(env) / exe)
+        cand.append(APP_DIR / "bin" / exe)
         cand.append(APP_DIR.parent / "aphrodite" / "bin" / exe)
+        try:
+            cand.append(Path("D:/aphrodite/bin") / exe)
+        except OSError:
+            pass
         found: Path | None = next((c for c in cand if c.is_file()), None)
         if found is None:
             which = shutil.which(name)

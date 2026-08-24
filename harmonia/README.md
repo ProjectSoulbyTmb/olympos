@@ -31,10 +31,11 @@ python harmonia\server.py --root "D:\new" --port 43907 --open
 | videos with exotic codecs | MP4 H.264/AAC | ffmpeg **transcode** (`veryfast`, CRF 20) |
 | already-standard files | themselves | byte-identical passthrough, never re-encoded |
 
-Tool discovery order: `--tools-dir` flag → `harmonia\bin\` →
-`aphrodite\bin\` (shared vendor drop) → `PATH`. Without ffprobe/ffmpeg,
-video findings degrade honestly: served as-is and flagged non-std; image
-normalization is unaffected (GDI+ is in-process).
+Tool discovery order: `--tools-dir` flag → `HARMONIA_TOOLS` env →
+`harmonia\bin\` → colocated `aphrodite\bin\` → `D:\aphrodite\bin`
+(the standalone APHRODITE repo's vendor drop) → `PATH`. Without
+ffprobe/ffmpeg, video findings degrade honestly: served as-is and
+flagged non-std; image normalization is unaffected (GDI+ is in-process).
 
 Normalized artifacts live under
 `%LOCALAPPDATA%\HARMONIA\norm-<roothash>\`, mirroring the library tree.
