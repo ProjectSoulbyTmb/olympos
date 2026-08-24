@@ -107,7 +107,9 @@ class BuildingServer:
 
     def _bind(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # No SO_REUSEADDR: on Windows it allows double-binds, which
+        # lets concurrent self-verification runs cross-connect. A port
+        # collision must fail loudly into the retry loop below.
         last_err = None
         for attempt in range(10):
             try:
