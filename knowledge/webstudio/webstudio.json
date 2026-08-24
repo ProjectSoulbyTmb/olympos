@@ -1,6 +1,7 @@
 {
   "$schema": "knowledge-db/webstudio/v1",
   "description": "Machine-readable Webstudio knowledge base for Hermes websystems integration. Append-only: new facts get fresh WS-### ids; never renumber; deprecate with a note instead of deleting.",
+  "prefix": "ws",
   "updated": "2026-08-24",
   "upstream": {
     "site": "https://webstudio.is/",

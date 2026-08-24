@@ -51,13 +51,18 @@ sign-off; `hebe/` claimed by its lane (registry row exists). `docs/`
 founded 2026-08-24 (`adr/`, `plans/cycles/`, `contracts/`) holds the
 ATHENA artifact suite.
 
-Knowledge organ (audited 2026-08-24, post webstudio wiring):
-`knowledge/engine.py` TF-IDF search now indexes library docs,
-lessons.json, and external-product databases via `_DB_SPECS`
-(first: `knowledge/webstudio/` - Webstudio website-builder DB with
-25 WS-### entries + 7 topic files). `knowledge/verify_knowledge.py`
-runs 7 gates (schema, monotonic ids, retrieval) wired into
-`doctor.py --ci`; PTAH `knowledge` tool covers product DBs.
+Knowledge organ (audited 2026-08-24, post auto-wire):
+`knowledge/engine.py` TF-IDF search indexes library docs, lessons.json,
+and product DBs **discovered by convention** - any
+`knowledge/<name>/<name>.json` with an `entries` list (optional
+top-level `prefix` for compact ids) self-registers; the index
+self-invalidates via engine-versioned corpus signature, so drop-ins
+are searchable with no rebuild. Registry row `knowledge`
+(kind knowledge, verify -> `knowledge/verify_knowledge.py`, 21 realm
+members) puts the organ under sentinel gate derivation.
+`knowledge/verify_knowledge.py` runs 7 generic gates; doctor discovers
+every `knowledge/verify_*.py` automatically. First product DB:
+webstudio/ (25 WS-### entries + 7 topic files).
 
 Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
 ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
