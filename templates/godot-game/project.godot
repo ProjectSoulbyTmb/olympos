@@ -1,0 +1,16 @@
+; Yggdrasil game output template - Godot 4.x
+; Generated projects target the Compatibility renderer (widest
+; hardware reach) and keep simulation in fixed ticks.
+
+config_version=5
+
+[application]
+
+config/name="Yggdrasil Game"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

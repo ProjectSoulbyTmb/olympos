@@ -36,6 +36,13 @@ SUITES = [
     ("ratatosk", os.path.join("ratatosk", "verify_ratatosk.py")),
     ("norn", os.path.join("norn", "verify_norn.py")),
     ("hypnos", os.path.join("hypnos", "verify_hypnos.py")),
+    ("buskit", "verify_buskit.py"),
+    ("scope", "verify_scope.py"),
+    ("sindri", "verify_sindri.py"),
+    ("forseti", "verify_forseti.py"),
+    ("secrets", "verify_secrets.py"),
+    ("coverage", "verify_coverage.py"),
+    ("template", os.path.join("templates", "verify_template.py")),
 ]
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [

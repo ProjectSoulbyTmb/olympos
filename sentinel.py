@@ -159,6 +159,14 @@ def gate_defs():
         ("buskit contract", [PY, "-u", "verify_buskit.py"], HERE, None),
         ("scope guard", [PY, "-u", "verify_scope.py"], HERE, None),
         ("sindri forge", [PY, "-u", "verify_sindri.py"], HERE, None),
+        ("forseti arbitration", [PY, "-u", "verify_forseti.py"],
+         HERE, None),
+        ("secrets hygiene", [PY, "-u", "verify_secrets.py"], HERE, None),
+        ("coverage floor", [PY, "-u", "verify_coverage.py"], HERE, None),
+        ("godot template", [PY, "-u",
+                            os.path.join("templates",
+                                         "verify_template.py")],
+         HERE, None),
     ]
     if shutil.which("node") and \
             os.path.exists(os.path.join(HERE, "assistant",

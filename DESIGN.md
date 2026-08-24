@@ -93,3 +93,15 @@ tag-driven releases).
   a parallel-session collision, `verify_scope.py` permanently guards
   the naming boundary, and buskit envelope contracts joined the
   watchdog gates.
+- 2026-08-24: Build-loop organs online: **Sindri** (`sindri/`) fences
+  generated code in a sandboxed forge (taskkill tree-kill default,
+  Job-Object fence opt-in via SINDRI_WIN_JOBS); **Forseti**
+  (`forseti/`) arbitrates serialised lanes such as the git push lane
+  via crash-tolerant stale-reclaiming locks; `buskit.llmlog` journals
+  every LLM call as digest evidence (sealable by Hades); new gates
+  `verify_secrets.py` and `verify_coverage.py` enforce credential
+  hygiene and a buskit coverage floor; `templates/godot-game` plus
+  `templates/design-card.json` give codegen its first sanctioned
+  target and design-artifact shape; root `VERSION` becomes the single
+  version source. All fourteen component suites green under
+  `doctor.py --ci`.
