@@ -29,10 +29,10 @@ def check(fn):
     return fn
 
 
-def sandbox():
+def sandbox(**kw):
     """A Post on a fresh throwaway root."""
     outer = tempfile.mkdtemp(prefix="ratatosk-verify-")
-    return Post(root=os.path.join(outer, "post")), outer
+    return Post(root=os.path.join(outer, "post"), **kw), outer
 
 
 # ------------------------------------------------------------ direct mail
@@ -412,6 +412,103 @@ def priority_lane_ordering():
             pass
         else:
             raise AssertionError("bad priority must be rejected")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ------------------------------------------------- rotating topics
+
+@check
+def rotation_continuity():
+    """Tiny ROTATE_BYTES, many records: seqs stay dense across every
+    rotation and no consumer loses a record (L026)."""
+    post, tmp = sandbox(rotate_bytes=500, keep_segments=40)
+    try:
+        seqs = [post.broadcast("spin", "tick", {"i": i}, frm="ygg")
+                for i in range(70)]
+        assert seqs == list(range(1, 71)), \
+            "broadcast seqs must be dense and never reset"
+        base = os.path.join(post.root, "topics", "spin.jsonl")
+        rotated = len([f for f in os.listdir(os.path.dirname(base))
+                       if f.startswith("spin.jsonl.")])
+        assert rotated >= 3, f"expected real rotations, got {rotated}"
+        recs = post.tail("spin", n=1000)
+        got = sorted(r["seq"] for r in recs)
+        assert got == list(range(1, 71)), \
+            f"tail must return each record exactly once: {len(got)}"
+        # a consumer that checkpoints mid-stream loses nothing
+        for i in range(35):
+            post.broadcast("spin2", "tick", {"i": i}, frm="ygg")
+        first = post.since("spin2", "watcher")
+        assert [r["seq"] for r in first] == list(range(1, 36))
+        for i in range(35, 70):
+            post.broadcast("spin2", "tick", {"i": i}, frm="ygg")
+        second = post.since("spin2", "watcher")
+        union = ([r["seq"] for r in first] + [r["seq"] for r in second])
+        assert sorted(union) == list(range(1, 71)), \
+            "cursor consumer lost records across rotations"
+        fresh = post.since("spin2", "latecomer")
+        assert [r["seq"] for r in fresh] == list(range(1, 71))
+        assert post.since("spin2", "latecomer") == []
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check
+def rotation_bounds_segments():
+    """KEEP is honored - the archive count stays bounded (L019) while
+    broadcast keeps allocating unique forward seqs."""
+    post, tmp = sandbox(rotate_bytes=200, keep_segments=2)
+    try:
+        seqs = [post.broadcast("churn", "tick", {"i": i}, frm="ygg")
+                for i in range(50)]
+        assert seqs == list(range(1, 51)), "seqs dense under churn"
+        tdir = os.path.join(post.root, "topics")
+        segs = [f for f in os.listdir(tdir)
+                if f.startswith("churn.jsonl.")]
+        assert len(segs) <= 2, segs
+        recs = post.tail("churn", n=1000)
+        got = [r["seq"] for r in recs]
+        assert got == sorted(got), "tail must ascend by seq"
+        assert len(got) == len(set(got)), "no duplicates"
+        assert got[-1] == 50, "newest survivor must be the last seq"
+        # counter-file loss must not resurrect old seqs
+        os.unlink(os.path.join(tdir, "churn.seq"))
+        nxt = post.broadcast("churn", "tick", {"i": 99}, frm="ygg")
+        assert nxt == 51, nxt
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check
+def legacy_topic_migration():
+    """Pre-rotation single-file topics keep their seqs: the lazy
+    counter seeds from existing lines and old line-number cursors
+    still mean the same thing."""
+    post, tmp = sandbox()
+    try:
+        tdir = os.path.join(post.root, "topics")
+        os.makedirs(tdir, exist_ok=True)
+        with open(os.path.join(tdir, "legacy.jsonl"), "a",
+                  encoding="utf-8") as fh:
+            for i in (1, 2, 3):
+                fh.write(json.dumps({"v": 1, "topic": "legacy",
+                                     "seq": i, "from": "old",
+                                     "kind": "event",
+                                     "payload": {"i": i}}) + "\n")
+        cursors = os.path.join(post.root, "cursors")
+        os.makedirs(cursors, exist_ok=True)
+        with open(os.path.join(cursors, "elder.legacy"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("2")               # old-era cursor: consumed seq<=2
+        assert [r["seq"] for r in post.tail("legacy")] == [1, 2, 3]
+        nxt = post.broadcast("legacy", "event", {"fresh": True},
+                             frm="new")
+        assert nxt == 4, f"legacy topic must continue at 4, got {nxt}"
+        got = post.since("legacy", "elder")
+        assert [r["seq"] for r in got] == [3, 4], got
+        assert post.since("legacy", "elder") == []
+        assert os.path.isfile(os.path.join(tdir, "legacy.seq"))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

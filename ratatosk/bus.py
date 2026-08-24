@@ -45,6 +45,9 @@ LOCK_STALE_S = 10.0
 LOCK_RETRIES = 150
 LOCK_SLEEP_S = 0.02
 
+ROTATE_BYTES = 5 * 1024 * 1024      # topic live-segment size cap
+KEEP_SEGMENTS = 3                   # rotated archives kept per topic
+
 
 # ---------------------------------------------------------------- helpers
 
@@ -176,8 +179,11 @@ def _read_json(path):
 class Post:
     """One filesystem post office shared by every organ in the repo."""
 
-    def __init__(self, root=None):
+    def __init__(self, root=None, rotate_bytes=ROTATE_BYTES,
+                 keep_segments=KEEP_SEGMENTS):
         self.root = root or default_root()
+        self.rotate_bytes = max(int(rotate_bytes), 1)
+        self.keep_segments = max(int(keep_segments), 1)
 
     # -- paths --
 
@@ -408,34 +414,168 @@ class Post:
 
     def broadcast(self, topic, kind, payload, frm="cli"):
         """Append to topics/<topic>.jsonl under a mandatory lock;
-        returns the dense, unique seq. Raises only if the lock is
+        returns the unique, never-resetting seq.
+
+        Seqs come from a persistent topics/<topic>.seq counter (atomic
+        write, same strong lock as the append), NOT from line counts -
+        so consumer cursors survive size-based rotation into
+        .1/.2/.3 archive segments. Raises only if the lock is
         unwinnable - callers like publish() swallow that."""
         tpath = self._dir("topics", _safe(topic) + ".jsonl")
         os.makedirs(os.path.dirname(tpath), exist_ok=True)
         with _strong_lock(tpath + ".lock"):
-            seq = _count_lines(tpath) + 1
+            seq = self._next_topic_seq(_safe(topic))
             rec = {"v": VERSION, "topic": _safe(topic), "seq": seq,
                    "from": _safe(frm), "kind": _safe(kind),
                    "ts": _now_iso(), "epoch": round(time.time(), 3),
                    "payload": payload}
+            line = json.dumps(rec, separators=(",", ":"),
+                              default=str) + "\n"
+            self._maybe_rotate(tpath, len(line.encode("utf-8")))
             with open(tpath, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(rec, separators=(",", ":"),
-                                    default=str) + "\n")
+                fh.write(line)
         return seq
 
-    def tail(self, topic, n=20):
-        lines = self._topic_lines(topic)
-        out = []
-        for line in lines[-int(n):]:
+    # Rotation internals - all run under the topic's strong lock.
+
+    def _next_topic_seq(self, t):
+        """Allocate seq = counter+1; lazily seed the counter from the
+        existing segments on first touch (legacy single-file topics:
+        their line-count == highest seq ever used)."""
+        p = self._dir("topics", t + ".seq")
+        cur = self._read_seq_file(p)
+        if cur is None:
+            cur = self._infer_topic_seq(t)
+            self._write_seq_file(p, cur)
+        nxt = cur + 1
+        self._write_seq_file(p, nxt)
+        return nxt
+
+    @staticmethod
+    def _read_seq_file(p):
+        try:
+            with open(p, "r", encoding="utf-8") as fh:
+                return int(fh.read().strip())
+        except (OSError, ValueError):
+            return None
+
+    @staticmethod
+    def _write_seq_file(p, n):
+        # L006: temp file + os.replace, never in-place
+        tmp = p + f".{uuid.uuid4().hex[:6]}.tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(str(int(n)))
+            os.replace(tmp, p)
+        except OSError:
             try:
-                out.append(json.loads(line))
-            except ValueError:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+    def _infer_topic_seq(self, t):
+        """Highest seq plausibly consumed by existing data: max of the
+        largest explicit record seq and the total line count across
+        segments (covers pre-counter files whose seqs were line
+        numbers, and counter-file loss)."""
+        max_seq, lines = 0, 0
+        for path in self._segment_paths(t):
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    for ln in fh:
+                        if not ln.strip():
+                            continue
+                        lines += 1
+                        try:
+                            s = int(json.loads(ln).get("seq"))
+                        except (ValueError, AttributeError, TypeError):
+                            continue
+                        max_seq = max(max_seq, s)
+            except OSError:
                 continue
-        return out
+        return max(max_seq, lines)
+
+    def _maybe_rotate(self, tpath, incoming_bytes):
+        """Roll base -> .1 -> .2 -> ... when appending would push the
+        live segment past the cap; oldest archive falls off. os.replace
+        overwrites destinations, so the chain needs no unlinks."""
+        try:
+            if os.path.getsize(tpath) + incoming_bytes <= self.rotate_bytes:
+                return
+        except OSError:
+            return                      # no live segment yet
+        for i in range(self.keep_segments, 1, -1):
+            try:
+                os.replace(tpath + f".{i - 1}", tpath + f".{i}")
+            except OSError:
+                pass
+        try:
+            os.replace(tpath, tpath + ".1")
+        except OSError:
+            pass
+
+    def _segment_paths(self, topic):
+        """Topic segment files oldest-archive-first, live base last."""
+        base = self._dir("topics", _safe(topic) + ".jsonl")
+        paths = []
+        for i in range(self.keep_segments, 0, -1):
+            p = base + f".{i}"
+            if os.path.exists(p):
+                paths.append(p)
+        paths.append(base)
+        return paths
+
+    @staticmethod
+    def _seq_sort_key(rec):
+        # records without a parseable int seq sort last (stable)
+        s = rec.get("seq")
+        if isinstance(s, int) and not isinstance(s, bool):
+            return (0, s)
+        return (1, 0)
+
+    def _topic_records(self, topic):
+        """All parseable records across segments, ascending by explicit
+        seq (legacy/unparseable lines last)."""
+        recs = []
+        for path in self._segment_paths(topic):
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    for ln in fh:
+                        ln = ln.strip()
+                        if not ln:
+                            continue
+                        try:
+                            rec = json.loads(ln)
+                        except ValueError:
+                            continue
+                        if isinstance(rec, dict):
+                            recs.append(rec)
+            except OSError:
+                continue
+        recs.sort(key=self._seq_sort_key)
+        return recs
+
+    def line_count(self, topic):
+        """Total non-empty lines across all segments of a topic."""
+        n = 0
+        for path in self._segment_paths(topic):
+            try:
+                with open(path, "rb") as fh:
+                    n += sum(chunk.count(b"\n") for chunk in
+                             iter(lambda: fh.read(1 << 16), b""))
+            except OSError:
+                continue
+        return n
+
+    def tail(self, topic, n=20):
+        """Newest n records across all segments, ordered by seq."""
+        return self._topic_records(topic)[-int(n):]
 
     def since(self, topic, consumer, limit=1000):
-        """Cursor-based consume: only records newer than this
-        consumer's cursor; advances the cursor."""
+        """Cursor-based consume that survives rotation: cursors hold
+        explicit record seqs (never line numbers); only records with a
+        parseable seq participate. Advances to the max seq delivered."""
         cur_path = self._dir("cursors",
                              f"{_safe(consumer)}.{_safe(topic)}")
         try:
@@ -443,36 +583,26 @@ class Post:
                 start = int(fh.read().strip() or "0")
         except (OSError, ValueError):
             start = 0
-        lines = self._topic_lines(topic)
         out = []
-        for i, line in enumerate(lines, 1):
+        max_seen = start
+        for rec in self._topic_records(topic):
             if len(out) >= int(limit):
                 break
-            if i <= start:
+            s = rec.get("seq")
+            if not isinstance(s, int) or isinstance(s, bool) or s <= start:
                 continue
-            try:
-                out.append(json.loads(line))
-            except ValueError:
-                continue
-        if out:
-            last_seq = out[-1].get("seq", start)
+            out.append(rec)
+            max_seen = max(max_seen, s)
+        if max_seen > start:
             tmp = cur_path + f".{uuid.uuid4().hex[:6]}.tmp"
             try:
                 os.makedirs(os.path.dirname(cur_path), exist_ok=True)
                 with open(tmp, "w", encoding="utf-8") as fh:
-                    fh.write(str(max(start, int(last_seq))))
+                    fh.write(str(max_seen))
                 os.replace(tmp, cur_path)
             except OSError:
                 pass
         return out
-
-    def _topic_lines(self, topic):
-        try:
-            with open(self._dir("topics", _safe(topic) + ".jsonl"),
-                      "r", encoding="utf-8") as fh:
-                return [ln for ln in fh.read().splitlines() if ln.strip()]
-        except OSError:
-            return []
 
     def topics(self):
         try:
@@ -537,24 +667,19 @@ class Post:
                             "next_letter": last}
         topics = {}
         for t in self.topics():
-            p = self._dir("topics", t + ".jsonl")
-            try:
-                size = os.path.getsize(p)
-            except OSError:
-                size = 0
-            topics[t] = {"lines": len(self._topic_lines(t)),
-                         "bytes": size}
+            size = 0
+            segments = 0
+            for path in self._segment_paths(t):
+                try:
+                    size += os.path.getsize(path)
+                    segments += 1
+                except OSError:
+                    pass
+            topics[t] = {"lines": self.line_count(t),
+                         "bytes": size,
+                         "segments": segments}
         return {"root": self.root, "v": VERSION,
                 "organs": organs, "topics": topics}
-
-
-def _count_lines(path):
-    try:
-        with open(path, "rb") as fh:
-            return sum(chunk.count(b"\n")
-                       for chunk in iter(lambda: fh.read(1 << 16), b""))
-    except OSError:
-        return 0
 
 
 # ------------------------------------------------- wiring convenience
