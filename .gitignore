@@ -1,8 +1,49 @@
-﻿
+﻿# --- nested repos / apps that manage their own git ---
+assistant/
+
+# --- sibling projects with their own build artifacts ---
+eidovara/
+project-soul/
+project---soul/
+live-soul/
+
+# --- build artifacts & heavy binaries ---
+node_modules/
+release/
+dist/
+build/
+backups/
+*.exe
+*.pt
+*.bin
+*.onnx
+*.dll
+
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+
+# --- generated / churny data ---
+train_console.txt
+ui-errors.log
+data/
+zeus/data/
+ptah/data/
+hypnos/data/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+tools/
+jdktmp/
+
+# --- hades local seal state ---
+hades/state/
+
 # --- runtime state & generated site ---
 site/
-
-# --- opencode: local runtime state ignored, committed agent config kept ---
 .opencode/*
 !.opencode/agent/
 !.opencode/command/
