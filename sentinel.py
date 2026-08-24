@@ -141,6 +141,8 @@ def gate_defs():
                             os.path.join("ratatosk",
                                          "verify_ratatosk.py")],
          HERE, None),
+        ("buskit contract", [PY, "-u", "verify_buskit.py"], HERE, None),
+        ("scope guard", [PY, "-u", "verify_scope.py"], HERE, None),
     ]
     if shutil.which("node") and \
             os.path.exists(os.path.join(HERE, "assistant",
@@ -205,7 +207,9 @@ def main():
 
     if opts.list:
         print("\n".join(["zeus suite", "vulcan suite", "hades suite",
-                         "ptah suite", "ratatosk suite", "venus heart*"]))
+                         "ptah suite", "ratatosk suite",
+                         "buskit contract", "scope guard",
+                         "venus heart*"]))
         print("* runs when node is present and assistant/ is checked out")
         return 0
     if opts.doctor:

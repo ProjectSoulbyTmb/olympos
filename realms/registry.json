@@ -1,0 +1,28 @@
+{
+  "realms": [
+    {
+      "name": "vulcan",
+      "kind": "automation",
+      "engine": "building-sandbox",
+      "port": 43901,
+      "sdk": "VulcanSDK",
+      "path": "vulcan/host.py"
+    },
+    {
+      "name": "zeus",
+      "kind": "protection",
+      "engine": "protection-kernel",
+      "port": 43902,
+      "sdk": "ZeusSDK",
+      "path": "zeus/server.py"
+    },
+    {
+      "name": "ptah",
+      "kind": "agent",
+      "engine": "agent-kernel",
+      "port": 43903,
+      "sdk": "PtahSDK",
+      "path": "ptah/server.py"
+    }
+  ]
+}
