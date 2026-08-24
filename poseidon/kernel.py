@@ -13,9 +13,15 @@ Mechanics per cycle:
   2. snapshot it with a throwaway index (GIT_INDEX_FILE plumbing):
      the root working tree and index are never touched by this step
   3. sync the poseidon worktree with origin/main, cherry-pick the
-     snapshot onto ``auto/poseidon``, push, open/merge the PR
-  4. only after origin holds the content: settle the mirror - restore
-     swept paths in the root, then fast-forward pull main
+     snapshot onto ``auto/poseidon``
+  4. hold FORSETI's lane only for shared water: push, PR/merge,
+     then settle the mirror - guarded, so a path a writer edited
+     after the snapshot is skipped, never clobbered
+
+Speed rules: one shared fetch per cycle feeds every berth in the
+fleet; private worktree work runs outside the arbitration lane; the
+watch loop sprints after shipped tides and backs off exponentially
+after failures.
 
 Failure stance: "quarantine, never destroy". The drift stays in the
 root working tree until a merge proves it is safe to settle; any
@@ -29,6 +35,7 @@ States live under ``poseidon/data/``: ``tides.jsonl`` ledger and
 
 import json
 import os
+import random
 import subprocess
 import sys
 import time
@@ -55,7 +62,11 @@ STATE_PATH = os.path.join(DATA_DIR, "state.json")
 # worktrees - must never join the sweep, even if unignored somewhere.
 SWEEP_EXCLUDES = (".worktrees", "poseidon/data")
 
-CADENCE_S = 300.0          # watch-loop nap between tides
+CADENCE_S = 300.0          # watch-loop nap between tides (idle)
+ACTIVE_DELAY_S = 20.0      # quick follow-up after a shipped tide
+FAIL_BACKOFF_BASE_S = 120.0  # exponential seed after a failed tide
+FETCH_MIN_GAP_S = 45.0     # throttle: never re-fetch more often
+JITTER_FRACTION = 0.15     # de-synchronize parallel tides +/- 15%
 LOCK_WAIT_S = 60.0         # max wait for the FORSETI lane
 LOCK_STALE_S = 900.0       # our section may legally run long
 GIT_TIMEOUT_S = 300.0      # network ops (fetch/push/gh)
@@ -93,6 +104,11 @@ def _chunks(items, size):
         yield items[i:i + size]
 
 
+def _canon(text):
+    """EOL-insensitive content identity for settle guards."""
+    return text.replace("\r\n", "\n").rstrip()
+
+
 class Snapshot:
     """A committed image of the drift, safe to carry across checkouts."""
 
@@ -119,6 +135,7 @@ class TideEngine:
         self.ledger_path = os.path.join(self.data_dir, "tides.jsonl")
         self.state_path = os.path.join(self.data_dir, "state.json")
         self._lock_root = os.path.join(self.root, "data", "post")
+        self._last_fetch = 0.0  # monotonic throttle for refresh_remote
 
     # ---------------- state ----------------
 
@@ -200,6 +217,24 @@ class TideEngine:
 
     # ---------------- snapshot (throwaway index) ----------------
 
+    def _head_info(self):
+        """(sha, tree) of HEAD in one git call."""
+        out = _git(self.root, "show", "-s", "--format=%H %T", "HEAD")
+        sha, tree = out.split()
+        return sha, tree
+
+    def refresh_remote(self, force=False):
+        """ONE fetch at the shared root updates remote-tracking refs
+        for every worktree in the fleet (they all share one object
+        store). Throttled to FETCH_MIN_GAP_S."""
+        now = time.monotonic()
+        if not force and now - self._last_fetch < FETCH_MIN_GAP_S:
+            return False
+        _git(self.root, "fetch", "origin", "--prune",
+             timeout=GIT_TIMEOUT_S)
+        self._last_fetch = now
+        return True
+
     def snapshot(self, drift, message):
         """Commit drift to a temp-index commit WITHOUT touching the
         root index/working tree. Returns a Snapshot or None when the
@@ -209,7 +244,7 @@ class TideEngine:
                            "idx-%d" % os.getpid())
         env = {"GIT_INDEX_FILE": idx}
         try:
-            head = _git(self.root, "rev-parse", "HEAD")
+            head, head_tree = self._head_info()
             _git(self.root, "read-tree", "HEAD", env_extra=env)
             # plain add honors .gitignore; naming ignored paths in
             # pathspec exclusions would trip git's refused-add guard
@@ -218,7 +253,7 @@ class TideEngine:
                 _git(self.root, "update-index", "--force-remove",
                      "-r", "--", ex, check=False, env_extra=env)
             tree = _git(self.root, "write-tree", env_extra=env)
-            if tree == _git(self.root, "rev-parse", "HEAD^{tree}"):
+            if tree == head_tree:
                 return None
             args = ["commit-tree", tree, "-p", head, "-m", message]
             commit = _git(self.root, *args, env_extra=env)
@@ -255,9 +290,10 @@ class TideEngine:
                  "poseidon@olympos.local")
 
     def sync_branch(self, name=ORGAN):
+        """Absorb origin/main into a berth branch using LOCAL state
+        only - the shared fetch (refresh_remote) already updated every
+        remote-tracking ref in the fleet's common object store."""
         path = self.wt_path(name)
-        _git(path, "fetch", "origin", "--prune",
-             timeout=GIT_TIMEOUT_S)
         code = subprocess.run(
             ["git", "-C", path, "pull", "--ff-only", "origin", "main"],
             capture_output=True, text=True, timeout=GIT_TIMEOUT_S)
@@ -330,13 +366,66 @@ class TideEngine:
 
     def settle_mirror(self, snap):
         """Root gives up its copy only now - the content already lives
-        on origin. Then the mirror fast-forwards onto the merge."""
-        for batch in _chunks(snap.tracked, RESTORE_BATCH):
-            _git(self.root, "checkout", "--", *batch)
+        on origin. Guarded: a path a writer touched AFTER the snapshot
+        (content no longer matches it) is skipped, never clobbered;
+        the mirror pull then simply waits for the next quiet tide."""
+        result = {"restored": [], "skipped": [], "pulled": False}
+
+        def norm(p):
+            return p.replace("\\", "/")
+
+        if snap.tracked:
+            diverged = set()
+            for batch in _chunks(snap.tracked, RESTORE_BATCH):
+                out = _git(self.root, "diff", "--name-only",
+                           snap.commit, "--", *batch, check=False)
+                diverged.update(norm(x) for x in out.splitlines() if x)
+            safe = [p for p in snap.tracked if norm(p) not in diverged]
+            result["skipped"].extend(
+                p for p in snap.tracked if norm(p) in diverged)
+            for batch in _chunks(safe, RESTORE_BATCH):
+                _git(self.root, "checkout", "--", *batch)
+            result["restored"].extend(safe)
+
         for p in snap.untracked:
-            self._unlink_quiet(p)
-        _git(self.root, "pull", "--ff-only", "origin", "main",
-             timeout=GIT_TIMEOUT_S)
+            want = os.path.join(self.root, p)
+            if not os.path.exists(want):
+                continue  # already gone; incoming main restores it
+            try:
+                have = _git(self.root, "cat-file", "blob",
+                            "%s:%s" % (snap.commit, norm(p)),
+                            check=False)
+            except RuntimeError:
+                continue  # path never landed in the snapshot
+            have = None
+            try:
+                have = _git(self.root, "cat-file", "blob",
+                            "%s:%s" % (snap.commit, norm(p)),
+                            check=False)
+            except RuntimeError:
+                continue  # path never landed in the snapshot
+            with open(want, encoding="utf-8", errors="replace") as fh:
+                # EOL-tolerant: CRLF translation is noise; a semantic
+                # writer edit always survives normalization
+                same = _canon(fh.read()) == _canon(have)
+            # unlink only AFTER our own read handle is closed - a
+            # still-open handle makes Windows refuse the delete
+            if same:
+                self._unlink_quiet(p)
+                result["restored"].append(p)
+            else:
+                result["skipped"].append(p)
+
+        code = subprocess.run(
+            ["git", "-C", self.root, "pull", "--ff-only",
+             "origin", "main"],
+            capture_output=True, text=True, timeout=GIT_TIMEOUT_S)
+        result["pulled"] = code.returncode == 0
+        if not result["pulled"]:
+            first = (code.stderr or "").strip().splitlines()
+            result["pull_note"] = (first[0] if first else
+                                   "mirror ff refused")[:160]
+        return result
 
     # ---------------- cycle ----------------
 
@@ -344,10 +433,24 @@ class TideEngine:
         st = st or self._load_state()
         return time.time() < float(st.get("quarantine_until", 0.0))
 
+    def next_delay(self, verdict, failures=0):
+        """Seconds the watch loop should sleep after this verdict:
+        sprint after shipped tides, exponential respect after
+        failures, calm cadence on still water."""
+        if verdict == "shipped":
+            base = ACTIVE_DELAY_S
+        elif verdict == "failed":
+            n = max(1, failures)
+            base = min(QUARANTINE_COOLDOWN_S,
+                       FAIL_BACKOFF_BASE_S * (2 ** (n - 1)))
+        else:
+            base = self.interval
+        return max(5.0, base)
+
     def once(self, dry_run=False):
         """One tide. Returns a report dict (also written to ledger on
-        real runs)."""
-        t0 = time.time()
+        real runs). Private worktree work runs OUTSIDE the FORSETI
+        lane; only push -> PR/merge -> mirror-settle holds it."""
         st = self._load_state()
         report = {"mode": self.mode, "verdict": "idle", "seq": st["seq"]}
 
@@ -368,22 +471,17 @@ class TideEngine:
             return report
 
         if n_files == 0:
+            self.refresh_remote()
             self._sync_mirror_soft(report)
             report["verdict"] = "still-water"
             self._say("tide-idle", report)
             return report
 
-        lock = LaneLock(LANE, stale_s=LOCK_STALE_S,
-                        note="poseidon tide", root=self._lock_root)
-        if not lock.acquire(timeout=LOCK_WAIT_S):
-            report["verdict"] = "lane-busy"
-            report["holder"] = lane_status(LANE, root=self._lock_root)
-            self._ledger(dict(report))
-            self._say("tide-failed", report)
-            return report
-        snap = None
+        lock = None
         try:
+            # ---- private waters: no lane needed ------------------
             self.ensure_worktree()
+            self.refresh_remote()
             self.sync_branch()
             seq_next = st["seq"] + 1
             subject, body = self.message(drift, seq_next)
@@ -403,6 +501,17 @@ class TideEngine:
                 self._say("tide-idle", report)
                 return report
             self.cherry_pick(snap)
+
+            # ---- shared waters: hold the FORSETI lane ------------
+            lock = LaneLock(LANE, stale_s=LOCK_STALE_S,
+                            note="poseidon tide", root=self._lock_root)
+            if not lock.acquire(timeout=LOCK_WAIT_S):
+                report["verdict"] = "lane-busy"
+                report["holder"] = lane_status(LANE,
+                                               root=self._lock_root)
+                self._ledger(dict(report))
+                self._say("tide-failed", report)
+                return report
             self.push_branch()
             pr = self.ship_pr(subject)
             st["seq"] = seq_next
@@ -410,8 +519,7 @@ class TideEngine:
                            "commit": snap.commit[:12], "subject": subject,
                            "pr": pr, "merged": self.mode == "squash"})
             if self.mode == "squash":
-                self.settle_mirror(snap)
-                report["settled"] = True
+                report["settled"] = self.settle_mirror(snap)
             st["failures"] = 0
             st["reason"] = ""
             self._save_state(st)
@@ -432,9 +540,8 @@ class TideEngine:
             self._say("tide-failed", report)
             return report
         finally:
-            lock.release()
-            if time.time() - t0 > 0:
-                pass  # timing lives in the ledger timestamps
+            if lock is not None:
+                lock.release()
 
     def _sync_mirror_soft(self, report):
         """Keep the mirror drinking even on quiet days. A refusal (new
@@ -456,7 +563,13 @@ class TideEngine:
             c += 1
             if max_cycles and c >= max_cycles:
                 return 0
-            time.sleep(max(5.0, self.interval))
+            delay = self.next_delay(rep.get("verdict"),
+                                    rep.get("failures",
+                                            self._load_state()
+                                            .get("failures", 0)))
+            jitter = 1.0 + random.uniform(-JITTER_FRACTION,
+                                          JITTER_FRACTION)
+            time.sleep(max(5.0, delay * jitter))
 
     def resume(self):
         st = self._load_state()
@@ -494,3 +607,10 @@ class TideEngine:
 
 def default_mode():
     return os.environ.get("POSEIDON_MODE", "squash")
+
+
+def default_interval():
+    try:
+        return float(os.environ.get("POSEIDON_INTERVAL", CADENCE_S))
+    except (TypeError, ValueError):
+        return CADENCE_S
