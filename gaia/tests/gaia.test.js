@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   scoreSystem, discoverSystems, detectRegressions, freshAlerts, advise,
+  planFixes, applyFix, diskVitals,
 } from '../gaia.mjs';
 
 test('scoreSystem: fully healthy repo scores 100', () => {
@@ -132,4 +133,62 @@ test('advise: maps every failing vital to a concrete action', () => {
 
   assert.deepEqual(advise({ gitError: true }), ['inspect repository access - git unreadable']);
   assert.deepEqual(advise({ repo: false, branch: undefined }), []);
+});
+
+test('scoreSystem: low disk headroom costs points and is reported', () => {
+  const base = { branch: 'main', synced: true, diverged: false,
+                 behind: 0, dirty: 0, lastCommitAgeDays: 1 };
+  const fine = scoreSystem({ ...base, disk: { freePct: 40, freeGb: 200 } });
+  const low = scoreSystem({ ...base, disk: { freePct: 8, freeGb: 30 } });
+  const dire = scoreSystem({ ...base, disk: { freePct: 3, freeGb: 10 } });
+  assert.equal(fine.score, 100);
+  assert.equal(fine.score - low.score, 8);
+  assert.equal(low.score - dire.score, 7);
+  assert.ok(dire.reasons.some(r => /disk 3% free/.test(r)));
+});
+
+test('planFixes: only safe git drift is auto-fixable', () => {
+  const behind = planFixes({ repo: true, dir: 'x', branch: 'main', synced: false,
+                             diverged: false, behind: 5, ahead: 0 });
+  assert.deepEqual(behind.map(s => s.args), [['pull', '--ff-only']]);
+
+  const ahead = planFixes({ repo: true, dir: 'x', branch: 'main', synced: false,
+                            diverged: false, behind: 0, ahead: 2, dirty: 0 });
+  assert.deepEqual(ahead.map(s => s.args), [['push']]);
+
+  // dirty tree must block push
+  const aheadDirty = planFixes({ repo: true, dir: 'x', branch: 'main', synced: false,
+                                 diverged: false, behind: 0, ahead: 2, dirty: 3 });
+  assert.deepEqual(aheadDirty, []);
+
+  // diverged is never touched
+  const diverged = planFixes({ repo: true, dir: 'x', branch: 'main', synced: false,
+                               diverged: true, behind: 3, ahead: 3, dirty: 0 });
+  assert.deepEqual(diverged, []);
+
+  assert.deepEqual(planFixes({ repo: false }), []);
+  assert.deepEqual(planFixes({ gitError: true }), []);
+});
+
+test('applyFix: dry-run plans without touching the filesystem state', () => {
+  const v = { repo: true, dir: 'nowhere-that-exists', branch: 'main', synced: false,
+              diverged: false, behind: 2, ahead: 0 };
+  const steps = applyFix(v, { dryRun: true });
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].result, 'planned');
+});
+
+test('applyFix: failed execution is reported, never thrown', () => {
+  const bad = { repo: true, dir: path.join(os.tmpdir(), 'gaia-no-such-dir'),
+                branch: 'main', synced: false, diverged: false,
+                behind: 2, ahead: 0 };
+  const steps = applyFix(bad, { dryRun: false }).filter(s => s.kind === 'git');
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].result, 'failed');
+});
+
+test('diskVitals: reports sane headroom for a real directory', () => {
+  const d = diskVitals(os.tmpdir());
+  assert.ok(d && d.freePct >= 0 && d.freePct <= 100, `unexpected ${JSON.stringify(d)}`);
+  assert.ok(d.freeGb >= 0);
 });

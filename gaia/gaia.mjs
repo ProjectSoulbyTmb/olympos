@@ -56,6 +56,13 @@ function ageSec(file) {
 
 export function discoverSystems(workspaceRoot = path.dirname(GAIA_ROOT)) {
   const systems = [];
+  const consider = (dir, name) => {
+    // A member system is either a git repo or a MIND-managed suite
+    // (absorbed suites lose their .git but keep their heartbeat).
+    const isRepo = fs.existsSync(path.join(dir, '.git'));
+    const isMind = fs.existsSync(path.join(dir, '.mind_state.json'));
+    if (isRepo || isMind) systems.push({ name, dir, repo: isRepo });
+  };
   let entries = [];
   try {
     entries = fs.readdirSync(workspaceRoot, { withFileTypes: true });
@@ -65,14 +72,9 @@ export function discoverSystems(workspaceRoot = path.dirname(GAIA_ROOT)) {
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
     if (entry.name === 'node_modules' || entry.name === 'gaia') continue;
-    const dir = path.join(workspaceRoot, entry.name);
-    // A member system is either a git repo or a MIND-managed suite
-    // (absorbed suites lose their .git but keep their heartbeat).
-    const isRepo = fs.existsSync(path.join(dir, '.git'));
-    const isMind = fs.existsSync(path.join(dir, '.mind_state.json'));
-    if (!isRepo && !isMind) continue;
-    systems.push({ name: entry.name, dir, repo: isRepo });
+    consider(path.join(workspaceRoot, entry.name), entry.name);
   }
+  consider(workspaceRoot, 'workspace');
   return systems.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -123,12 +125,16 @@ function netVitals(dir) {
   };
 }
 
-/** MindState heartbeat freshness. */
+/** MindState heartbeat freshness: daemon loops touch .mind_state.json,
+ *  while one-shot commands write runs/mind_status.json. Either counts as alive. */
 function mindVitals(dir) {
-  const file = path.join(dir, '.mind_state.json');
-  if (!fs.existsSync(file)) return null;
-  const age = ageSec(file);
-  return { present: true, fresh: age !== null && age < FRESH_MAX_SEC, ageSec: age };
+  const ages = [
+    ageSec(path.join(dir, '.mind_state.json')),
+    ageSec(path.join(dir, 'runs', 'mind_status.json')),
+  ].filter(a => a !== null);
+  if (!ages.length) return null;
+  const age = Math.min(...ages);
+  return { present: true, fresh: age < FRESH_MAX_SEC, ageSec: age };
 }
 const FRESH_MAX_SEC = 30 * 60;
 
@@ -146,6 +152,18 @@ function venusVitals(dir) {
   try {
     const count = fs.readdirSync(lane).filter(n => n.endsWith('.json')).length;
     return { archivedReplies: count };
+  } catch {
+    return null;
+  }
+}
+
+/** Host disk headroom for the system's drive (expansion vital). */
+export function diskVitals(dir) {
+  if (typeof fs.statfsSync !== 'function') return null;
+  try {
+    const s = fs.statfsSync(dir);
+    const freePct = Math.round((s.bfree / s.blocks) * 100);
+    return { freePct, freeGb: Math.round((s.bfree * s.bsize) / 2 ** 30) };
   } catch {
     return null;
   }
@@ -175,6 +193,7 @@ export function collectVitals(system, { withCi = false } = {}) {
   vitals.mind = mindVitals(system.dir);
   vitals.thoth = thothVitals(system.dir);
   vitals.venus = venusVitals(system.dir);
+  vitals.disk = diskVitals(system.dir);
   vitals.ci = withCi ? ciVitals(system.dir) : null;
   return vitals;
 }
@@ -200,6 +219,8 @@ export function scoreSystem(vitals) {
     if (vitals.net.degraded > 0) { score -= 4 * vitals.net.degraded; reasons.push(`${vitals.net.degraded} degraded`); }
   }
   if (vitals.mind && vitals.mind.fresh === false) { score -= 5; reasons.push(`mind stale ${Math.round((vitals.mind.ageSec ?? 0) / 60)}m`); }
+  if (vitals.disk && vitals.disk.freePct < 5) { score -= 15; reasons.push(`disk ${vitals.disk.freePct}% free`); }
+  else if (vitals.disk && vitals.disk.freePct < 10) { score -= 8; reasons.push(`disk ${vitals.disk.freePct}% free`); }
   if ((vitals.thoth?.openIncidents ?? 0) > 0) { score -= 16 * vitals.thoth.openIncidents; reasons.push(`${vitals.thoth.openIncidents} open incident(s)`); }
   score = Math.max(0, Math.min(100, score));
   const band = score >= 85 ? 'healthy' : score >= 60 ? 'watch' : score >= 35 ? 'unwell' : 'critical';
@@ -270,9 +291,52 @@ export function advise(v) {
   }
   if (v.mind?.fresh === false)
     steps.push(`MIND heartbeat stale ${Math.round((v.mind.ageSec ?? 0) / 60_000)}m - restart daemon`);
+  if (v.disk && v.disk.freePct < 10) steps.push(`free disk space (${v.disk.freePct}% free, ${v.disk.freeGb}GB)`);
   if ((v.thoth?.openIncidents ?? 0) > 0)
     steps.push(`close ${v.thoth.openIncidents} THOTH incident(s)`);
   return steps;
+}
+
+// ---------- remediation (safe actions only) ----------
+
+function runGit(dir, ...args) {
+  try {
+    return { ok: true, out: execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim() };
+  } catch (e) {
+    return { ok: false, err: String(e?.stderr ?? e?.message ?? e).trim() };
+  }
+}
+
+/** Auto-remediable steps for one system. Diverged/dirty trees are never touched. */
+export function planFixes(v) {
+  const plan = [];
+  if (v.gitError || v.repo === false || !v.branch) return plan;
+  if (!v.diverged && v.behind > 0) plan.push({ kind: 'git', args: ['pull', '--ff-only'], label: `git pull --ff-only (${v.behind} behind)` });
+  if (!v.diverged && v.ahead > 0 && v.dirty === 0) plan.push({ kind: 'git', args: ['push'], label: `git push (${v.ahead} ahead)` });
+  if (v.mind?.fresh === false && fs.existsSync(path.join(v.dir, 'mind', 'daemon.py')))
+    plan.push({ kind: 'mind', label: 'MIND patrol refresh (mind/daemon.py status)' });
+  return plan;
+}
+
+/** Execute a system's fix plan; dryRun=true only reports intent. Never throws. */
+export function applyFix(v, { dryRun = true } = {}) {
+  return planFixes(v).map(step => {
+    if (dryRun) return { ...step, result: 'planned' };
+    if (step.kind === 'git') {
+      const r = runGit(v.dir, ...step.args);
+      return { ...step, result: r.ok ? 'done' : 'failed', detail: r.ok ? r.out : r.err };
+    }
+    if (step.kind === 'mind') {
+      try {
+        const out = execFileSync('python', [path.join(v.dir, 'mind', 'daemon.py'), 'status'],
+          { cwd: v.dir, encoding: 'utf8', timeout: 120_000 });
+        return { ...step, result: 'done', detail: out.split('\n')[0] };
+      } catch (e) {
+        return { ...step, result: 'failed', detail: String(e?.stderr ?? e?.message ?? e).trim() };
+      }
+    }
+    return { ...step, result: 'skipped' };
+  });
 }
 
 // ---------- pulse ----------
@@ -355,6 +419,19 @@ function renderDoctor(report) {
   return lines.join('\n');
 }
 
+function renderFix(fixMap, applied) {
+  const lines = [`GAIA fix — safe auto-remediation: ${applied ? 'APPLIED' : 'PLAN (dry-run; pass --execute to apply)'}`];
+  for (const [name, steps] of Object.entries(fixMap)) {
+    if (!steps.length) continue;
+    lines.push(`  ${name}:`);
+    for (const s of steps)
+      lines.push(`    [${s.result}] ${s.label}${s.detail ? `  (${String(s.detail).split('\n')[0]})` : ''}`);
+  }
+  const total = Object.values(fixMap).reduce((n, v) => n + v.length, 0);
+  if (!total) lines.push('  nothing auto-fixable - run doctor for manual guidance');
+  return lines.join('\n');
+}
+
 function renderTrend(entries) {
   if (!entries.length) return 'GAIA trend: no history yet';
   return ['GAIA trend:',
@@ -370,11 +447,19 @@ async function main() {
     (Number(args.find(a => /^--every/.test(a))?.split('=')[1]?.replace(/\D/g, '')) || 15) * 60_000);
   const withCi = args.includes('--ci');
   const asJson = args.includes('--json');
+  const execute = args.includes('--execute');
+  const withFix = args.includes('--fix');
 
   do {
     if (cmd === 'trend') {
       const entries = trend(20);
       console.log(asJson ? JSON.stringify(entries, null, 1) : renderTrend(entries));
+      break;
+    }
+    if (cmd === 'fix') {
+      const systems = discoverSystems().map(s => collectVitals(s));
+      const fixMap = Object.fromEntries(systems.map(v => [v.name, applyFix(v, { dryRun: !execute })]));
+      console.log(asJson ? JSON.stringify(fixMap, null, 1) : renderFix(fixMap, execute));
       break;
     }
     const previous = readJson(path.join(HISTORY_DIR, 'pulse_latest.json'));
@@ -387,6 +472,13 @@ async function main() {
         : renderDoctor(report));
     } else {
       console.log(asJson ? JSON.stringify(report, null, 1) : render(report));
+    }
+    if (withFix && execute) {
+      const fixMap = Object.fromEntries(report.systems.map(v => [v.name, applyFix(v, { dryRun: false })]));
+      const touched = Object.entries(fixMap).filter(([, steps]) => steps.length);
+      if (touched.length)
+        console.log('autofix: ' + touched.map(([n, steps]) =>
+          `${n}(${steps.map(s => `${s.result}:${s.label}`).join(', ')})`).join(' | '));
     }
     if (!asJson) console.log(`trend: ${trend(5).map(t => t.composite).join(' → ')}`);
     if (!watch) break;
