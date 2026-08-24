@@ -1,8 +1,10 @@
 # HEART interface contract v1
 
 Normative schemas for the wire surface designed in ADR-0001 and phased in
-`docs/plans/heart-roadmap.md` (H1–H5). Base truth today: `heart/heart.js`
-(v0.2.0). All endpoints bind `127.0.0.1` only. JSON everywhere.
+`docs/plans/heart-roadmap.md` (H1–H5). Base truth: `heart/heart.js` (v0.2.0,
+morning-audit evidence; tree currently absent from the workspace — re-verify
+line-level claims when restored, per ADR evidence-status note). All endpoints
+bind `127.0.0.1` only. JSON everywhere.
 
 ## 1. Response envelope (H1)
 
@@ -35,7 +37,10 @@ POST /api/snooze {"lane": "coffee"} → 400
 Unknown-field rule: clients ignore unknown fields; servers reject unknown
 **setting/skill/plan** fields with `400 {error: "unknown field: <name>"}`.
 (Deliberate tightening: config.js currently *silently ignores* unknown keys;
-the v1 contract makes rejection explicit.)
+the v1 contract makes rejection explicit.) **Ship order (rev 2):** this is a
+behavior change for any client posting extra keys — the server starts
+rejecting only after the bundled UI stops sending legacy keys, or the rule
+is gated on `schema_version >= 1` being acknowledged by the client.
 
 ## 2. Skills manifest (H2)
 
@@ -102,16 +107,37 @@ Digest gains `plans:[{id, goal, stepsDone, stepsTotal}]` when any plan is open.
 
 ## 4. Opt-in bus bridge letter (H5, only when RATATOSK_ROOT set)
 
-Envelope per INTEGRATION.md §4.1; topic row `vitals.heart` must exist in the
-§6 catalogue first. Max one publish per digest.
+Topic row `vitals.heart` must exist in the INTEGRATION.md §6 catalogue first.
+Max one publish per digest.
+
+**Rev 2 — conformance correction:** heart does not hand-write letters into
+topic files (that breaks cursor/seq semantics). It calls the bus API:
+
+```js
+bus.publish("vitals.heart", {
+  sessions: 3, focusMinutes: 75, streakDays: 6, scoreHint: 82
+}, frm="heart", kind="vital")
+```
+
+`ratatosk/bus.py::broadcast()` stores exactly this record shape per topic
+line — `{v, topic, seq, from, kind, ts, epoch, payload}` (no `id`, `rights`
+or `error` member; those live in the point-to-point envelope, not broadcast
+records):
 
 ```json
-{"v":1,"id":"12-heart-vitals.heart-tok9f","ts":"2026-08-24T21:00:00",
- "from":"heart","to":null,"topic":"vitals.heart","kind":"vital",
- "rights":"watcher",
- "payload":{"sessions":3,"focusMinutes":75,"streakDays":6,"scoreHint":82},
- "error":null}
+{"v":1,"topic":"vitals.heart","seq":42,"from":"heart","kind":"vital",
+ "ts":"2026-08-24T21:00:00","epoch":"2026-08-24",
+ "payload":{"sessions":3,"focusMinutes":75,"streakDays":6,"scoreHint":82}}
 ```
+
+Enforcement prerequisites (verified against disk): `buskit/envelope.py`
+validates topics by exact-match `TOPICS` lookup — add
+`"vitals.heart": {"vital"}` before any publish or validation raises
+`unknown topic`; `ratatosk/bus.py` requires a `kind` constant for `vital`.
+INTEGRATION §6's prose says `vitals.<organ>` while the implementation uses
+flat per-organ keys — reconcile by adding the explicit row (wildcard
+matching is out of scope). The earlier sample letter in this section was
+non-conformant to both shapes and is superseded by the above.
 
 Heartbeat: `data/post/heart/heartbeat.json` stamped on activity, same as every organ.
 
@@ -124,7 +150,13 @@ Heartbeat: `data/post/heart/heartbeat.json` stamped on activity, same as every o
 | administer (L2) | none exists | keep it that way unless promoted via checklist |
 
 Local-only loopback means the ladder is declarative today; it becomes binding
-only at T2 promotion (roadmap checklist step 2).
+only at T2 promotion (roadmap checklist step 2). Vocabulary note (rev 2):
+`rights` values here use the norn profile vocabulary (`watcher`, `agent_rw`)
+per `buskit/envelope.py::PROFILES`; INTEGRATION §4.1's own example uses
+registry-role vocabulary instead — inherited fuzziness, flagged for the
+promotion checklist. Enforcement note: H1's Host/Origin checks (§8-adjacent
+threat model) are what give this ladder practical value on loopback —
+without them any web page can hit L1 verbs cross-origin.
 
 ## 6. Voice settings & mood (H6 / H4)
 
@@ -188,11 +220,31 @@ GET /api/widgets → 200
 Error paths: unknown id → `400 {"error":"unknown widget: <id>"}`; corrupt
 stored layout → defaults served with `"layout_reset": true`, corrupt file
 quarantined. Widgets render text/SVG only — the contract forbids any HTML
-string passthrough. **String-safety mandate:** every user-derived string
+string passthrough.
+
+**String-safety mandate (tightened rev 2):** every user-derived string
 (plan goal/title, avatar name, note text) reaches the DOM exclusively via
-DOM APIs (`textContent`) or entity-escaped SVG `<text>`; the known sink
-(`studio.html` avatar-name `innerHTML`) gets a retro fix in H8, covered by
-an injection-payload test.
+DOM APIs — `textContent` for text, and for SVG exclusively
+`document.createElementNS(...)` element construction plus `textContent`
+text nodes. **Never** string-built markup, **never** user data interpolated
+into attributes (`href`, `style`, `on*` — attribute-borne vectors survive
+text escaping via `javascript:`/entity URLs and `<image href>` beacons).
+Static widget chrome may use string templates but interpolates zero user
+data. The known sink (`studio.html` avatar-name `innerHTML`) gets a retro
+fix in H8, covered by an injection-payload test whose corpus includes
+SVG-borne cases: `</text><script>alert(1)</script>`,
+`"><svg onload=alert(1)>`, `&#106;avascript:` entities, and
+`<image href="http://127.0.0.1:4767/api/state">` beacon probes — assert
+zero element creation **and zero network requests**.
+
+**Electron shell mandate (rev 2):** widgets render inside the
+`desktop/main.js` BrowserWindow; DOM containment is worthless if the shell
+exposes Node. Normative for H8 (and retro-checked at H6): `nodeIntegration:
+false`, `contextIsolation: true`, `sandbox: true`, no `loadURL` of remote
+content ever, CSP meta `default-src 'self'` on dashboard/overlay/studio
+pages, and a startup self-test asserting those flags (deviation = boot
+failure). Without this, any injection that slips through becomes Node-level
+RCE with filesystem access to `HEART_DATA_DIR`.
 
 ## 9. Deep-work DND flag (H9, advisory)
 

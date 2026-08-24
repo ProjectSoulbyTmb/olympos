@@ -4,7 +4,8 @@ The full capability space for HEART at its fullest, mapped to phases and
 constraints. Decision authority: `docs/adr/0001-heart-layered-sovereignty.md`.
 Phase detail: `docs/plans/heart-roadmap.md`. Wire schemas:
 `docs/contracts/heart-interface-v1.md`. Baseline: heart v0.2.0 (audited
-2026-08-24).
+2026-08-24 morning; **tree currently absent from the workspace** — restore
+and re-verify before any phase lands, per ADR evidence-status note).
 
 ## Tiers used here
 
@@ -26,7 +27,7 @@ Phase detail: `docs/plans/heart-roadmap.md`. Wire schemas:
 | 7 | Brain ladder (Ollama) | model tiering | shipped | H5 router | localhost only, small-first, fail-open |
 | 8 | Judge/guardrails | Studio evals/judges, Shieldstral | phased | H5 | every generated line gated |
 | 9 | Avatar forge + studio | — | shipped | — | SVG pipeline; allowlisted statics |
-| 10 | Overlay + Electron shell | — | shipped | H6/H8 extend | lockfile-pinned (`electron ^43.4.1`, caret range) |
+| 10 | Overlay + Electron shell | — | shipped | H6/H8 extend | lockfile-pinned (`electron ^43.4.1`, caret range); shell hardening mandated (contract §8 Electron clause) |
 | 11 | Venus bridge | — | shipped | — | file-only, silently off |
 | 12 | Skills system-of-record | prompts/skills SoR | phased | H2 | content-addressed ledger |
 | 13 | Typed memory | Vibe persistent memory | phased | H3 | kinds: note/goal/fact |
@@ -34,7 +35,7 @@ Phase detail: `docs/plans/heart-roadmap.md`. Wire schemas:
 | 15 | Fleet buslink | unified observability | phased | H5 | opt-in via RATATOSK_ROOT |
 | 16 | Voice & presence | Voxtral | phased | H6 | client-side SpeechSynthesis; zero deps |
 | 17 | Insight engine | Studio observability | phased | H7 | descriptive-only analytics |
-| 18 | Widget presence | Studio apps surface | phased | H8 | id allowlist, text/SVG only |
+| 18 | Widget presence | Studio apps surface | phased | H8 | id allowlist; createElementNS/textContent-only rendering incl. SVG attributes; shell hardening (contract §8) |
 | 19 | Deep-work DND flag | — (fleet courtesy) | phased | H9 | advisory flag file, default off |
 | 20 | i18n locale packs | — | stretch | via H2 | locale = coach-voice skill pack; no code change |
 | 21 | Pack lab (live line editing) | Forge | stretch | post-H5 | preview-before-activate; ledger keeps versions |
@@ -75,6 +76,16 @@ client merely obeys. Failure mode is always silence, never an error surface.
   insights stay local and descriptive; fleet sees at most what C7 allows.
 - Threat: local malicious process reading data dir — mitigated by OS user
   isolation only; documented honestly rather than pretended away.
+- **Loopback is not a trust boundary (rev 2):** the operator's browser is on
+  loopback too. DNS rebinding lets a hostile page rebind a hostname to
+  127.0.0.1 and read the API same-origin; any open page can cross-origin
+  POST/beacon to state-changing endpoints (`fetch` no-cors,
+  `sendBeacon`). Mitigations land in H1: `Host` header allowlist
+  (`127.0.0.1:4767`/`localhost:4767`) + same-origin/per-boot-token checks
+  on mutating verbs.
+- **Shell threat (rev 2):** DOM-level injection inside a legacy-configured
+  Electron window is Node-level RCE with access to `HEART_DATA_DIR`;
+  contract §8's webPreferences/CSP mandate closes the amplifier.
 
 ## Hygiene backlog (no phase yet, take with any PR)
 
