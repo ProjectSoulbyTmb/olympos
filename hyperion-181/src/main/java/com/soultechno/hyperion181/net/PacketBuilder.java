@@ -57,6 +57,13 @@ public final class PacketBuilder {
         return putByte(10); // RS2 string terminator
     }
 
+    public PacketBuilder putBytes(byte[] bytes) {
+        ensure(written + bytes.length);
+        System.arraycopy(bytes, 0, buffer, written, bytes.length);
+        written += bytes.length;
+        return this;
+    }
+
     /** Enters bit mode at the next whole-byte boundary. */
     public PacketBuilder accessBits() {
         alignToByte();
