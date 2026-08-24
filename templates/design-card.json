@@ -1,0 +1,23 @@
+{
+  "$schema": "yggdrasil/design-card-v0",
+  "name": "",
+  "kind": "game | app",
+  "target": "godot-game",
+  "intent": "One paragraph: what it does for the player/user.",
+  "inputs": [],
+  "outputs": [],
+  "entities": [
+    {"name": "", "fields": {}, "notes": ""}
+  ],
+  "invariants": [
+    "Statements that must be true after every tick/operation."
+  ],
+  "acceptance": [
+    {"given": "", "when": "", "then": ""}
+  ],
+  "constraints": {
+    "stdlib_only": true,
+    "network": "deny-by-default",
+    "secrets": "none-at-build-time"
+  }
+}

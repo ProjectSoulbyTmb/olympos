@@ -147,6 +147,39 @@ def t_missing_file_exit_two():
     return "exit 2 on unreadable ledger"
 
 
+def t_llm_attestation():
+    import tempfile
+    from buskit.llmlog import LLMJournal, digest, validate
+
+    def fake_brain(prompt):
+        return "echo:" + prompt
+
+    with tempfile.TemporaryDirectory() as tmp:
+        j = LLMJournal(os.path.join(tmp, "brain.jsonl"), actor="ptah")
+        resp = j.attested(fake_brain, model="scripted-1",
+                          prompt="design a widget")
+        assert resp == "echo:design a widget"
+        entries = j.entries()
+        assert len(entries) == 1
+        e = entries[0]
+        assert validate(e) == []
+        assert e["prompt_digest"] == digest("design a widget")
+        assert e["response_chars"] == len(resp)
+
+        def boom(_p):
+            raise RuntimeError("offline")
+
+        try:
+            j.attested(boom, model="scripted-1", prompt="x")
+            raise AssertionError("should re-raise")
+        except RuntimeError:
+            pass
+        bad = j.entries()[-1]
+        assert bad["ok"] is False and bad["error"]
+        assert validate(bad) == []
+    return "call + failure journaled with digests"
+
+
 def main():
     print("verify_buskit")
     check("envelope mailbox round-trip", t_mailbox_roundtrip)
@@ -159,6 +192,7 @@ def main():
     check("loads strict/lenient", t_strict_loads_raises)
     check("ledger lint classes", t_ledger_lint_finds_all_classes)
     check("lint exit code on missing file", t_missing_file_exit_two)
+    check("llm attestation journal", t_llm_attestation)
     failed = [r for r in RESULTS if not r[0]]
     print(f"buskit: {len(RESULTS) - len(failed)}/{len(RESULTS)} checks passed")
     return 1 if failed else 0

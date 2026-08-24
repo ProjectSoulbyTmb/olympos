@@ -9,7 +9,10 @@
       "path": "zeus/server.py",
       "tier": 1,
       "lang": "python",
-      "verify": ["python", "zeus/verify_zeus.py"],
+      "verify": [
+        "python",
+        "zeus/verify_zeus.py"
+      ],
       "profile": "admin"
     },
     {
@@ -21,7 +24,10 @@
       "path": "vulcan/host.py",
       "tier": 2,
       "lang": "python",
-      "verify": ["python", "vulcan/verify_vulcan.py"],
+      "verify": [
+        "python",
+        "vulcan/verify_vulcan.py"
+      ],
       "profile": "operator"
     },
     {
@@ -33,7 +39,10 @@
       "path": "ptah/server.py",
       "tier": 1,
       "lang": "python",
-      "verify": ["python", "ptah/verify_ptah.py"],
+      "verify": [
+        "python",
+        "ptah/verify_ptah.py"
+      ],
       "profile": "operator"
     },
     {
@@ -44,7 +53,10 @@
       "path": "hades/",
       "tier": 2,
       "lang": "python",
-      "verify": ["python", "hades/verify_hades.py"],
+      "verify": [
+        "python",
+        "hades/verify_hades.py"
+      ],
       "profile": "operator"
     },
     {
@@ -55,7 +67,10 @@
       "path": "ratatosk/",
       "tier": 1,
       "lang": "python",
-      "verify": ["python", "ratatosk/verify_ratatosk.py"],
+      "verify": [
+        "python",
+        "ratatosk/verify_ratatosk.py"
+      ],
       "profile": "watcher"
     },
     {
@@ -66,7 +81,10 @@
       "path": "norn/",
       "tier": 1,
       "lang": "python",
-      "verify": ["python", "norn/verify_norn.py"],
+      "verify": [
+        "python",
+        "norn/verify_norn.py"
+      ],
       "profile": "watcher"
     },
     {
@@ -77,7 +95,10 @@
       "path": "hypnos/",
       "tier": 1,
       "lang": "python",
-      "verify": ["python", "hypnos/verify_hypnos.py"],
+      "verify": [
+        "python",
+        "hypnos/verify_hypnos.py"
+      ],
       "profile": "watcher"
     },
     {
@@ -88,8 +109,116 @@
       "path": "gaia/",
       "tier": 1,
       "lang": "node",
-      "verify": ["npm", "test"],
+      "verify": [
+        "npm",
+        "test"
+      ],
       "workdir": "gaia",
+      "profile": "watcher"
+    },
+    {
+      "name": "sindri",
+      "kind": "forge",
+      "engine": "sandbox-executor",
+      "port": null,
+      "sdk": "SindriSDK",
+      "path": "sindri/forge.py",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_sindri.py"
+      ],
+      "profile": "operator"
+    },
+    {
+      "name": "forseti",
+      "kind": "arbitration",
+      "engine": "lane-lock",
+      "port": null,
+      "sdk": null,
+      "path": "forseti/locker.py",
+      "tier": 0,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_forseti.py"
+      ],
+      "profile": "watcher"
+    },
+    {
+      "name": "buskit",
+      "kind": "contracts",
+      "engine": "message-contracts",
+      "port": null,
+      "sdk": null,
+      "path": "buskit/",
+      "tier": 0,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_buskit.py"
+      ],
+      "profile": "watcher"
+    },
+    {
+      "name": "scope-guard",
+      "kind": "gate",
+      "engine": "retired-scope-guard",
+      "port": null,
+      "sdk": null,
+      "path": "verify_scope.py",
+      "tier": 0,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_scope.py"
+      ],
+      "profile": "watcher"
+    },
+    {
+      "name": "secrets-gate",
+      "kind": "gate",
+      "engine": "secrets-hygiene",
+      "port": null,
+      "sdk": null,
+      "path": "verify_secrets.py",
+      "tier": 0,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_secrets.py"
+      ],
+      "profile": "watcher"
+    },
+    {
+      "name": "coverage-gate",
+      "kind": "gate",
+      "engine": "coverage-floor",
+      "port": null,
+      "sdk": null,
+      "path": "verify_coverage.py",
+      "tier": 0,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_coverage.py"
+      ],
+      "profile": "watcher"
+    },
+    {
+      "name": "godot-template",
+      "kind": "template",
+      "engine": "godot-output",
+      "port": null,
+      "sdk": null,
+      "path": "templates/godot-game/",
+      "tier": 3,
+      "lang": "gdscript",
+      "verify": [
+        "python",
+        "templates/verify_template.py"
+      ],
       "profile": "watcher"
     }
   ]
