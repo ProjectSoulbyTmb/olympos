@@ -43,6 +43,7 @@ SUITES = [
     ("secrets", "verify_secrets.py"),
     ("coverage", "verify_coverage.py"),
     ("template", os.path.join("templates", "verify_template.py")),
+    ("system", "verify_system.py"),
 ]
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [
