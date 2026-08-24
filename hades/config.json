@@ -1,0 +1,29 @@
+{
+  "products": [
+    {
+      "name": "ratatosk",
+      "include": ["ratatosk/**/*.py"],
+      "exclude": []
+    },
+    {
+      "name": "norn",
+      "include": ["norn/**/*.py"],
+      "exclude": []
+    },
+    {
+      "name": "vulcan",
+      "include": ["vulcan/**/*.py"],
+      "exclude": ["vulcan/state/**"]
+    },
+    {
+      "name": "venus",
+      "include": [
+        "assistant/*.js",
+        "assistant/lib/*.js",
+        "assistant/plugins/*.js",
+        "assistant/tests/*.js"
+      ],
+      "exclude": []
+    }
+  ]
+}

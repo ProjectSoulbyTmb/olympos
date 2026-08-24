@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  assistant:
+    runs-on: windows-latest
+    # assistant/ is a nested repo that stays out of this checkout; the
+    # detect step skips the suite when the directory is absent.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect assistant workspace
+        id: detect
+        shell: bash
+        run: |
+          if [ -f assistant/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Syntax sweep (lib, plugins, tests, scripts)
+        if: steps.detect.outputs.present == 'true'
+        working-directory: assistant
+        run: node scripts/syntax-check.js
+      - name: Unit tests
+        if: steps.detect.outputs.present == 'true'
+        working-directory: assistant
+        env:
+          VENUS_DATA_DIR: ${{ runner.temp }}\venus-data
+        run: npm test
+
+  ecosystem:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: GAIA kernel tests
+        working-directory: gaia
+        run: |
+          npm install --no-save
+          npm test
+      - name: Vulcan verify gate
+        run: python vulcan/verify_vulcan.py
+      - name: ZEUS protection-kernel gate
+        run: python zeus/verify_zeus.py
+      - name: Ratatosk post-office gate
+        run: python ratatosk/verify_ratatosk.py
+      - name: Hades provenance gate
+        run: python hades/verify_hades.py
