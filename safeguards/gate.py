@@ -86,12 +86,33 @@ def run_suite(name, spec, timeout_s):
             shell=spec.get("shell", False))
         ok = proc.returncode == 0
         tail_src = (proc.stdout or "") + (proc.stderr or "")
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         ok = False
         tail_src = f"TIMEOUT after {timeout_s}s"
+        if exc.stdout:
+            tail_src += "\n" + str(exc.stdout)[-2000:]
     secs = round(time.monotonic() - t0, 1)
-    tail = "\n".join(tail_src.splitlines()[-3:])
-    return {"suite": name, "ok": ok, "secs": secs, "tail": tail}
+    lines = tail_src.splitlines()
+    tail = "\n".join(lines[-3:])
+    # L030: a gate that detects failure but discards the failing output
+    # turns every diagnosis into archaeology. Failed suites keep their
+    # output (bounded) so the culprit check ships with the verdict.
+    return {"suite": name, "ok": ok, "secs": secs, "tail": tail,
+            "output": "" if ok else tail_src[-8000:]}
+
+
+def _fail_detail(res):
+    """The most diagnostic line a failed suite produced: prefer its own
+    [FAIL] verdict, then errors/tracebacks, then the plain tail."""
+    out = res.get("output") or res.get("tail") or ""
+    for line in out.splitlines():
+        low = line.lower()
+        if "[fail]" in low or "traceback" in low:
+            return line[:280]
+    for line in out.splitlines():
+        if "error" in line.lower() or "assert" in line.lower():
+            return line[:280]
+    return (res.get("tail") or "")[:160]
 
 
 def publish_result(res):
@@ -143,7 +164,8 @@ def main(argv=None):
             if not as_json:
                 mark = "PASS" if res["ok"] else "FAIL"
                 print(f"[{mark}] {res['suite']:<16} {res['secs']:>6}s "
-                      + ("" if res["ok"] else f"| {res['tail'][:160]}"))
+                      + ("" if res["ok"]
+                         else "| " + _fail_detail(res)))
 
     results.sort(key=lambda r: r["suite"])
 
@@ -185,7 +207,7 @@ def main(argv=None):
         for r in sorted(retried, key=lambda x: x["suite"]):
             mark = "PASS" if r["ok"] else "FAIL"
             print(f"[{mark}] {r['suite']:<16} {r['secs']:>6}s (retry) "
-                  + ("" if r["ok"] else f"| {r['tail'][:140]}"))
+                  + ("" if r["ok"] else "| " + _fail_detail(r)))
         note = f", {len(retried)} retried ({retried_ok} healed)" \
             if retried else ""
         print(f"- gates: {report['passed']}/{report['total']} green{note}")

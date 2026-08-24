@@ -152,8 +152,13 @@ def gate_orchestrator_parallel_timeout_report():
         }
         t0 = time.monotonic()
         results = {}
+        # per-suite budgets: alpha/beta must tolerate slow CI runner
+        # cold starts (a killed `python -c pass` is a false red),
+        # while gamma's 30s sleep vs a 3s ceiling still proves the
+        # orchestrator enforces its kill deadline
+        budget = {"alpha": 10.0, "beta": 10.0, "gamma": 3.0}
         with concurrent.futures.ThreadPoolExecutor(3) as pool:
-            futs = {pool.submit(g.run_suite, n, s, 1.5): n
+            futs = {pool.submit(g.run_suite, n, s, budget[n]): n
                     for n, s in specs.items()}
             for f in concurrent.futures.as_completed(futs):
                 results[futs[f]] = f.result()
@@ -162,9 +167,11 @@ def gate_orchestrator_parallel_timeout_report():
         assert results["beta"]["ok"] is False
         assert results["gamma"]["ok"] is False \
             and "TIMEOUT" in results["gamma"]["tail"]
-        assert wall < 10, f"timeout not enforced (wall {wall:.1f}s)"
-        # report shape matches contract
-        assert set(results["alpha"]) == {"suite", "ok", "secs", "tail"}
+        assert wall < 20, f"timeout not enforced (wall {wall:.1f}s)"
+        # report shape matches contract (L030: failures keep output)
+        assert set(results["alpha"]) == {
+            "suite", "ok", "secs", "tail", "output"}
+        assert results["alpha"]["output"] == ""
     finally:
         shutil.rmtree(outer, ignore_errors=True)
 
