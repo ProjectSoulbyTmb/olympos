@@ -34,14 +34,16 @@ HEAD - resets or sweeps in one cannot touch another.
 5. **Sync often:** rebase/merge `main` into your branch at least once
    per session. Small frequent PRs lose races; big rare ones start wars.
 6. **Releases:** tag `v*` off `main` only after a green doctor sweep.
-7. **Guardrails:** the canonical `pre-push` guard is tracked at
-   `hooks/pre-push`; install it into every clone once with
-   `powershell -File flow.ps1 install-hooks` - after that any direct
-   push to `main` is refused client-side for all worktrees of the
-   clone. Server-side branch protection/rulesets need GitHub Pro while
-   the repo is private; if the repo goes public or the plan upgrades,
-   add a `main-pr-only` ruleset (require pull request, block
-   force-pushes and deletions) so the rule holds server-side too.
+7. **Guardrails:** two complementary client-side guards ship tracked in
+   the repo - install both in every clone:
+   `powershell -File flow.ps1 install-hooks`
+     -> `.git/hooks/pre-push` refuses direct pushes to `main`.
+   `powershell -File safeguards/install.ps1`
+     -> wires the `safeguards/githooks` pre-commit contract.
+   Server-side branch protection/rulesets need GitHub Pro while the
+   repo is private; if the repo goes public or the plan upgrades, add a
+   `main-pr-only` ruleset (require pull request, block force-pushes and
+   deletions) so the rule holds server-side too.
 
 ## Quick reference
 
