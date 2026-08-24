@@ -1,0 +1,240 @@
+{
+  "$schema": "knowledge-db/webstudio/v1",
+  "description": "Machine-readable Webstudio knowledge base for Hermes websystems integration. Append-only: new facts get fresh WS-### ids; never renumber; deprecate with a note instead of deleting.",
+  "updated": "2026-08-24",
+  "upstream": {
+    "site": "https://webstudio.is/",
+    "docs": "https://docs.webstudio.is/",
+    "docIndexForAgents": "https://docs.webstudio.is/llms.txt",
+    "github": "https://github.com/webstudio-is/webstudio",
+    "community": "https://wstd.us/community",
+    "roadmap": "https://wstd.us/roadmap"
+  },
+  "entries": [
+    {
+      "id": "WS-001",
+      "title": "Webstudio is an open-source visual website builder built for agents and humans",
+      "category": "product-model",
+      "summary": "Positioning: open-source Webflow alternative, 'frontend for any web experience'. Visual editor for humans plus first-class CLI/MCP automation for agents; changes from either side stay editable in the Builder.",
+      "details": "Radix UI-based components, full CSS access, backend-agnostic data layer. Cloud hosting backed by Cloudflare (~250M req/30d). Open core: public roadmap, code, community.",
+      "sources": ["https://webstudio.is/", "https://github.com/webstudio-is/webstudio"],
+      "tags": ["webstudio", "builder", "overview"]
+    },
+    {
+      "id": "WS-002",
+      "title": "Builder and Projects are separate systems",
+      "category": "product-model",
+      "summary": "The Builder (apps.webstudio.is) creates Projects; published/exported sites deploy independently. Self-hosting sites in production is fully supported; self-hosting the Builder itself is not recommended.",
+      "details": "This split means our automation targets a Project through its share link/API while designers keep using the hosted Builder. Export paths: CLI (static or dynamic) or Builder download button (static only).",
+      "sources": ["https://docs.webstudio.is/university/self-hosting.md"],
+      "tags": ["webstudio", "architecture"]
+    },
+    {
+      "id": "WS-003",
+      "title": "CLI package is 'webstudio', run via npx, Node >= 22.12",
+      "category": "cli",
+      "summary": "Use `npx --yes webstudio@latest <command>`. Never use old `@webstudio-is/cli` or `wstd`; avoid permanent global installs (stale-binary class of bug).",
+      "details": "Key commands: init --link --json, permissions --json, sync, build --template ssg|docker, preview, publish, domains, audit, mcp, connect claude|codex|cursor|vscode.",
+      "sources": ["https://docs.webstudio.is/university/cli.md"],
+      "tags": ["webstudio", "cli", "setup"]
+    },
+    {
+      "id": "WS-004",
+      "title": "Builder share link with Build access is the credential",
+      "category": "safety",
+      "summary": "`npx webstudio init --link '<share-link>' --json` links a Project (writes .webstudio/config.json locally; token lives in global config). Treat share links like secrets: never commit, log, screenshot, or paste them into issues.",
+      "details": "Check scope with `npx webstudio permissions --json`. Give the editable link only to trusted agents. `.webstudio/config.json` still points at the remote project - copying the folder is NOT an isolated clone.",
+      "sources": ["https://docs.webstudio.is/university/cli.md", "https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "security", "credentials", "secrets"]
+    },
+    {
+      "id": "WS-005",
+      "title": "MCP server ships inside the CLI - no client install needed",
+      "category": "agent-mcp",
+      "summary": "Shell-capable agents skip MCP-client setup entirely: `webstudio <tool> '<json>'` performs one-shot MCP tool calls; `mcp single-op-call` is the explicit form; `webstudio mcp run '<manifest-json>'` batches calls sharing one session.",
+      "details": "Native registration optional via `connect claude|codex|cursor|vscode`. Start MCP from the linked project root (.webstudio folder). stdout = JSON result on both success {ok:true,data} and failure {ok:false,error}; progress goes to stderr.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "mcp", "agents", "automation"]
+    },
+    {
+      "id": "WS-006",
+      "title": "Discovery-first workflow: meta.index then focused tools",
+      "category": "agent-mcp",
+      "summary": "Always start with `meta.index` (capability catalog), optionally `meta.guide {brief}` for a goal workflow, then focused reads: components.list/search/get/find, templates.list/get, search-project, list-pages, inspect-instance.",
+      "details": "Never dump full resources (`webstudio://project/components`, tools) when compact tools suffice; never grep source or write parsers before trying meta.get-more-tools.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "mcp", "discovery"]
+    },
+    {
+      "id": "WS-007",
+      "title": "Mutations: read ids first, prefer semantic tools, dry-run when unsure",
+      "category": "agent-mcp",
+      "summary": "Core loop: read target ids -> mutate with semantic tools (insert-component, insert-fragment, insert-collection, update-text/styles/props/page, bind-props) -> verify commitStatus -> visually verify.",
+      "details": "`--dry-run` returns the computed transaction without committing (meta.session.transaction + base version). Prefer semantic tools over raw apply-patch. Read meta.session.commitStatus: planned|committed|failed|unchanged (not-applicable for reads).",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "mcp", "mutations", "dry-run"]
+    },
+    {
+      "id": "WS-008",
+      "title": "insert-fragment JSX dialect rules",
+      "category": "agent-mcp",
+      "summary": "Fragments are JSX with ws.element/ws:tag, styles via ws:style={css`...`} (declarations + @media only; no selectors/@keyframes) or React-style object style props; tokens via ws:tokens={[token('name', css`...`)]}; events via onClick={new ActionValue(['event'], expression`...`)}.",
+      "details": "Use webstudio prop names class/for (not className/htmlFor). Props must be JSON-compatible (no undefined/Date/Map/functions). No host globals (process/globalThis/eval). Template-backed radix components need explicit child parts (<radix.Switch><radix.SwitchThumb/></radix.Switch>). Prefer --input-file for large JSX.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "mcp", "jsx", "fragments"]
+    },
+    {
+      "id": "WS-009",
+      "title": "Checkpoint protocol gates mutations",
+      "category": "safety",
+      "summary": "When a tool returns checkpoint.required, mutations return CHECKPOINT_REQUIRED until you report to the parent/user and call checkpoint.ack {reported:true,continueAfterReport:true,summary:'...'}. Reads stay available during checkpoints.",
+      "details": "Checkpoint state persists across one-shot CLI processes until acked. In batch runs, the run stops at the first failed call with partial results.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "mcp", "checkpoints", "safety"]
+    },
+    {
+      "id": "WS-010",
+      "title": "One session per project directory; serialize CLI calls",
+      "category": "safety",
+      "summary": "Run one-shot/single-op-call commands sequentially against the same linked .webstudio folder. PROJECT_SESSION_BUSY means another CLI/MCP process owns the session - wait and retry.",
+      "details": "Multi-project work uses mcp run manifests with a projects[] array (each root pre-linked), concurrency default 2 cap 16, resume support; committed mutations interrupted mid-flight become AMBIGUOUS_MUTATION_RESULT and are never auto-replayed; batch mutations require explicit --approve-mutations.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "mcp", "concurrency", "fleet"]
+    },
+    {
+      "id": "WS-011",
+      "title": "Vision verification loop is mandatory for visual work",
+      "category": "agent-mcp",
+      "summary": "After style/content changes: preview.start once, screenshot per changed page path and viewport (e.g. 375x812 and 1440x900), inspect PNGs with vision, iterate. Run preview.start+screenshot+preview.stop inside ONE `mcp run` so they share the preview owner.",
+      "details": "screenshot.diff compares against baseline PNGs with expectedText (OCR) / expectedVisual assertions; OCR installable via vision.install-ocr {confirm:true} with user permission. Stale previews refresh automatically; occupied port fails fast (PREVIEW_PORT_IN_USE); pass baseUrl to shoot an already-running preview from another process.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "mcp", "verification", "screenshots"]
+    },
+    {
+      "id": "WS-012",
+      "title": "Built-in audit tool covers accessibility, SEO, security, performance",
+      "category": "quality",
+      "summary": "`audit {scopes:[accessibility,seo],pagePath?,severities?}` reports project/page-level issues; pair with accessibility-review resource for evidence-based fixes before publishing.",
+      "details": "CLI can also audit outside MCP. Use it as a publish gate alongside screenshot verification.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md", "https://docs.webstudio.is/university/cli.md"],
+      "tags": ["webstudio", "audit", "a11y", "seo", "gates"]
+    },
+    {
+      "id": "WS-013",
+      "title": "Data model: Resources fetch, Bindings map, Expressions glue",
+      "category": "data-cms",
+      "summary": "Webstudio has no built-in CMS tab - it fetches from ANY HTTP API. Resource variables hold fetch results (REST, GraphQL control, or system resources); the Expression editor binds any part of that data to any component prop, text node, or meta field.",
+      "details": "Header values may be expressions ('Bearer ' + auth.token). Data variables (string/number/boolean/JSON) hold local state scoped to an instance. Collection component iterates arrays into repeated structures.",
+      "sources": ["https://docs.webstudio.is/university/foundations/cms.md"],
+      "tags": ["webstudio", "resources", "bindings", "expressions", "cms"]
+    },
+    {
+      "id": "WS-014",
+      "title": "Dynamic pages = path params feeding resource queries",
+      "category": "data-cms",
+      "summary": "Adding :param (optional :param?, wildcard /*) to a page path turns it dynamic; params surface in expressions as system.params.<name> and parameterize Resource queries (posts(slug: system.params.slug)). Address Bar takes test values in the editor.",
+      "details": "404 pattern: bind Page Settings > Status Code to `cmsData.data[0].id ? 200 : 404`, toggle content blocks' Show conditions with the same test, or bind Redirect to `!id ? '/404' : ''`.",
+      "sources": ["https://docs.webstudio.is/university/foundations/cms.md"],
+      "tags": ["webstudio", "dynamic-pages", "routing", "seo"]
+    },
+    {
+      "id": "WS-015",
+      "title": "Assets double as a file-based CMS (Content Engine)",
+      "category": "data-cms",
+      "summary": "Markdown/JSON assets queried via create-assets-resource with structured query (where/sort/limit/offset/output.fields/content markdown-body-ref) power blogs and directories with zero external backend.",
+      "details": "validate-asset-query and preview-asset-query let agents check queries before committing. Draft filtering via properties.draft ne true; slug routing pairs with dynamic pages.",
+      "sources": ["https://docs.webstudio.is/university/foundations/content-engine.md", "https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "content-engine", "markdown", "blog"]
+    },
+    {
+      "id": "WS-016",
+      "title": "Rich text support: HTML via Content Embed, Markdown via Markdown Embed",
+      "category": "data-cms",
+      "summary": "CMS rich text renders only if delivered as HTML or Markdown. Known gaps: Sanity rich text unsupported; Notion pages broken; Strapi needs CKEditor field; Payload needs HTML mirror field.",
+      "details": "Compat verified for Hygraph, Contentful, WordPress, Drupal, Directus, Airtable, Baserow, Ghost, Flotiq, Hashnode. Escape hatch: Cloudflare Worker proxy converting exotic formats to HTML.",
+      "sources": ["https://docs.webstudio.is/university/foundations/cms.md"],
+      "tags": ["webstudio", "rich-text", "cms-compat"]
+    },
+    {
+      "id": "WS-017",
+      "title": "Design system primitives: tokens, CSS variables, states, breakpoints",
+      "category": "design-system",
+      "summary": "Design tokens package multi-property styles reusable as classes across instances (synced on edit). CSS variables attach reusable values. States/selectors cover :hover/:focus/::before etc. Breakpoints cascade desktop-first; all CSS properties/units exposed.",
+      "details": "MCP exposes full CRUD: define-css-variable, create-variable, token/style-source lifecycle, list-breakpoints (call before responsive screenshots). Custom classes/IDs/data-* attributes supported for GSAP/external scripts.",
+      "sources": ["https://docs.webstudio.is/university/foundations/design-tokens.md", "https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "tokens", "css", "theming"]
+    },
+    {
+      "id": "WS-018",
+      "title": "Components: core elements + Radix UI primitives",
+      "category": "design-system",
+      "summary": "Core: Element, Text/Heading/Paragraph, Link, Image (auto WebP/AVIF/responsive), Form/Webhook Form, Collection, Slots, HTML/Content/Markdown Embeds, JSON-LD, XML Node (sitemap), Animation Group family. Radix: Accordion, Dialog, Popover, Tabs, Tooltip, Switch, Select, Navigation Menu, Sheet, etc.",
+      "details": "Component ids look like '@webstudio-is/sdk-components-react-radix:Select'. insert-component inserts registered templates automatically; fragments must spell out required template children explicitly.",
+      "sources": ["https://docs.webstudio.is/university/core-components.md", "https://docs.webstudio.is/university/radix.md"],
+      "tags": ["webstudio", "components", "radix"]
+    },
+    {
+      "id": "WS-019",
+      "title": "Copy-paste ingestion from Webflow/Tailwind/HTML/Markdown/SVG",
+      "category": "design-system",
+      "summary": "Pasting converts foreign formats into native editable structures: Webflow elements, HTML+CSS (classes -> styles), Tailwind utilities (-> styles), Markdown (-> components), SVG (-> native SVG components).",
+      "details": "Migration lever: existing Webflow sites can be brought over section by section. Referenced images handled specially during paste.",
+      "sources": ["https://docs.webstudio.is/university/foundations/copy-paste.md"],
+      "tags": ["webstudio", "migration", "copy-paste", "tailwind", "webflow"]
+    },
+    {
+      "id": "WS-020",
+      "title": "Publishing: staging/production targets + custom domain lifecycle",
+      "category": "publishing",
+      "summary": "Cloud publishing supports staging and production targets, selected domains, publish job inspection and unpublish. Domains have create/update/delete/verify flows (DNS).",
+      "details": "Agent flow: audit -> screenshot-verify -> publish {target}. Cloud hosting is Cloudflare-backed with edge image optimization; perfect Lighthouse scores attainable.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md", "https://docs.webstudio.is/university/foundations/publishing-and-custom-domains.md"],
+      "tags": ["webstudio", "publishing", "domains", "cloudflare"]
+    },
+    {
+      "id": "WS-021",
+      "title": "Two export types: dynamic Remix app vs static site",
+      "category": "publishing",
+      "summary": "JS app export (default cloud behavior; `build --template docker`) keeps CMS integrations, webhook forms, redirects, status codes, image optimization, sitemap/robots. Static export (`--template ssg`) loses ALL of those but hosts anywhere.",
+      "details": "Static trailing-slash behavior differs per host (Cloudflare redirects to slash, Netlify normalizes to slash, Vercel serves both unless vercel.json sets trailingSlash). Enforcing exact URL conventions needs the JS app. Local static preview: `npx serve .` (absolute asset URLs). Disable atomic CSS in project settings for human-readable exported classes.",
+      "sources": ["https://docs.webstudio.is/university/self-hosting.md"],
+      "tags": ["webstudio", "self-hosting", "export", "remix", "static"]
+    },
+    {
+      "id": "WS-022",
+      "title": "Self-host platform matrix",
+      "category": "publishing",
+      "summary": "Serverless: Netlify, Vercel (easiest). Containers: Dockerfile provided - AWS Flightcontrol, DigitalOcean/Hetzner via Coolify, any VPS (min 1GB RAM/1 core). Static: Cloudflare Pages, GitHub Pages, Netlify, Vercel.",
+      "details": "Sync locally with `npx webstudio sync` (bundle to .webstudio/data.json + assets) after publishing to cloud if recent builder changes are needed in the export.",
+      "sources": ["https://docs.webstudio.is/university/self-hosting.md", "https://docs.webstudio.is/university/cli.md"],
+      "tags": ["webstudio", "hosting", "netlify", "vercel", "cloudflare-pages", "docker"]
+    },
+    {
+      "id": "WS-023",
+      "title": "Inception: AI design direction generation inside the product",
+      "category": "product-model",
+      "summary": "Inception generates, compares, refines and reuses AI design directions; agents can also drive design purely through MCP. Marketplace supplies community templates as starting points.",
+      "details": "Templates marketplace integrated into Builder; contributions reviewed. Gallery shows production sites (SaaS, portfolios, agencies).",
+      "sources": ["https://webstudio.is/inception", "https://docs.webstudio.is/university/marketplace.md"],
+      "tags": ["webstudio", "ai-design", "templates"]
+    },
+    {
+      "id": "WS-024",
+      "title": "Performance stance: edge delivery, optimized rendering, scroll-driven animations",
+      "category": "product-model",
+      "summary": "Images upload high-quality, serve converted/compressed/responsive (WebP/AVIF). Scroll-driven animations use the Scroll Timeline API running off main thread up to 120fps - no JS animation lib needed for scroll effects.",
+      "details": "GSAP possible via custom code embed when needed. SEO features: per-page metadata, canonical/alternates via Head Slot, JSON-LD component, XML sitemap components, redirects.",
+      "sources": ["https://webstudio.is/", "https://docs.webstudio.is/university/foundations/animations.md"],
+      "tags": ["webstudio", "performance", "seo", "animations"]
+    },
+    {
+      "id": "WS-025",
+      "title": "Report tool friction upstream via report-issue / Discord #help",
+      "category": "process",
+      "summary": "Confusing errors, hangs, schema mismatches: file structured report-issue {trigger,category,deduplicationKey,title,agent{...},report{userStory,attemptedWorkflow,expected,actual,acceptanceCriteria}} or hand the user the Discord #help copy-paste template. Redact all secrets.",
+      "details": "Keeps upstream docs/CLI aligned with agent reality; dedupe key prevents spam.",
+      "sources": ["https://docs.webstudio.is/university/mcp.md"],
+      "tags": ["webstudio", "process", "reporting"]
+    }
+  ]
+}

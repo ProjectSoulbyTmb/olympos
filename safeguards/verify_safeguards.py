@@ -16,6 +16,7 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT_PARENT = os.path.dirname(HERE)
 ROOT = os.path.dirname(HERE)
 PY = sys.executable
 
@@ -177,12 +178,106 @@ def discovery_finds_real_suites():
     g = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(g)
     suites = g.discover()
-    expected = {"ratatosk", "vulcan", "zeus", "hades", "atlas"}
+    expected = {"ratatosk", "vulcan", "zeus", "hades", "atlas",
+                "daedalus", "hermod"}
     missing = expected - set(suites)
     assert not missing, f"discovery missed: {sorted(missing)}"
     assert "safeguards" not in suites, "self-exclusion failed"
 
 
+# ------------------------------------------------------------- patch lane
+
+def _run_patch_in_clone(clone, diff_text, message):
+    """Fresh interpreter bound to the clone; JSON result back."""
+    import subprocess as sp
+    dfile = os.path.join(clone, "_lane_diff.txt")
+    with open(dfile, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(diff_text)
+    driver = (
+        "import json,sys\n"
+        "sys.path.insert(0,'')\n"
+        "from safeguards.patch import apply_patch\n"
+        "diff=open('_lane_diff.txt',encoding='utf-8').read()\n"
+        "print(json.dumps(apply_patch(diff, sys.argv[1])))\n")
+    env = dict(os.environ, PYTHONPATH=clone)
+    r = sp.run([sys.executable, "-c", driver, message],
+               cwd=clone, capture_output=True, text=True, env=env,
+               timeout=120)
+    out = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else "{}"
+    try:
+        return json.loads(out)
+    except ValueError:
+        return {"ok": False, "error": (r.stderr or out)[:200]}
+
+
+@check
+def patch_lane_applies_commits_and_keeps_junk_staged():
+    outer = tempfile.mkdtemp(prefix="patch-lane-")
+    clone = os.path.join(outer, "clone")
+    import subprocess as sp
+    sp.run(["git", "clone", "-q", ROOT_PARENT, clone],
+           capture_output=True, text=True)
+    prev = os.getcwd()
+    try:
+        junk = os.path.join(clone, "lane_b_junk.txt")
+        with open(junk, "w", encoding="utf-8") as fh:
+            fh.write("another lane's staged junk\n")
+        readme = os.path.join(clone, "README.md")
+        n = len(open(readme, encoding="utf-8").read().splitlines())
+        diff = (f"--- a/README.md\n+++ b/README.md\n"
+                f"@@ -{n},0 +{n+1} @@\n+patch-lane was here\n")
+        r = _run_patch_in_clone(clone, diff, "patch lane: append note")
+        assert r["ok"] and r["committed"], r
+        body = open(readme, encoding="utf-8").read()
+        assert "patch-lane was here" in body
+        st = sp.run(["git", "status", "--short"], cwd=clone,
+                    capture_output=True, text=True).stdout
+        assert "lane_b_junk" in st, "junk must survive untouched"
+        assert not any(l.startswith(" M README.md")
+                       for l in st.splitlines()), \
+            "committed file still dirty"
+    finally:
+        os.chdir(prev)
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
+def patch_lane_rolls_back_on_gate_failure():
+    outer = tempfile.mkdtemp(prefix="patch-lane-")
+    clone = os.path.join(outer, "clone")
+    import subprocess as sp
+    sp.run(["git", "clone", "-q", ROOT_PARENT, clone],
+           capture_output=True, text=True)
+    prev = os.getcwd()
+    try:
+        target = os.path.join(clone, "notes.py")
+        with open(target, "w", encoding="utf-8") as fh:
+            fh.write("VALUE = 1\n")
+        sp.run(["git", "add", "notes.py"], cwd=clone,
+               capture_output=True)
+        sp.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+                "commit", "-m", "seed notes"], cwd=clone,
+               capture_output=True)
+        head_before = sp.run(["git", "rev-parse", "HEAD"], cwd=clone,
+                             capture_output=True,
+                             text=True).stdout.strip()
+        bad_diff = ("--- a/notes.py\n+++ b/notes.py\n"
+                    "@@ -1 +1,2 @@\n VALUE = 1\n"
+                    "+def broken(:\n")
+        r = _run_patch_in_clone(clone, bad_diff, "should fail gates")
+        assert not r["ok"] and r.get("rolled_back"), r
+        head_after = sp.run(["git", "rev-parse", "HEAD"], cwd=clone,
+                            capture_output=True,
+                            text=True).stdout.strip()
+        assert head_after == head_before, "rollback moved HEAD"
+        body = open(target, encoding="utf-8").read()
+        assert "broken" not in body, "rolled-back file still patched"
+    finally:
+        os.chdir(prev)
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
 def main():
     print("=" * 64)
     print("SAFEGUARDS VERIFY - gates that gate the gates")

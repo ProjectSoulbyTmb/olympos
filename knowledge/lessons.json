@@ -2,7 +2,15 @@
   "_meta": {
     "description": "Distilled lessons database - one object per lesson. Append-only; ids are monotonic and never reused.",
     "created": "2026-08-24",
-    "categories": ["architecture", "reliability", "data-integrity", "testing", "process", "autonomy", "security"]
+    "categories": [
+      "architecture",
+      "reliability",
+      "data-integrity",
+      "testing",
+      "process",
+      "autonomy",
+      "security"
+    ]
   },
   "lessons": [
     {
@@ -11,7 +19,12 @@
       "category": "architecture",
       "source": "JSON-lines game/build servers (authoritative realm pattern)",
       "lesson": "Run exactly one authoritative process that owns all mutable state. Clients send intent messages ({cmd, args}) over a line protocol and receive full state plus an error field on every response. All clients - humans, agents, tests - go through ONE SDK object; nothing bypasses it. This makes cheating impossible by construction, lets any strategy run unchanged over wire or in-process, and gives a single place to enforce rights and rate limits.",
-      "tags": ["server", "sdk", "state", "protocol"]
+      "tags": [
+        "server",
+        "sdk",
+        "state",
+        "protocol"
+      ]
     },
     {
       "id": "L002",
@@ -19,7 +32,10 @@
       "category": "architecture",
       "source": "content.py consolidation after duplicate-table incident",
       "lesson": "All tunable data (prices, specs, spawn tables, device catalogs) lives in one content module per engine. Mechanics code contains zero numbers. When two modules re-declared the same table, concurrent edits silently diverged them - consolidation is cheaper than reconciliation.",
-      "tags": ["data", "single-source-of-truth"]
+      "tags": [
+        "data",
+        "single-source-of-truth"
+      ]
     },
     {
       "id": "L003",
@@ -27,7 +43,10 @@
       "category": "architecture",
       "source": "realm registry pattern",
       "lesson": "Keep one JSON registry mapping component names to ports/paths/kinds. Dashboards, runners and watchdogs read from it with caller-supplied fallbacks. Hardcoded ports rotted in at least four places simultaneously before this.",
-      "tags": ["registry", "configuration"]
+      "tags": [
+        "registry",
+        "configuration"
+      ]
     },
     {
       "id": "L004",
@@ -35,7 +54,12 @@
       "category": "architecture",
       "source": "ratatosk post office",
       "lesson": "For low-volume inter-process events (incidents, heartbeats, rights changes), an inbox/outbox of atomic JSON files needs no daemon, survives crashes, is greppable, and works across languages. Delivery = temp file + os.replace into the recipient inbox; broadcast = append-only JSONL topic under a mandatory lock; consumers track cursor files. Bus failures must never crash host organs: publish/beat wrappers swallow everything.",
-      "tags": ["messaging", "filesystem", "ipc", "decoupling"]
+      "tags": [
+        "messaging",
+        "filesystem",
+        "ipc",
+        "decoupling"
+      ]
     },
     {
       "id": "L005",
@@ -43,7 +67,12 @@
       "category": "reliability",
       "source": "ratatosk concurrency fix (400-thread stress)",
       "lesson": "On Windows, os.open(O_CREAT|O_EXCL) raises PermissionError - not FileExistsError - while a previous holder is between close() and unlink(). Treating EACCES as fatal produced silent duplicate sequence numbers under contention. Lock loops must retry on both, take over stale locks by mtime age, use backoff, and for shared counters use mandatory locking where an unlocked write would corrupt state (fail loudly instead).",
-      "tags": ["windows", "locking", "concurrency", "atomicity"]
+      "tags": [
+        "windows",
+        "locking",
+        "concurrency",
+        "atomicity"
+      ]
     },
     {
       "id": "L006",
@@ -51,7 +80,12 @@
       "category": "data-integrity",
       "source": "all engines; seal/anchor corruption incident",
       "lesson": "Readers must never observe partial files. Write to a temp file in the destination directory then os.replace onto the target - atomic on same volume. Writing hashed artifacts in TEXT mode on Windows converts LF to CRLF and permanently breaks every stored hash; anything covered by a checksum is written in binary or with newline=''.",
-      "tags": ["atomicity", "hashing", "windows", "newlines"]
+      "tags": [
+        "atomicity",
+        "hashing",
+        "windows",
+        "newlines"
+      ]
     },
     {
       "id": "L007",
@@ -59,7 +93,11 @@
       "category": "reliability",
       "source": "zeus kernel breakers; venus heart organs",
       "lesson": "Wrap each patrol/probe subsystem so N consecutive failures trip an open breaker that stops calling it, cools down for M ticks, then half-opens for retry. One sick probe must never take the whole kernel down, and failures must be visible as state, not just log lines.",
-      "tags": ["resilience", "watchdog", "breakers"]
+      "tags": [
+        "resilience",
+        "watchdog",
+        "breakers"
+      ]
     },
     {
       "id": "L008",
@@ -67,7 +105,11 @@
       "category": "reliability",
       "source": "pulse SLO model (XNU timekeeping-inspired)",
       "lesson": "Periodic work runs on beat multiples of one shared clock. An organ that exceeds its latency SLO too many consecutive beats is quarantined automatically and revived after a cool-down, with vitals exposed (late ratio, last duration, reason). This turns 'mysteriously slow loop' into self-healing structure.",
-      "tags": ["scheduling", "slo", "self-healing"]
+      "tags": [
+        "scheduling",
+        "slo",
+        "self-healing"
+      ]
     },
     {
       "id": "L009",
@@ -75,7 +117,11 @@
       "category": "reliability",
       "source": "zeus bolt/quarantine, vulcan warden",
       "lesson": "Automated repair moves suspect artifacts aside (quarantine dir with manifest, corrupt saves renamed *.corrupt-<ts>), applies conservative fixes only to owned artifacts, records every action in an incident ledger, and escalates anything requiring judgment. Code is reported, never auto-rewritten by watchdogs.",
-      "tags": ["remediation", "watchdog", "safety"]
+      "tags": [
+        "remediation",
+        "watchdog",
+        "safety"
+      ]
     },
     {
       "id": "L010",
@@ -83,7 +129,11 @@
       "category": "data-integrity",
       "source": "RIG validators (vulcan rules/saves, engine saves)",
       "lesson": "Validate documents against an explicit shape when loading - hard-fail with key-and-type precision before bad data reaches tick one. Unknown keys produce log-only warnings so formats stay forward-compatible via load-side defaults for missing keys. Version fields gate acceptance; every format change bumps the version.",
-      "tags": ["validation", "versioning", "forward-compat"]
+      "tags": [
+        "validation",
+        "versioning",
+        "forward-compat"
+      ]
     },
     {
       "id": "L011",
@@ -91,7 +141,11 @@
       "category": "security",
       "source": "hades audit trail",
       "lesson": "Each log entry commits to the full history (prev-hash + canonical-JSON link hash), so editing or deleting any old entry breaks every later link and verification names the exact seq. Pair with HMAC-signed manifests plus an INDEPENDENT anchor file holding the manifest hash - a forged seal fails sig/sha/anchor checks distinctly.",
-      "tags": ["audit", "tamper-evidence", "integrity"]
+      "tags": [
+        "audit",
+        "tamper-evidence",
+        "integrity"
+      ]
     },
     {
       "id": "L012",
@@ -99,7 +153,11 @@
       "category": "security",
       "source": "hades ghost hunter",
       "lesson": "Fingerprint AST-level unit shapes (strict = name-sensitive, loose = shape-only above a node-count floor) so rebranded copies of your code surface even after identifiers and strings change. Evidence lists matched symbols; innocent files must stay unflagged - tune floors against false positives.",
-      "tags": ["provenance", "plagiarism", "ast"]
+      "tags": [
+        "provenance",
+        "plagiarism",
+        "ast"
+      ]
     },
     {
       "id": "L013",
@@ -107,7 +165,11 @@
       "category": "security",
       "source": "norn rights (Mach send-right model)",
       "lesson": "Map command -> required right in a single dispatch table checked before execution; profiles are named right-sets with narrow-down escalation granted only by admins. Legacy clients map to the widest legacy profile so tightening is opt-in per deployment.",
-      "tags": ["authz", "capabilities", "dispatch"]
+      "tags": [
+        "authz",
+        "capabilities",
+        "dispatch"
+      ]
     },
     {
       "id": "L014",
@@ -115,7 +177,11 @@
       "category": "testing",
       "source": "workspace verify-gate doctrine (17->38 checks evolution)",
       "lesson": "Each suite runs standalone (exit 0 = green) and grows by one check per behavior. Verifiers build throwaway fixtures in temp dirs and NEVER write live data directories. The count itself becomes a visible health metric ('38/38').",
-      "tags": ["verification", "gates", "discipline"]
+      "tags": [
+        "verification",
+        "gates",
+        "discipline"
+      ]
     },
     {
       "id": "L015",
@@ -123,7 +189,11 @@
       "category": "testing",
       "source": "clockwork + seeded replay corpus",
       "lesson": "Engines accept an injected object providing now/random/randint/choice/getstate/setstate/advance. Live mode passes unseeded (byte-for-byte current behavior); sim mode passes seeded, making any session reproducible. A stable digest over canonical state proves replay twins are identical.",
-      "tags": ["determinism", "replay", "seeding"]
+      "tags": [
+        "determinism",
+        "replay",
+        "seeding"
+      ]
     },
     {
       "id": "L016",
@@ -131,7 +201,11 @@
       "category": "autonomy",
       "source": "witness journals wrapping SDK calls",
       "lesson": "Journal every mutating verb with tick, actor, argument digest, outcome and state deltas (bounded rotation like saves). A journal line plus session seed reproduces behavior - attestation IS replay with provenance, which is what makes autonomous agents accountable.",
-      "tags": ["audit", "agents", "accountability"]
+      "tags": [
+        "audit",
+        "agents",
+        "accountability"
+      ]
     },
     {
       "id": "L017",
@@ -139,7 +213,11 @@
       "category": "autonomy",
       "source": "strategic agent loop",
       "lesson": "Give code-generating agents a constrained SDK, orient-decide-act loop scaffolding, error-feedback self-debugging, persisted loop state (history/best/last_error) for resume, and scoring signals. Rights profiles bound what generated code may attempt; the witness journal bounds what it can deny having done.",
-      "tags": ["llm", "agents", "codegen"]
+      "tags": [
+        "llm",
+        "agents",
+        "codegen"
+      ]
     },
     {
       "id": "L018",
@@ -147,7 +225,11 @@
       "category": "architecture",
       "source": "engine server doctrine (distilled from classic server lineages)",
       "lesson": "Serialize ALL cross-entity mutations on one server lock; reserve parallelism for read-only work (snapshots, pathing queries). Cached immutable per-tick state blocks let readers work lock-free. Add bounded queues everywhere, a slow-handler watchdog, and atomic off-hot-path saves. Simplicity is the performance feature.",
-      "tags": ["concurrency", "servers", "performance"]
+      "tags": [
+        "concurrency",
+        "servers",
+        "performance"
+      ]
     },
     {
       "id": "L019",
@@ -155,7 +237,10 @@
       "category": "reliability",
       "source": "chat feeds, event deques, timeline trims",
       "lesson": "Chat history, event rings, timelines and logs get maxlen/caps at creation (deque(maxlen), slice-on-save). Unbounded appendables eventually eat memory or make saves quadratic; caps belong in the data structure, not in caller discipline.",
-      "tags": ["memory", "buffers"]
+      "tags": [
+        "memory",
+        "buffers"
+      ]
     },
     {
       "id": "L020",
@@ -163,7 +248,11 @@
       "category": "testing",
       "source": "realm-registry cross-check false failure",
       "lesson": "Importing two different engines' content.py by inserting paths sequentially returns the FIRST cached module for both - comparisons silently compare a module to itself. Pop sys.modules['name'] and invalidate_caches() between imports, or load by importlib spec with unique names.",
-      "tags": ["python", "imports", "gotchas"]
+      "tags": [
+        "python",
+        "imports",
+        "gotchas"
+      ]
     },
     {
       "id": "L021",
@@ -171,7 +260,11 @@
       "category": "process",
       "source": "updater retirement incident",
       "lesson": "Removing a subsystem means removing its runner menu flows, doc references, CI jobs, scheduled tasks, verify expectations AND its task-registration scripts together. Half-retirements leave ghosts that fail gates days later. Grep for the name across the repo before declaring retirement done.",
-      "tags": ["process", "hygiene", "retirement"]
+      "tags": [
+        "process",
+        "hygiene",
+        "retirement"
+      ]
     },
     {
       "id": "L022",
@@ -179,7 +272,10 @@
       "category": "architecture",
       "source": "zeus vs sentinel split",
       "lesson": "Separate generic process supervision (alive? runaway CPU? port squatting?) from domain protection (integrity baselines, seals, policy). Generic layers stay reusable across products; domain layers encode policy. Both report through the same bus topics so operators have one inbox.",
-      "tags": ["supervision", "layering"]
+      "tags": [
+        "supervision",
+        "layering"
+      ]
     },
     {
       "id": "L023",
@@ -187,7 +283,11 @@
       "category": "process",
       "source": "live-data pipeline retirement",
       "lesson": "Shipping code that scrapes external services couples the repo to their uptime, ToS and schema drift. Prefer defining a snapshot directory contract (file names, freshness ages, schema gates) that the operator populates by any means; engines read snapshots read-only and degrade gracefully (stale -> None) rather than failing.",
-      "tags": ["offline-first", "legal", "pipelines"]
+      "tags": [
+        "offline-first",
+        "legal",
+        "pipelines"
+      ]
     },
     {
       "id": "L024",
@@ -195,7 +295,10 @@
       "category": "process",
       "source": "brand-hygiene pass",
       "lesson": "Public-facing names must avoid third-party marks; add non-affiliation and nominative-use disclaimers while the codebase is small. Internal import paths are descriptive identifiers and can stay - renaming those is churn without legal value.",
-      "tags": ["legal", "naming"]
+      "tags": [
+        "legal",
+        "naming"
+      ]
     },
     {
       "id": "L025",
@@ -203,7 +306,11 @@
       "category": "process",
       "source": "dual-session purge collision",
       "lesson": "Two agents editing one repo concurrently will interleave edits inside single functions, shadow duplicate function definitions, and stage conflicting deletions. Assign disjoint file lanes, commit small and often, re-read files immediately before editing (never trust earlier reads), and reconcile duplicates by merging coverage rather than deleting wholesale.",
-      "tags": ["agents", "coordination", "git"]
+      "tags": [
+        "agents",
+        "coordination",
+        "git"
+      ]
     },
     {
       "id": "L026",
@@ -211,7 +318,12 @@
       "category": "data-integrity",
       "source": "ratatosk rotating topics",
       "lesson": "Deriving record ids from line position breaks the moment a log rotates: segments reshuffle and every consumer cursor silently points at the wrong place. Allocate identity from a persistent counter file under the same exclusive lock as the append (counter written temp+replace), stamp the explicit seq into each record, and make tail/since sort and compare on that field - then segments are an implementation detail cursors can ignore. Seed the counter lazily from max(existing seqs, total lines) so pre-counter files migrate without collision.",
-      "tags": ["rotation", "sequences", "cursors", "append-only"]
+      "tags": [
+        "rotation",
+        "sequences",
+        "cursors",
+        "append-only"
+      ]
     },
     {
       "id": "L027",
@@ -219,7 +331,13 @@
       "category": "autonomy",
       "source": "three-way main-branch collision during the ptah kernel landing",
       "lesson": "Two agents sharing one checkout lose updates even when both act in good faith: resets sweep staged files, commits land on moved HEADs, and force-pushes orphan whole lineages mid-task. Give every writer its own git worktree (independent index + HEAD, immune to foreign resets), a private auto/<name> branch, and exactly one route to main: push branch, open PR, squash-merge, fast-forward the mirror. Delta-based assertions and re-reading files immediately before editing are load-bearing complements - shared state always races.",
-      "tags": ["agents", "git", "worktrees", "pull-request", "coordination"]
+      "tags": [
+        "agents",
+        "git",
+        "worktrees",
+        "pull-request",
+        "coordination"
+      ]
     },
     {
       "id": "L028",
@@ -227,7 +345,26 @@
       "category": "autonomy",
       "source": "safeguards kit - staging races in the shared OneDrive checkout",
       "lesson": "In a checkout several writers touch, the shared .git index is the race surface: one agent's git add stages another agent's half-edited files, and a sweep commit ships work nobody reviewed. Stage through an isolated GIT_INDEX_FILE containing only your declared paths, run mechanical gates on exactly those paths - syntax compile, duplicate top-level def scan, JSON validity (safeguards/check.py) - and only then commit. Wire check.py as the pre-commit hook too, so the gate fires even for writers who bypass the safe-commit wrapper.",
-      "tags": ["agents", "git", "index", "hooks", "coordination"]
+      "tags": [
+        "agents",
+        "git",
+        "index",
+        "hooks",
+        "coordination"
+      ]
+    },
+    {
+      "id": "L029",
+      "title": "Declare satellites on arrival",
+      "category": "process",
+      "source": "heart/ audit 2026-08-24 - desk companion invisible to fleet since commit 2fec27e",
+      "lesson": "Any product directory that joins the workspace - nested repo, untracked folder, satellite - gets its declaration in the same cycle it appears: registry row (port protection), doc-table entry, and a gate hook (even informational). heart/ shipped v0.1.0 and v0.2.0 while invisible to realms/registry.json, DESIGN.md and every tier table; its port 4767 had no squatter protection and its npm test surface was aggregated by nothing, because doctor/sentinel hardcode their port lists instead of deriving them from the registry. Undeclared means unprotected: visibility debt compounds silently exactly like the hardcoded-endpoints rot L003 already paid for.",
+      "tags": [
+        "registry",
+        "satellites",
+        "onboarding",
+        "gates"
+      ]
     }
   ]
 }

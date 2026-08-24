@@ -202,6 +202,23 @@ def _do_broadcast(spec, post):
     return {"ok": True, "topic_seq": seq}
 
 
+def _do_patch(spec):
+    """Autonomous patch lane: unified diff -> apply -> strict gates ->
+    isolated-index commit; surgical rollback on any failure."""
+    from safeguards.patch import apply_patch
+    return apply_patch(spec.get("diff", ""),
+                       str(spec.get("message", "hypnos patch")),
+                       paths=spec.get("paths"))
+
+
+def _do_ingest_feeds(_spec):
+    """Drain the HERMOD feed inbox (live update pipeline)."""
+    from hermod.kernel import FeedRoom
+    rep = FeedRoom().ingest()
+    rep["ok"] = rep.get("failed", 1) == 0
+    return rep
+
+
 # --------------------------------------------------------------- dispatch
 
 _VERBS = {
@@ -213,6 +230,8 @@ _VERBS = {
     "copy": _do_copy,
     "delete": _do_delete,
     "sleep": _do_sleep,
+    "patch": _do_patch,
+    "ingest_feeds": _do_ingest_feeds,
 }
 
 _POST_VERBS = {
