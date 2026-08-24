@@ -213,6 +213,7 @@ function systemFacts(system) {
       bytes,
     });
   }
+  facts.docs.sort((a, b) => a.file.localeCompare(b.file));
   facts.apps = discoverApps(system.dir, { excludeRoot: Boolean(pkg) });
   return facts;
 }
@@ -399,6 +400,19 @@ function renderSystem(facts) {
       ? facts.docs.map(d => `- ${d.file} (${bytes(d.bytes)})`).join('\n')
       : '(none)',
   ];
+  if (facts.apps.length) {
+    lines.push(
+      '',
+      `## Applications (${facts.apps.length})`,
+      facts.apps
+        .map(a =>
+          a.version
+            ? `- **${a.name}** v${a.version}${a.dir !== '.' ? ` (${a.dir}/)` : ''} - ${a.description || 'no description'}${a.main ? ` | main: ${a.main}` : ''}`
+            : `- **${a.name}**${a.dir !== '.' ? ` (${a.dir}/)` : ''} - ${a.description || 'no description'}`
+        )
+        .join('\n')
+    );
+  }
   if (facts.net) {
     lines.push(
       '',
@@ -462,13 +476,17 @@ export function writeDigests(root = process.cwd()) {
   const written = [];
   const changed = [];
 
+  // Substantive-drift detector: the "Generated" stamp is volatile metadata,
+  // so change reports compare bodies without it.
+  const comparable = text => text.replace(/^_Generated .*_$/m, '');
+
   const emit = (name, body) => {
     const file = path.join(dir, name);
     let previous = null;
     try {
       previous = readFileSync(file, 'utf8');
     } catch {}
-    if (previous !== body) changed.push(name);
+    if (previous === null || comparable(previous) !== comparable(body)) changed.push(name);
     const tmp = `${file}.tmp`;
     try {
       writeFileSync(tmp, body);

@@ -31,6 +31,10 @@ AUDIT_MAX_BYTES = 2_000_000
 EVENTS_MAX = 500
 REPAIRS_MAX = 300
 
+# Full integrity sweeps cost real IO - run them every Nth patrol tick
+# once a baseline exists (at 5s cadence this is about once a minute).
+INTEGRITY_EVERY_TICKS = 12
+
 # Integrity roots, relative to WORKSPACE. Files over MAX_BASELINE_BYTES
 # or under EXCLUDE_DIRS are never hashed.
 PROTECTED_ROOTS = [
