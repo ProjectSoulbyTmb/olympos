@@ -77,7 +77,7 @@ graph this release.
 
 - [ ] Writer-lane conflict resolved (blocker #4): one writer lease holder on project---soul
 - [ ] `git -C eidovara status --porcelain` empty; synced with origin/main (0 ahead/behind)
-- [ ] Decide Unreleased scope: confirm THOTH v3.x companion-doctrine/RSPS/knowledge-seam items are the v3 payload; anything half-done moves back behind a feature seam
+- [ ] Decide Unreleased scope: confirm THOTH v3.x companion-doctrine/knowledge-seam items are the v3 payload; anything half-done moves back behind a feature seam
 - [ ] "STABLE" label justification written down (what changed since "Stable Alpha"; honest compatibility statement) — operator sign-off required; truth boundaries forbid vibes-based claims
 - [ ] 18+ gate statement unchanged; "fully free" wording kept; P3 commerce lane untouched
 
