@@ -56,11 +56,13 @@ def main() -> int:
     cfg = {
         "sweep_seconds": 1,
         "status_port": 0,
+        "min_free_mb": 0,
         "products": [{
             "name": "fixture",
             "port": 49999,
             "health_url": "http://127.0.0.1:49999/api/health",
             "launch": "",
+            "min_free_mb": 0,
             "files": [
                 {"path": str(prod_root / "server.py")},
                 {"path": str(prod_root / "index.html")},
@@ -74,6 +76,8 @@ def main() -> int:
     src = KERNEL.read_text(encoding="utf-8")
     patched = src.replace('CONFIG = HERE / "products.json"',
                           'CONFIG = HERE / ".verify-products.json"')
+    patched = patched.replace('DRIVE_STATE_PATH = STATE_ROOT / "drive.json"',
+                              f'DRIVE_STATE_PATH = Path(r"{(tmp / "state" / "drive.json")}")')
     test_kernel = HERE / ".verify-kernel.py"
     test_kernel.write_text(patched, encoding="utf-8")
     globals()["TARGET_KERNEL"] = test_kernel
@@ -99,6 +103,60 @@ def main() -> int:
         check("attestation minted", r.returncode == 0)
         attest = state / "attest" / "fixture.json"
         check("attestation file exists", attest.exists())
+
+        # 5. drive guards (sandboxed DriveGuard against fixture tree)
+        sys.path.insert(0, str(HERE))
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "pk", test_kernel)
+        pk = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(pk)
+            media = tmp / "media"
+            (media / "sub").mkdir(parents=True, exist_ok=True)
+            for i in range(60):
+                (media / f"f{i}.jpg").write_text("x", encoding="utf-8")
+            (media / "sub" / "g.jpg").write_text("y", encoding="utf-8")
+
+            dg = pk.DriveGuard({
+                "root": str(tmp),
+                "min_free_mb": 0,
+                "structure_roots": [str(media)],
+                "ransomware_max_new_files": 400,
+            })
+            dg.sweep()
+            check("drive structure baseline ok",
+                  dg.state["structure"] == "ok"
+                  and dg.state["ransom"] == "clear")
+
+            # mass LOSS detection
+            for i in range(40):
+                (media / f"f{i}.jpg").unlink()
+            dg2 = pk.DriveGuard({
+                "root": str(tmp),
+                "min_free_mb": 0,
+                "structure_roots": [str(media)],
+                "ransomware_max_new_files": 400,
+            })
+            dg2._last_inv = {str(media): {"files": 61, "dirs": 1,
+                                          "bytes": 6100}}
+            dg2.sweep()
+            check("mass-loss detected + alarm trips",
+                  "LOSS" in dg2.state["structure"]
+                  and dg2.state["ransom"] == "alarm")
+
+            # suspicious extension detection
+            (media / "victim.jpg.locked").write_text("z", encoding="utf-8")
+            dg3 = pk.DriveGuard({
+                "root": str(tmp),
+                "min_free_mb": 0,
+                "structure_roots": [str(media)],
+            })
+            inv, _n = dg3._inventory_root(str(media))
+            check("ransom extension detected",
+                  any(s.endswith(".locked") for s in inv.get("suspicious", [])))
+        except Exception as exc:
+            check("drive guards execute", False, repr(exc))
     finally:
         for p in (cfg_path, test_kernel):
             p.unlink(missing_ok=True)

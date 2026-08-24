@@ -1,19 +1,29 @@
 # PERSEPHONE — guardian layer for offline products
 
 Standalone stabilization + protection daemon for **APHRODITE**
-(`D:\Aphrodite`, port 43904) and **RILEY** (`D:\riley`, port 43907).
-Python stdlib only; zero pip dependencies; loopback-only; zero network
-egress. Architecturally separate from both products: it observes them
-over HTTP health endpoints and filesystem hashes, and owns no shared
-state with them.
+(`D:\Aphrodite`, port 43904), **RILEY** (`D:\riley`, port 43907), and
+the **whole `D:\` volume**. Python stdlib only; zero pip dependencies;
+loopback-only; zero network egress. Architecturally separate from all
+protected targets: it observes over HTTP health endpoints, filesystem
+hashes, and lightweight inventories, and owns no shared state with them.
 
-## Guarantees
+## Guards
 
-| Guarantee  | Mechanism |
-|------------|-----------|
-| INTEGRITY  | SHA-256 manifest of protected files; tamper or deletion is auto-restored from the vault |
-| LIVENESS   | Loopback health probe each sweep; dead product is relaunched with exponential backoff (max 10 min) |
-| ATTESTATION| HMAC-SHA256 entitlement bound to this machine; an unattested product is monitored but never resurrected |
+| Guard      | Scope   | Mechanism |
+|------------|---------|-----------|
+| INTEGRITY  | product | SHA-256 manifest of protected files; tamper/deletion auto-restored from vault |
+| LIVENESS   | product | loopback health probe each sweep; dead product relaunched with exponential backoff |
+| CRASH-LOOP | product | circuit breaker: 4+ failed relaunches in 10 min -> stand down until healthy again |
+| LOOPBACK   | product | listener on a product port must bind `127.0.0.1`; violations logged + recorded |
+| DATA       | product | hourly snapshot of user-state dirs (ratings/tags/jobs); manual `--restore-data` only |
+| DISK       | global  | free-space floor; vault writes pause below it |
+| SELF       | self    | guardian hashes its own kernel + config; drift flagged mid-run |
+| ATTESTATION| product | HMAC entitlement bound to machine; unattested products monitored but never resurrected |
+| LOG        | self    | log rotates at 5 MB; history capped at 500 events |
+| DRIVE      | D:\     | mounted check + free-space floor (5 GB default) |
+| HEALTH     | disks   | SMART HealthStatus of physical disks via Get-PhysicalDisk, refreshed hourly |
+| STRUCTURE  | D:\ roots | hourly inventory of key roots (`D:\new`, products); mass loss/growth (>10%) flagged without hashing media |
+| RANSOM     | D:\     | suspicious extensions (.locked etc.) or mass-loss trip a full alarm: relaunches FROZEN until `--clear-alarm` |
 
 House rules inherited from the Olympos watchdogs:
 
@@ -31,6 +41,12 @@ python persephone\persephone.py --snapshot
 # mint offline entitlements (renew anytime with the same command)
 python persephone\persephone.py --attest aphrodite --days 365
 python persephone\persephone.py --attest riley --days 365
+
+# after a LEGITIMATE upgrade/edit of a product (or to re-baseline all):
+python persephone\persephone.py --promote aphrodite
+
+# if ransom alarm tripped, after manual resolution:
+python persephone\persephone.py --clear-alarm
 
 # continuous guardian in its own console
 persephone\launch_persephone.bat
