@@ -1,0 +1,65 @@
+# Yggdrasil guardian watchdog - the fix for "Running but dead".
+#
+# Task Scheduler restarts a task on FAILURE, but a daemon that exits
+# cleanly (or gets stopped mid-reorganization) leaves the task in
+# Ready and nothing revives it - HYPNOS went dark exactly that way.
+# This watchdog closes the gap on two levels:
+#
+#   1. task state: any Yggdrasil guardian not Running gets started;
+#   2. liveness: HYPNOS reporting Running with a stale heartbeat is
+#      a zombie - stop it, then start it fresh.
+#
+# Registered by register-watchdog-task.ps1 every 5 minutes; logs to
+# data/watchdog.jsonl (ignored runtime state). Safe to run manually.
+
+$ErrorActionPreference = "Continue"
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+$log = Join-Path $here "data\watchdog.jsonl"
+$python = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
+if (-not (Test-Path $python)) { $python = "python" }
+
+function Write-Log([string]$event, [string]$detail) {
+    try {
+        $rec = @{ t = (Get-Date -Format o); event = $event;
+                  detail = $detail } | ConvertTo-Json -Compress
+        Add-Content -Path $log -Value $rec -ErrorAction SilentlyContinue
+    } catch { }
+}
+
+# --- level 2 probe first: is HYPNOS actually alive inside its task? ---
+$hypnosStale = $false
+try {
+    Push-Location $here
+    $age = & $python -c "import sys; sys.path.insert(0,'.');`nfrom ratatosk.bus import Post;`na = Post().heartbeat_age('hypnos');`nprint(-1 if a is None else a)" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $null -ne $age) {
+        $ageNum = [double]$age
+        if ($ageNum -lt 0 -or $ageNum -gt 300) { $hypnosStale = $true }
+    }
+} catch { }
+finally { Pop-Location }
+
+foreach ($name in @("Yggdrasil ZEUS Guardian",
+                    "Yggdrasil HYPNOS Dreamworker",
+                    "Yggdrasil GAIA Pulse")) {
+    try {
+        $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
+        $running = ($task.State -eq "Running")
+
+        if (-not $running) {
+            Start-ScheduledTask -TaskName $name
+            Write-Log "revived" "$name was $($task.State)"
+            continue
+        }
+        if ($name -like "*HYPNOS*" -and $hypnosStale) {
+            Stop-ScheduledTask -TaskName $name
+            Start-Sleep -Seconds 2
+            Start-ScheduledTask -TaskName $name
+            Write-Log "zombie-restart" "$name heartbeat stale >300s"
+        }
+    }
+    catch {
+        # task not registered at all - nothing this run can do beyond
+        # noting it; register-soul-tasks.ps1 is the installer of record
+        Write-Log "missing" "$name not registered"
+    }
+}
