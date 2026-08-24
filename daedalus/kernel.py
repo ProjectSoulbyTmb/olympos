@@ -158,7 +158,8 @@ class Workshop:
         job["_guest_ws"] = ws_root
 
         faults = list(job.get("faults", []))
-        self.weave(bp, ws_root, faults=faults)
+        self.weave(bp, ws_root, faults=faults,
+                   params=job.get("params"))
         lane.state = "gating"
         gate = [sys.executable] + \
             list(blueprints.BLUEPRINTS[bp]["gate"])[1:]
@@ -166,28 +167,65 @@ class Workshop:
                          timeout_s=content.GATE_TIMEOUT_S,
                          cwd=os.path.join("build"))
         job["attempts"] += 1
-        fixed_this_pass = False
 
+        culprits, repair_mode = None, None
         if not r["ok"] and faults:
-            # fix pass: restore canonical files, re-gate once
-            self.log("fix-pass", job=job["id"],
-                     attempt=job["attempts"])
-            self.weave(bp, ws_root, faults=())
-            fixed_this_pass = True
-            r = self.hv.exec(lane.guest, gate,
-                             timeout_s=content.GATE_TIMEOUT_S,
-                             cwd="build")
-            job["attempts"] += 1
+            # REPAIR PASS: instead of blindly restoring everything,
+            # isolate the culprit - restore one suspect at a time and
+            # re-gate. A single restoration that turns the gate green
+            # is the culprit, with evidence; innocent suspects stay
+            # active in the sealed artifact. Falls back to restoring
+            # all faults when no single one explains the failure
+            # (multi-fault interaction).
+            self.log("repair-start", job=job["id"],
+                     attempt=job["attempts"], suspects=list(faults))
+            culprit = None
+            regates = 0
+            for f in list(faults):
+                if regates >= content.REPAIR_REGATES_MAX:
+                    break
+                trial = [x for x in faults if x != f]
+                self.weave(bp, ws_root, faults=trial,
+                           params=job.get("params"))
+                r = self.hv.exec(lane.guest, gate,
+                                 timeout_s=content.GATE_TIMEOUT_S,
+                                 cwd="build")
+                job["attempts"] += 1
+                regates += 1
+                if r["ok"]:
+                    culprit = f
+                    break
+            if culprit is not None:
+                repair_mode = "isolated"
+                culprits = [culprit]
+                remaining = [x for x in faults if x != culprit]
+                self.log("repair-isolated", job=job["id"],
+                         culprit=culprit, innocent=remaining)
+                self._bump_repair_stats(bp, culprit, fixed=True)
+            else:
+                repair_mode = "restore-all"
+                culprits = list(faults)
+                self.weave(bp, ws_root, faults=(),
+                           params=job.get("params"))
+                r = self.hv.exec(lane.guest, gate,
+                                 timeout_s=content.GATE_TIMEOUT_S,
+                                 cwd="build")
+                job["attempts"] += 1
+                for f in faults:
+                    self._bump_repair_stats(bp, f, fixed=False)
 
         ok = bool(r["ok"])
         if ok:
             sha = self._seal(bp, ws_root)
             result = dict(r, id=job["id"], blueprint=bp, ok=True,
                           attempts=job["attempts"],
-                          fixed=fixed_this_pass, artifact_sha256=sha)
+                          fixed=bool(culprits) or repair_mode == "restore-all",
+                          **({"culprit": culprits[0]}
+                             if repair_mode == "isolated" else {}),
+                          artifact_sha256=sha)
             self.finalize(job, ok=True, result=result)
         elif job["attempts"] < int(job["max_attempts"]) \
-                and not fixed_this_pass:
+                and not culprits:
             job["next_epoch"] = _now() + 1
             self.requeue(job)
             lane.release(False, r.get("stderr", "")[-200:])
@@ -330,10 +368,43 @@ class Workshop:
                 "history_ok": sum(1 for h in self.history if h["ok"]),
                 "history_bad": sum(1 for h in self.history
                                    if not h["ok"]),
+                "repair_stats": self._load_repair_stats(),
                 "audit": {"entries": entries, "ok": chain_ok,
                           "first_bad": bad},
                 "warden": {"enabled": self.warden.enabled,
                            "findings": len(self.warden.findings)}}
+
+    @staticmethod
+    def _load_repair_stats():
+        try:
+            with open(content.REPAIR_STATS_PATH,
+                      encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, ValueError):
+            return {}
+
+    def _bump_repair_stats(self, bp_name, fault, fixed):
+        """Atomic per-fault repair telemetry: which injected faults the
+        workshop has seen, and how often isolation repaired them.
+        Best-effort - telemetry must never fail a build."""
+        try:
+            os.makedirs(content.DATA_DIR, exist_ok=True)
+            path = content.REPAIR_STATS_PATH
+            try:
+                doc = json.load(open(path, encoding="utf-8"))
+            except (OSError, ValueError):
+                doc = {}
+            slot = (doc.setdefault(bp_name, {})
+                        .setdefault(fault, {"seen": 0, "repaired": 0}))
+            slot["seen"] += 1
+            if fixed:
+                slot["repaired"] += 1
+            tmp = path + f".{uuid.uuid4().hex[:6]}.tmp"
+            with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+                json.dump(doc, fh, indent=1, sort_keys=True)
+            os.replace(tmp, path)
+        except OSError:
+            pass
 
 
 class _Chain:

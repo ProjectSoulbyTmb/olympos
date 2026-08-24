@@ -1,4 +1,4 @@
-"""DAEDALUS gate - the workshop contract, checked end to end.
+﻿"""DAEDALUS gate - the workshop contract, checked end to end.
 
 Spec schema gates, weave/gate/fix convergence (fault injection proves
 the retry loop learns), subfleet parallelism + rights on the wire,
@@ -37,13 +37,15 @@ def sandbox():
     import atlas.content as ac
     outer = tempfile.mkdtemp(prefix="daedalus-verify-")
     saved_d = {f: getattr(content, f) for f in
-               ("DATA_DIR", "AUDIT_PATH", "ARTIFACTS_DIR")}
+               ("DATA_DIR", "AUDIT_PATH", "ARTIFACTS_DIR",
+                "REPAIR_STATS_PATH")}
     saved_a = {"GUESTS_DIR": ac.GUESTS_DIR}
     saved_env = os.environ.get("RATATOSK_ROOT")
     data = os.path.join(outer, "data")
     content.DATA_DIR = data
     content.AUDIT_PATH = os.path.join(data, "audit.jsonl")
     content.ARTIFACTS_DIR = os.path.join(data, "artifacts")
+    content.REPAIR_STATS_PATH = os.path.join(data, "repair_stats.json")
     ac.GUESTS_DIR = os.path.join(outer, "guests")
     os.environ["RATATOSK_ROOT"] = os.path.join(outer, "post")
     os.makedirs(ac.GUESTS_DIR, exist_ok=True)
@@ -268,6 +270,85 @@ def pump_drains_the_queue_autonomously():
         finally:
             ws.pump_stop()
         assert not ws.pump_running(), "pump refused to stop"
+def new_blueprints_gate_green():
+    """kv-store and beat-worker weave, gate, and seal first try."""
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=2)
+        ws.submit({"blueprint": "kv-store", "name": "kv1"})
+        ws.submit({"blueprint": "beat-worker", "name": "beat1"})
+        a = ws.build_next()
+        b = ws.build_next()
+        assert a and a["ok"] and a["attempts"] == 1, a
+        assert b and b["ok"] and b["attempts"] == 1, b
+
+
+@check
+def params_inject_into_weave_and_gate():
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        issues = validate_spec({"blueprint": "beat-worker",
+                                "params": {"BEATS": "5",
+                                           "bad key!": 1}},
+                               BLUEPRINTS.keys())
+        assert any("param name" in i for i in issues), issues
+        ws.submit({"blueprint": "beat-worker", "name": "tuned",
+                   "params": {"BEATS": "5"}})
+        r = ws.build_next()
+        assert r and r["ok"], r
+        arts = os.listdir(content.ARTIFACTS_DIR)
+        art = os.path.join(content.ARTIFACTS_DIR,
+                           [a for a in arts
+                            if a.startswith("beat-worker")][0])
+        src = open(os.path.join(art, "beat_worker.py"),
+                   encoding="utf-8").read()
+        assert "BEATS = 5" in src, "param not injected"
+        beats = [ln for ln in open(os.path.join(art, "beats.jsonl"),
+                                   encoding="utf-8") if ln.strip()]
+        assert len(beats) == 5, f"expected 5 beats: {len(beats)}"
+
+
+@check
+def repair_isolates_culprit_with_evidence():
+    """cosmetic_doc is innocent; drop_echo is the culprit. The repair
+    pass must name the culprit, keep the innocent fault active in the
+    sealed artifact, and record telemetry."""
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        ws.submit({"blueprint": "jsonl-echo", "name": "isolate",
+                   "faults": ["cosmetic_doc", "drop_echo"],
+                   "attempts": 3})
+        r = ws.build_next()
+        assert r["ok"], r
+        assert r.get("culprit") == "drop_echo", r
+        assert r["fixed"] is True
+        st = ws.status()
+        slot = (st["repair_stats"].get("jsonl-echo", {})
+                                  .get("drop_echo", {}))
+        assert slot.get("repaired") == 1, st["repair_stats"]
+        arts = os.listdir(content.ARTIFACTS_DIR)
+        art = os.path.join(content.ARTIFACTS_DIR,
+                           [x for x in arts
+                            if x.startswith("jsonl-echo")][-1])
+        src = open(os.path.join(art, "echo_server.py"),
+                   encoding="utf-8").read()
+        assert "(rewoven)" in src, \
+            "innocent suspect must stay active in the artifact"
+        assert 'obj["echo"] = True' in src, "culprit was not repaired"
+
+
+@check
+def multi_fault_interaction_restores_all():
+    """Two independent breakers cannot be explained by one culprit -
+    the repair pass must fall back to restoring everything."""
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        ws.submit({"blueprint": "jsonl-echo", "name": "multi",
+                   "faults": ["drop_echo", "silent_start"],
+                   "attempts": 3})
+        r = ws.build_next()
+        assert r["ok"], r
+        assert "culprit" not in r, "no single culprit exists here"
+        assert r["fixed"] is True and r["attempts"] >= 2, r
 
 
 def main():

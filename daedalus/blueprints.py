@@ -1,4 +1,4 @@
-"""DAEDALUS blueprints - server designs the workshop can weave.
+﻿"""DAEDALUS blueprints - server designs the workshop can weave.
 
 Each blueprint is a complete deterministic design: file templates plus
 the self-test gate that proves a woven instance works. Blueprints may
@@ -188,7 +188,7 @@ def serve(host="127.0.0.1", port=0):
                     else:
                         resp = {"ok": False,
                                 "error": f"unknown cmd {cmd!r}"}
-                    if cmd == "set" or cmd == "del":
+                    if cmd in ("set", "del"):
                         with open("kv.json", "w",
                                   encoding="utf-8") as fh:
                             json.dump(store, fh)
@@ -217,7 +217,7 @@ proc = subprocess.Popen([sys.executable, "kv_server.py", "0"],
                         stdout=subprocess.PIPE, text=True)
 try:
     line = proc.stdout.readline()
-    port = int(line.split("on ")[1])
+    port = int(line.split("on ")[1].split()[0])
     s = socket.create_connection(("127.0.0.1", port), timeout=5)
     f = s.makefile("rwb")
 
@@ -294,11 +294,18 @@ BLUEPRINTS = {
         # the spec asks for them; the repair pass restores canonical
         # text. "cosmetic_doc" is deliberately innocent - it exercises
         # culprit isolation (an injected change that cannot fail).
+        # NOTE: Windows clamps negative listen() backlogs and
+        # json.loads accepts bytes on py3.6+ - both make innocent
+        # faults. A real independent breaker must fail fast AND
+        # independently: silencing the startup banner starves the
+        # gate's port discovery.
         "faults": {
             "drop_echo": ("echo_server.py",
                           'obj["echo"] = True', "pass"),
-            "bad_bind": ("echo_server.py",
-                         "srv.listen(8)", "srv.listen(-1)"),
+            "silent_start": ("echo_server.py",
+                             'print(f"echo up on '
+                             '{srv.getsockname()[1]}", flush=True)',
+                             "pass"),
             "cosmetic_doc": ("echo_server.py",
                              "(DAEDALUS-woven)", "(rewoven)"),
         },

@@ -26,6 +26,11 @@ MAX_CONCURRENT_BUILDS = 4
 BUILD_ATTEMPTS = 3             # verify-fix-retry ceiling per build
 GATE_TIMEOUT_S = 60.0          # per verify-gate run inside the guest
 EXEC_TIMEOUT_S = 120.0         # absolute per-command ceiling
+REPAIR_REGATES_MAX = 3         # culprit-isolation re-gate ceiling
+
+# ---------- repair telemetry ----------
+
+REPAIR_STATS_PATH = os.path.join(DATA_DIR, "repair_stats.json")
 
 # ---------- audit ----------
 
