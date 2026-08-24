@@ -28,6 +28,23 @@ sys.path.insert(0, HERE)
 ENTRYPOINTS = [
     "doctor.py", "sentinel.py",
 ]
+
+
+def _registry_ports():
+    """Every TCP port declared in realms/registry.json (best effort).
+
+    Returns an empty set on any parse failure; OWNED_PORTS then falls
+    back to the hardcoded core floor below - registration problems
+    must never blind the squatter check."""
+    try:
+        with open(os.path.join(HERE, "realms", "registry.json"),
+                  encoding="utf-8") as fh:
+            realms = json.load(fh).get("realms", [])
+        return {int(r["port"]) for r in realms if r.get("port")}
+    except (OSError, ValueError, TypeError, KeyError):
+        return set()
+
+
 SUITES = [
     ("zeus", os.path.join("zeus", "verify_zeus.py")),
     ("vulcan", os.path.join("vulcan", "verify_vulcan.py")),
@@ -52,7 +69,12 @@ ENSURE_DIRS = [
     os.path.join("data", "post"),
 ]
 BASELINE_MAX_AGE_S = 7 * 24 * 3600
-OWNED_PORTS = [43901, 43902, 43903]
+# Ports the squatter check watches: every port registered in
+# realms/registry.json (single source of membership - STRATEGY.md 3.3)
+# unioned with the historical core set, so a registry that fails to
+# parse can only ever shrink coverage back to today's floor.
+OWNED_PORTS = sorted({43901, 43902, 43903}
+                     | _registry_ports())
 PYCACHE_SKIP = {".git", "node_modules", "dist", "release"}
 REPORT_PATH = os.path.join("data", "health_report.json")
 SUITE_TIMEOUT_S = 240
