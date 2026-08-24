@@ -365,6 +365,19 @@
         "onboarding",
         "gates"
       ]
+    },
+    {
+      "id": "L030",
+      "title": "Failure output is part of the gate",
+      "category": "testing",
+      "source": "2026-08-24 CI hunt - daedalus red on main for 7+ runs while culprit check name was truncated away by safeguards/gate.py 3-line tail",
+      "lesson": "A gate that detects failure but discards the failing output converts every diagnosis into archaeology. safeguards/gate.py kept only the last 3 lines of a failed suite, so CI showed [FAIL] daedalus with the last line being an unrelated PASS - the actual assertion, check name and traceback never left the runner. Gates must persist full per-suite output (artifact or data/ log keyed by run id) and surface the FAIL block inline; a green-last-line-plus-nonzero-exit should be reported as suspected harness crash, not as the last test result. Detection without attributable evidence fails guarantee 5 in spirit: you cannot honestly claim to know what is unhealthy.",
+      "tags": [
+        "gates",
+        "observability",
+        "ci",
+        "diagnosis"
+      ]
     }
   ]
 }
