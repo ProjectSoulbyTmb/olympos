@@ -11,6 +11,7 @@
     "fix": "node gaia.mjs fix",
     "fix:apply": "node gaia.mjs fix --execute",
     "trend": "node gaia.mjs trend",
+    "soulops": "powershell -NoProfile -ExecutionPolicy Bypass -File soulops.ps1",
     "watch": "node gaia.mjs pulse --watch --every 15m",
     "autofix:loop": "node gaia.mjs pulse --watch --every 15m --fix --execute"
   },

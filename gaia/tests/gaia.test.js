@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   scoreSystem, discoverSystems, detectRegressions, freshAlerts, advise,
-  planFixes, applyFix, diskVitals,
+  planFixes, applyFix, diskVitals, trend,
 } from '../gaia.mjs';
 
 test('scoreSystem: fully healthy repo scores 100', () => {
@@ -191,4 +191,29 @@ test('diskVitals: reports sane headroom for a real directory', () => {
   const d = diskVitals(os.tmpdir());
   assert.ok(d && d.freePct >= 0 && d.freePct <= 100, `unexpected ${JSON.stringify(d)}`);
   assert.ok(d.freeGb >= 0);
+});
+
+test('trend: missing history directory yields [] instead of crashing', () => {
+  assert.deepEqual(trend(5, path.join(os.tmpdir(), 'gaia-no-runs-here')), []);
+});
+
+test('freshAlerts: corrupt or missing timestamps never suppress alerts', () => {
+  const alert = { severity: 'warning', system: 'x', reasons: ['r'] };
+  const ledger =
+    `${JSON.stringify({ at: 'not-a-date', severity: 'warning', system: 'x', reasons: ['r'] })}\n` +
+    `${JSON.stringify({ severity: 'warning', system: 'x', reasons: ['r'] })}\n`;
+  assert.deepEqual(freshAlerts([alert], ledger, Date.now()), [alert]);
+});
+
+test('planFixes: unknown dirtiness conservatively blocks auto-push', () => {
+  const steps = planFixes({ repo: true, dir: 'x', branch: 'main', synced: false,
+                            diverged: false, behind: 0, ahead: 2, dirty: null });
+  assert.deepEqual(steps, []);
+});
+
+test('scoreSystem: dirty null is treated as unknown, not penalized', () => {
+  const { score, reasons } = scoreSystem({ branch: 'main', synced: true, diverged: false,
+                                           behind: 0, dirty: null, lastCommitAgeDays: 1 });
+  assert.equal(score, 100);
+  assert.equal(reasons.length, 0);
 });

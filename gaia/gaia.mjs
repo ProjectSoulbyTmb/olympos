@@ -262,7 +262,9 @@ export function freshAlerts(alerts, ledgerText, now = Date.now()) {
     if (!line.trim()) continue;
     try {
       const e = JSON.parse(line);
-      lastSeen.set(signatureOf(e), Date.parse(e.at));
+      const at = Date.parse(e.at);
+      if (Number.isNaN(at)) continue; // corrupt timestamp must never suppress
+      lastSeen.set(signatureOf(e), at);
     } catch { /* skip corrupt ledger line */ }
   }
   return alerts.filter(a => {
@@ -372,13 +374,17 @@ export function savePulse(report) {
   }
 }
 
-export function trend(limit = 10) {
-  const files = fs.readdirSync(HISTORY_DIR)
-    .filter(f => f.startsWith('pulse-2') && f.endsWith('.json'))
-    .sort()
-    .slice(-limit);
-  return files.map(f => {
-    const r = readJson(path.join(HISTORY_DIR, f));
+export function trend(limit = 10, historyDir = HISTORY_DIR) {
+  let files = [];
+  try {
+    files = fs.readdirSync(historyDir)
+      .filter(f => f.startsWith('pulse-2') && f.endsWith('.json'))
+      .sort();
+  } catch {
+    return []; // no history yet (fresh install) - not an error
+  }
+  return files.slice(-limit).map(f => {
+    const r = readJson(path.join(historyDir, f));
     return r ? { at: r.at, composite: r.composite } : null;
   }).filter(Boolean);
 }
@@ -390,7 +396,9 @@ function render(report) {
   for (const s of report.systems) {
     const identity = s.repo === false
       ? '(mind-managed)'
-      : `${s.branch ?? '?'} ${s.synced ? 'synced' : `ahead=${s.ahead} behind=${s.behind}`}`;
+      : `${s.branch ?? '?'} ${s.synced ? 'synced'
+          : s.ahead == null && s.behind == null ? 'sync unknown'
+          : `ahead=${s.ahead ?? '?'} behind=${s.behind ?? '?'}`}`;
     lines.push(`  ${String(s.name).padEnd(18)} ${s.score}/100 [${s.band}] `
       + identity
       + (s.net ? ` net:${s.net.healthy}✓/${s.net.down.length}✗` : '')
@@ -443,7 +451,7 @@ async function main() {
   const cmd = args.find(a => !a.startsWith('-')) || 'pulse';
   const watch = args.includes('--watch');
   const everyMs = Math.max(60_000,
-    (Number(args.find(a => /^--every/.test(a))?.split('=')[1]?.replace(/\D/g, '')) || 15) * 60_000);
+    (Number(args.find(a => a.startsWith('--every='))?.split('=')[1]?.replace(/\D/g, '')) || 15) * 60_000);
   const withCi = args.includes('--ci');
   const asJson = args.includes('--json');
   const execute = args.includes('--execute');
