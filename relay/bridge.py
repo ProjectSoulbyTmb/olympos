@@ -55,14 +55,14 @@ class Relay:
     # ---------------- outbound ----------------
 
     def _emit(self, kind, payload):
-        """One catalogue-legal broadcast + one mailbox mirror."""
+        """One catalogue-legal broadcast + mailbox mirrors (venus+mind)."""
         self.post.broadcast(content.TOPIC, kind, payload,
                             frm=content.ORGAN)
-        try:
-            self.post.send(content.MAILBOX, kind, payload,
-                           frm=content.ORGAN)
-        except Exception:
-            pass                      # mirror is best-effort; topic rules
+        for box in (content.MAILBOX, content.MIND_MAILBOX):
+            try:
+                self.post.send(box, kind, payload, frm=content.ORGAN)
+            except Exception:
+                pass                  # mirrors are best-effort; topic rules
 
     def forward_daedalus(self, limit=100):
         """Daedalus -> updates/venus, exactly-once per seq cursor."""
@@ -108,35 +108,60 @@ class Relay:
 
     def drain_intents(self, limit=25):
         """Claim, execute and file every pending Venus intent."""
+        return self._drain_dir(content.INTENT_DIR, content.INTENT_DONE,
+                               content.INTENT_FAILED, "venus-intent",
+                               self.runner, limit)
+
+    def drain_mind_intents(self, limit=25):
+        """Claim, execute and file every pending MIND intent.
+
+        Mirrors the venus lane; every outcome is additionally answered
+        back into the `mind` mailbox as a fleet.reply record carrying
+        the intent id so the mind layer can correlate requests.
+        """
+        return self._drain_dir(content.MIND_INTENT_DIR, content.MIND_DONE,
+                               content.MIND_FAILED, "mind-intent",
+                               self.runner, limit,
+                               reply_box=content.MIND_MAILBOX)
+
+    def _drain_dir(self, intent_dir, done_dir, failed_dir, source,
+                   runner, limit, reply_box=None):
         out = []
-        os.makedirs(content.INTENT_DIR, exist_ok=True)
-        names = sorted(n for n in os.listdir(content.INTENT_DIR)
+        os.makedirs(intent_dir, exist_ok=True)
+        names = sorted(n for n in os.listdir(intent_dir)
                        if n.endswith(".intent.json"))
         for name in names[:max(0, limit)]:
-            src = os.path.join(content.INTENT_DIR, name)
+            src = os.path.join(intent_dir, name)
             intent = _read_json(src)
             if not isinstance(intent, dict) or \
                     not isinstance(intent.get("type"), str):
-                _file_away(src, content.INTENT_FAILED,
+                _file_away(src, failed_dir,
                            {"error": "malformed intent"})
                 out.append((name, False, "malformed intent"))
                 continue
             try:
-                ok, detail = self.runner(intent)
+                ok, detail = runner(intent)
             except Exception as exc:            # noqa: BLE001 - evidence
                 ok, detail = False, f"{type(exc).__name__}: {exc}"
             kind = {"build": content.KIND_BUILD,
                     "repair": content.KIND_REPAIR}.get(
                 intent["type"], content.KIND_TICK)
-            self._emit(kind, {
-                "source": "venus-intent",
+            payload = {
+                "source": source,
                 "intent": intent.get("id") or name,
                 "type": intent["type"],
                 "ok": bool(ok),
                 "detail": str(detail)[:400],
                 "at": _iso(),
-            })
-            dest_dir = content.INTENT_DONE if ok else content.INTENT_FAILED
+            }
+            self._emit(kind, payload)
+            if reply_box:
+                try:
+                    self.post.send(reply_box, "fleet.reply", dict(
+                        payload), frm=content.ORGAN)
+                except Exception:
+                    pass                        # reply mirror best-effort
+            dest_dir = done_dir if ok else failed_dir
             _file_away(src, dest_dir, {"outcome":
                                        {"ok": bool(ok),
                                         "detail": str(detail)[:400]}})
@@ -148,6 +173,7 @@ class Relay:
     def run_cycle(self):
         return {"forwarded": self.forward_daedalus(),
                 "intents": self.drain_intents(),
+                "mind_intents": self.drain_mind_intents(),
                 "tick": self.tick()}
 
 
@@ -164,9 +190,36 @@ def _run_intent(intent):
         return _run_cmd(cmd, content.DAEDALUS_TIMEOUT_S)
     if kind == "repair":
         return _repair_sweep()
+    if kind == "knowledge":
+        return _knowledge_answer(intent)
     if kind == "status":
         return True, "alive"
     return False, f"unknown intent type: {kind!r}"
+
+
+def _knowledge_answer(intent):
+    """Answer a knowledge query from the curated library (read-only)."""
+    query = str(intent.get("query") or "").strip()
+    if not query:
+        return False, "knowledge intent needs a non-empty 'query'"
+    engine_path = os.path.join(content.WORKSPACE, "knowledge",
+                               "engine.py")
+    if not os.path.isfile(engine_path):
+        return False, "knowledge organ not available"
+    if content.WORKSPACE not in sys.path:
+        sys.path.insert(0, content.WORKSPACE)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "knowledge_engine", engine_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    top = min(int(intent.get("top", 3) or 3), 10)
+    hits = module.search(query, top=top)
+    if not hits:
+        return True, "(no matches)"
+    lines = [f"{h['title']} [{h['doc']}] :: {h['snippet']}"
+             for h in hits]
+    return True, " | ".join(lines)[:400]
 
 
 def _run_cmd(cmd, timeout_s):
