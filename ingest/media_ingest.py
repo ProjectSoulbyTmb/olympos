@@ -415,6 +415,30 @@ SEED_SOURCES = [
      "path": "/models/general/P/Piper-Perri", "kind": "pictures"},
     {"name": "dbnaked-piper-perri-tube", "adapter": "dbnaked_model",
      "path": "/models/general/P/Piper-Perri", "kind": "tube"},
+    {"name": "dbnaked-joanna-angel-pics", "adapter": "dbnaked_model",
+     "path": "/models/general/J/Joanna-Angel", "kind": "pictures"},
+    {"name": "dbnaked-joanna-angel-tube", "adapter": "dbnaked_model",
+     "path": "/models/general/J/Joanna-Angel", "kind": "tube"},
+    {"name": "dbnaked-kleio-valentien-pics", "adapter": "dbnaked_model",
+     "path": "/models/general/K/Kleio-Valentien", "kind": "pictures"},
+    {"name": "dbnaked-kleio-valentien-tube", "adapter": "dbnaked_model",
+     "path": "/models/general/K/Kleio-Valentien", "kind": "tube"},
+    {"name": "dbnaked-charlotte-sartre-pics", "adapter": "dbnaked_model",
+     "path": "/models/general/C/Charlotte-Sartre", "kind": "pictures"},
+    {"name": "dbnaked-charlotte-sartre-tube", "adapter": "dbnaked_model",
+     "path": "/models/general/C/Charlotte-Sartre", "kind": "tube"},
+    {"name": "dbnaked-rocky-emerson-pics", "adapter": "dbnaked_model",
+     "path": "/models/general/R/Rocky-Emerson", "kind": "pictures"},
+    {"name": "dbnaked-rocky-emerson-tube", "adapter": "dbnaked_model",
+     "path": "/models/general/R/Rocky-Emerson", "kind": "tube"},
+    {"name": "dbnaked-draven-star-pics", "adapter": "dbnaked_model",
+     "path": "/models/general/D/Draven-Star", "kind": "pictures"},
+    {"name": "dbnaked-draven-star-tube", "adapter": "dbnaked_model",
+     "path": "/models/general/D/Draven-Star", "kind": "tube"},
+    {"name": "dbnaked-leigh-raven-pics", "adapter": "dbnaked_model",
+     "path": "/models/general/L/Leigh-Raven", "kind": "pictures"},
+    {"name": "dbnaked-leigh-raven-tube", "adapter": "dbnaked_model",
+     "path": "/models/general/L/Leigh-Raven", "kind": "tube"},
     {"name": "burningangel-pics", "adapter": "dbnaked_channel",
      "domain": "burningangel.com", "realm": "bdsm", "kind": "pictures"},
     {"name": "burningangel-tube", "adapter": "dbnaked_channel",
@@ -431,6 +455,10 @@ SEED_SOURCES = [
      "search": "goth tattoo", "pages": 8},
     {"name": "imagefap-tattooed-feet", "adapter": "imagefap_search",
      "search": "tattooed feet", "pages": 8},
+    {"name": "imagefap-gothic", "adapter": "imagefap_search",
+     "search": "gothic", "pages": 8},
+    {"name": "imagefap-emo-feet", "adapter": "imagefap_search",
+     "search": "emo feet", "pages": 8},
     {"name": "babesource-goth", "adapter": "babesource_search",
      "queries": ["goth", "gothic", "emo"]},
     {"name": "babesource-tattoo", "adapter": "babesource_search",
@@ -440,8 +468,8 @@ SEED_SOURCES = [
 ]
 
 AESTHETIC_PATTERN = (r"foot|feet|tattoo|goth|punk|/alt$|alt/|ink|"
-                     r"pierc|emo")
-DYNAMIC_CAP = 12
+                     r"pierc|emo|latex|leather|domina|femdom")
+DYNAMIC_CAP = 16
 
 
 def discover_dynamic_sources(fetcher, known_paths):
