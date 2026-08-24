@@ -66,14 +66,27 @@ SUBSYSTEM_REVIVE_TICKS = 6     # ticks before auto-revive attempt
 
 # ---------- live-system feed (build engine) ----------
 
-# After a tick that did work, HYPNOS proves the organism still builds:
-# each gate is an argv run; outcomes publish to topic "hypnos" as
-# kind="build" and land in data/build.json for the rest of the system.
+# After a tick - work or idle - HYPNOS proves the organism still
+# builds: every organ's verify gate runs on cadence, outcomes publish
+# to topic "hypnos" as kind="build"/"build-failed" and land in
+# data/build.json for the rest of the system. This is what makes the
+# workspace self-verifying without a human in the loop.
 BUILD_ENABLED = True
 BUILD_GATES = [
-    {"name": "ratatosk", "argv": ["python", "ratatosk/verify_ratatosk.py"]},
+    {"name": "ratatosk", "argv": ["python", "ratatosk/verify_ratatosk.py"],
+     "timeout_s": 120},
+    {"name": "norn", "argv": ["python", "norn/verify_norn.py"],
+     "timeout_s": 180},
+    {"name": "vulcan", "argv": ["python", "vulcan/verify_vulcan.py"],
+     "timeout_s": 300},
+    {"name": "hades", "argv": ["python", "hades/verify_hades.py"],
+     "timeout_s": 300},
     {"name": "zeus", "argv": ["python", "zeus/verify_zeus.py"],
      "timeout_s": 300},
+    {"name": "hypnos", "argv": ["python", "hypnos/verify_hypnos.py"],
+     "timeout_s": 420},
+    {"name": "ptah", "argv": ["python", "ptah/verify_ptah.py"],
+     "timeout_s": 600},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this
-BUILD_ON_IDLE = False          # build even when the tick found no work?
+BUILD_ON_IDLE = True           # the organism proves itself even quiet

@@ -29,8 +29,8 @@ train_console.txt
 ui-errors.log
 data/sentinel/
 data/post/
-data/witness/
 zeus/data/
+ptah/data/
 
 # --- OS ---
 .DS_Store

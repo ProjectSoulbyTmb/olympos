@@ -1,0 +1,5 @@
+{"ts":1787567804.663,"tick":2,"actor":"zeus","verb":"patrol","args_sha":"038966de9f6b9a90","ok":true,"xp_delta":0,"coins_delta":0}
+{"ts":1787567804.676,"tick":2,"actor":"zeus","verb":"policy_set","args_sha":"c5019bf98616d27c","ok":true,"xp_delta":0,"coins_delta":0}
+{"ts":1787567804.691,"tick":2,"actor":"zeus","verb":"policy_set","args_sha":"fc40361ae512fa53","ok":false,"xp_delta":0,"coins_delta":0,"error":"unknown policy key: LAUNCH_MISSILES"}
+{"ts":1787567804.709,"tick":2,"actor":"zeus","verb":"bolt_kill","args_sha":"8d9b529c49d88398","ok":false,"xp_delta":0,"coins_delta":0,"error":"refusing: refusing to bolt ZEUS itself"}
+{"ts":1787567804.728,"tick":2,"actor":"zeus","verb":"policy_set","args_sha":"786e24054068d710","ok":true,"xp_delta":0,"coins_delta":0}

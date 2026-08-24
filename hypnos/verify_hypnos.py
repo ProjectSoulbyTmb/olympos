@@ -158,7 +158,7 @@ def letter_roundtrip_replies_to_sender():
         assert os.path.exists(
             os.path.join(content.WORKSPACE, "made.txt"))
         rec = k.post.tail(content.TOPIC)
-        assert rec and rec[-1]["kind"] == "task-done", rec
+        assert rec and any(r["kind"] == "task-done" for r in rec), rec
 
 
 @check
@@ -249,7 +249,8 @@ def failed_task_retries_with_backoff_then_finalizes():
         res = results_from(k.post, "operator")
         assert len(res) == 1 and not res[0]["payload"]["ok"], res
         rec = k.post.tail(content.TOPIC)
-        assert rec[-1]["kind"] == "task-failed", rec
+        assert rec and any(r["kind"] == "task-failed"
+                           for r in rec), rec
 
 
 @check
@@ -323,6 +324,7 @@ def corrupt_dropin_parked_not_fatal():
 def build_engine_feeds_the_live_system():
     saved_gates, saved_min = content.BUILD_GATES, \
         content.BUILD_MIN_INTERVAL_S
+    saved_enabled = content.BUILD_ENABLED
     try:
         with sandbox(tempfile.mkdtemp(prefix="hypnos-v-")) as k:
             content.BUILD_ENABLED = True      # sandbox disables by default
@@ -340,17 +342,20 @@ def build_engine_feeds_the_live_system():
             assert report["ok"] and report["gates"][0]["ok"], report
             assert "gate-ok" in report["gates"][0]["tail"], report
             rec = k.post.tail(content.TOPIC)
-            assert rec[-1]["kind"] == "build" and rec[-1]["payload"][
-                "ok"], rec
+            assert rec and any(
+                r["kind"] == "build" and r["payload"].get("ok")
+                for r in rec), rec
     finally:
         content.BUILD_GATES = saved_gates
         content.BUILD_MIN_INTERVAL_S = saved_min
+        content.BUILD_ENABLED = saved_enabled
 
 
 @check
 def failing_gate_publishes_build_failed():
     saved_gates, saved_min = content.BUILD_GATES, \
         content.BUILD_MIN_INTERVAL_S
+    saved_enabled = content.BUILD_ENABLED
     try:
         with sandbox(tempfile.mkdtemp(prefix="hypnos-v-")) as k:
             content.BUILD_ENABLED = True
@@ -363,13 +368,15 @@ def failing_gate_publishes_build_failed():
             s = k.tick()
             assert s["built"], s
             rec = k.post.tail(content.TOPIC)
-            assert rec[-1]["kind"] == "build-failed", rec
+            assert rec and any(r["kind"] == "build-failed"
+                               for r in rec), rec
             assert not json.load(open(
                 os.path.join(content.DATA_DIR, "build.json"),
                 encoding="utf-8"))["ok"]
     finally:
         content.BUILD_GATES = saved_gates
         content.BUILD_MIN_INTERVAL_S = saved_min
+        content.BUILD_ENABLED = saved_enabled
 
 
 @check

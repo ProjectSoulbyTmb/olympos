@@ -1,0 +1,5 @@
+{"ts":1787568752.378,"tick":0,"actor":"vulcan","verb":"set_device","args_sha":"b1a3ce4e01ec6295","ok":true,"xp_delta":0,"coins_delta":0}
+{"ts":1787568752.399,"tick":0,"actor":"vulcan","verb":"toggle_rule","args_sha":"8283bc9e45a5f123","ok":true,"xp_delta":0,"coins_delta":0}
+{"ts":1787568752.422,"tick":0,"actor":"vulcan","verb":"toggle_rule","args_sha":"15a2719d48206152","ok":true,"xp_delta":0,"coins_delta":0}
+{"ts":1787568752.446,"tick":0,"actor":"vulcan","verb":"set_device","args_sha":"bb0d149a437e9219","ok":false,"xp_delta":0,"coins_delta":0,"error":"on must be boolean"}
+{"ts":1787568752.464,"tick":1,"actor":"vulcan","verb":"tick","args_sha":"080a9ed428559ef6","ok":true,"xp_delta":0,"coins_delta":0}

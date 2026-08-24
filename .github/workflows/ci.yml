@@ -59,3 +59,5 @@ jobs:
         run: python norn/verify_norn.py
       - name: Hypnos task-organ gate
         run: python hypnos/verify_hypnos.py
+      - name: PTAH builder gate
+        run: python ptah/verify_ptah.py

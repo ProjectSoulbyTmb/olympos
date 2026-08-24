@@ -19,7 +19,6 @@ import contextlib
 import glob
 import json
 import os
-import shutil
 import tempfile
 import time
 import uuid
@@ -63,6 +62,22 @@ def _slug(name):
     out = "".join(c if (c.isalnum() or c in "-_.") else "_"
                   for c in str(name))[:80] or "task"
     return out
+
+
+def _robust_replace(src, dst, attempts=6, delay_s=0.05):
+    """os.replace with bounded retry. Windows surfaces transient
+    PermissionError/OSError while an indexer or a just-closed handle
+    still holds the entry (delete-pending); one blind try would then
+    silently lose a move that callers account for as done."""
+    for i in range(attempts):
+        try:
+            os.replace(src, dst)
+            return True
+        except OSError:
+            if i == attempts - 1:
+                return False
+            time.sleep(delay_s * (i + 1))
+    return False
 
 
 def _load_json(path):
@@ -306,21 +321,18 @@ class Kernel:
             if not isinstance(payload, dict):
                 raise ValueError("payload must be an object")
         except (OSError, ValueError):
-            try:
-                shutil.move(path, os.path.join(content.DROPIN_FAILED,
-                                               "corrupt-" + fname))
-            except OSError:
-                pass
+            if not _robust_replace(path, os.path.join(content.DROPIN_FAILED,
+                                                      "corrupt-" + fname)):
+                self.audit("drop-park-failed", file=fname)
             self.audit("drop-reject", file=fname)
             return None
         acts = payload.get("actions")
         if not isinstance(acts, list) or \
                 len(acts) > content.MAX_ACTIONS_PER_TASK:
-            try:
-                shutil.move(path, os.path.join(content.DROPIN_FAILED,
-                                               "bad-" + fname))
-            except OSError:
-                pass
+            if not _robust_replace(path,
+                                   os.path.join(content.DROPIN_FAILED,
+                                                "bad-" + fname)):
+                self.audit("drop-park-failed", file=fname)
             self.audit("drop-reject", file=fname, reason="bad actions")
             return None
         task_name = _slug(payload.get("task") or fname[:-len(".task.json")])
@@ -373,21 +385,21 @@ class Kernel:
             if job is None:
                 continue
             if self.enqueue(job):
-                try:
-                    # archive the consumed spec next to its future
-                    # result: data/dropin/done holds the full story
-                    os.replace(src, os.path.join(content.DROPIN_DONE,
-                                                 fname))
-                except OSError:
-                    pass
-                promoted += 1
+                # archive the consumed spec next to its future result:
+                # data/dropin/done holds the full story. Promotion only
+                # counts when the consume-move really happened - a
+                # transient Windows lock must not lose a task silently.
+                if _robust_replace(src, os.path.join(content.DROPIN_DONE,
+                                                     fname)):
+                    promoted += 1
+                else:
+                    self.audit("drop-move-failed", file=fname)
             else:
                 # a task with this name is already pending - park it
-                try:
-                    os.replace(src, os.path.join(content.DROPIN_FAILED,
-                                                 "dupe-" + fname))
-                except OSError:
-                    pass
+                if not _robust_replace(src,
+                                       os.path.join(content.DROPIN_FAILED,
+                                                    "dupe-" + fname)):
+                    self.audit("drop-park-failed", file=fname)
                 self.audit("duplicate-skipped", src="dropin", file=fname)
         return promoted
 

@@ -120,9 +120,16 @@ def check_sentinel_death_detection():
             return "live pinned pid reported dead"
         proc.kill()
         proc.wait(timeout=5)
-        finds, _snap = sent.patrol()
-        deaths = [f for f in finds if f["type"] == "proc_death"
-                  and f.get("watch") == "verify-sleeper"]
+        # a just-exited pid can linger in the toolhelp snapshot for a
+        # moment on fast runners - patrol until it reports, bounded
+        deaths = []
+        for _ in range(20):
+            finds, _snap = sent.patrol()
+            deaths = [f for f in finds if f["type"] == "proc_death"
+                      and f.get("watch") == "verify-sleeper"]
+            if deaths:
+                break
+            time.sleep(0.1)
         if not deaths:
             return "killed pin was not reported"
         if deaths[0]["on_death"] != "alert":
