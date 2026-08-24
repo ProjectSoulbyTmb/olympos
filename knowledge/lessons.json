@@ -212,6 +212,14 @@
       "source": "ratatosk rotating topics",
       "lesson": "Deriving record ids from line position breaks the moment a log rotates: segments reshuffle and every consumer cursor silently points at the wrong place. Allocate identity from a persistent counter file under the same exclusive lock as the append (counter written temp+replace), stamp the explicit seq into each record, and make tail/since sort and compare on that field - then segments are an implementation detail cursors can ignore. Seed the counter lazily from max(existing seqs, total lines) so pre-counter files migrate without collision.",
       "tags": ["rotation", "sequences", "cursors", "append-only"]
+    },
+    {
+      "id": "L027",
+      "title": "Concurrent automators need isolated worktrees and PR-only integration",
+      "category": "autonomy",
+      "source": "three-way main-branch collision during the ptah kernel landing",
+      "lesson": "Two agents sharing one checkout lose updates even when both act in good faith: resets sweep staged files, commits land on moved HEADs, and force-pushes orphan whole lineages mid-task. Give every writer its own git worktree (independent index + HEAD, immune to foreign resets), a private auto/<name> branch, and exactly one route to main: push branch, open PR, squash-merge, fast-forward the mirror. Delta-based assertions and re-reading files immediately before editing are load-bearing complements - shared state always races.",
+      "tags": ["agents", "git", "worktrees", "pull-request", "coordination"]
     }
   ]
 }
