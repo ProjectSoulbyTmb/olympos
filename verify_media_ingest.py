@@ -6,9 +6,11 @@ pornpics cdni, babesource media/galleries). Fetcher is a stub; no socket
 is ever opened. Exits non-zero on any failure.
 """
 import argparse
+import base64
 import json
 import os
 import shutil
+import struct
 import sys
 import tempfile
 import unittest
@@ -329,6 +331,326 @@ class TestCloneSource(unittest.TestCase):
             self.assertEqual(mi.cmd_clone(ns), 1)
         finally:
             shutil.rmtree(tmp)
+
+
+# ---- v1.1: enhanced web scan + URL lists + auto JPEG/MP4 conversion ------
+
+SCAN_PAGE = """
+<a href="/galleries/page/2">next</a>
+<a href="https://cdn.otherhost.net/x/leak.jpg">offsite</a>
+<img src="/media/pics/set1_01.jpg">
+<img data-src="//scan.test/media/pics/set1_02.png">
+<video><source src="/media/vids/clip_001.mp4"></video>
+"""
+
+SCAN_PAGE_2 = """
+<a href="/galleries/page/3">next</a>
+<img src="/media/pics/set2_01.webp" srcset="/media/pics/big/set2_01.jpg 2x">
+<a href="https://scan.test/models/tranny-solo-page">bad</a>
+"""
+
+
+class BytesFakeFetcher:
+    """FakeFetcher variant whose mapping may hold str (pages) or bytes
+    (media); binary=True always yields raw bytes."""
+
+    def __init__(self, mapping):
+        self.mapping = mapping
+        self.calls = []
+
+    def get(self, url, binary=False, extra=None, retries=3):
+        self.calls.append(url)
+        body = self.mapping[url]
+        if binary:
+            return body if isinstance(body, bytes) else body.encode()
+        return body.decode("utf-8") if isinstance(body, bytes) else body
+
+    def head_size(self, url):
+        return 0
+
+
+def tiny_bmp():
+    w, h = 2, 2
+    row = b"\x00\x00\xff\xff\x00\x00"
+    rows = row + b"\x00" * 2 + b"\xff\x00\x00\x00\x00\x00" + b"\x00" * 2
+    ds = len(rows)
+    return (b"BM" + struct.pack("<IHHI", 14 + 40 + ds, 0, 0, 54) +
+            struct.pack("<IiiHHIIiiII", 40, w, h, 1, 24, 0, ds, 0, 0, 0, 0)
+            + rows)
+
+
+GIF_1PX = base64.b64decode(
+    "R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==")
+
+
+class TestWebScan(unittest.TestCase):
+    def test_extract_media_urls_attrs_and_srcset(self):
+        html = ('<img src="/a.jpg"><img data-src="https://h/b.png">'
+                '<img srcset="/c.webp 2x, /small/c.webp 1x">'
+                '<video source src="/v.mp4"></video>')
+        got = mi.extract_media_urls(html, "https://scan.test/x/")
+        self.assertIn("https://scan.test/a.jpg", got)
+        self.assertIn("https://h/b.png", got)
+        self.assertIn("https://scan.test/c.webp", got)
+        self.assertIn("https://scan.test/v.mp4", got)
+        self.assertFalse(any(" 2x" in u for u in got))
+
+    def test_scanner_depth_same_host_pattern(self):
+        fx = BytesFakeFetcher({
+            "https://scan.test/galleries/page/1": SCAN_PAGE,
+            "https://scan.test/galleries/page/2": SCAN_PAGE_2,
+        })
+        sc = mi.WebScanner(fx, depth=1, max_pages=10,
+                           same_host=True, female_filter=True)
+        rep = sc.scan(["https://scan.test/galleries/page/1"])
+        self.assertEqual(rep["pages_seen"], 2)          # depth 1: p1 + p2
+        joined = "\n".join(rep["urls"])
+        self.assertIn("set1_01.jpg", joined)
+        self.assertIn("clip_001.mp4", joined)
+        self.assertNotIn("leak.jpg", joined)             # other host
+        self.assertNotIn("tranny-solo-page", joined)     # female filter
+        self.assertTrue(all(u.startswith("https://scan.test/")
+                            for u in rep["urls"]))
+
+    def test_scanner_respects_max_pages(self):
+        fx = BytesFakeFetcher({
+            f"https://scan.test/g/page/{i}":
+                f'<a href="/g/page/{i+1}">n</a>'
+            for i in range(20)})
+        sc = mi.WebScanner(fx, depth=5, max_pages=4)
+        rep = sc.scan(["https://scan.test/g/page/0"])
+        self.assertLessEqual(rep["pages_seen"], 4)
+
+    def test_build_weblink_entries_direct(self):
+        es = mi.build_weblink_entries([
+            "https://x.test/a/pic.jpg", "https://x.test/a/vid.mp4"])
+        kinds = {e["slug"]: e["kind"] for e in es}
+        self.assertEqual(kinds["pic"], "pictures")
+        self.assertEqual(kinds["vid"], "tube")
+        for e in es:
+            self.assertEqual(e["state"], "direct")
+            self.assertEqual(len(e["files"]), 1)
+            self.assertIs(e["files"][0]["done"], False)
+
+    def test_scan_registers_source_and_report(self):
+        tmp = tempfile.mkdtemp(prefix="mi-scan-")
+        try:
+            catalog = os.path.join(tmp, "cat.json")
+            fx = BytesFakeFetcher({
+                "https://scan.test/gal": SCAN_PAGE})
+            orig_get = mi.Fetcher.get
+            mi.Fetcher.get = lambda self, url, binary=False, extra=None, \
+                retries=3: fx.get(url, binary=binary)
+            try:
+                ns = argparse.Namespace(
+                    speed=0.01, catalog=catalog, out=tmp,
+                    scan_web="https://scan.test/gal", scan_depth=1,
+                    scan_max_pages=5, scan_any_host=False,
+                    scan_pattern=None, scan_name=None,
+                    scan_report=os.path.join(tmp, "rep.json"),
+                    no_female_filter=False)
+                mi.cmd_scan_web(ns)
+            finally:
+                mi.Fetcher.get = orig_get
+            master = mi.load_json(catalog, None)
+            src = next(n for n in master["sources"]
+                       if n.startswith("webscan-scan-test"))
+            scat = mi.load_json(os.path.join(
+                tmp, src, "_source.json"), None)
+            urls = [e["url"] for e in scat["items"]]
+            self.assertTrue(any(u.endswith(".jpg") for u in urls))
+            rep = mi.load_json(os.path.join(tmp, "rep.json"), None)
+            self.assertGreaterEqual(rep["media_kept"], 1)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_from_file_pulls_urls(self):
+        tmp = tempfile.mkdtemp(prefix="mi-list-")
+        try:
+            lst = os.path.join(tmp, "urls.txt")
+            with open(lst, "w", encoding="utf-8") as fh:
+                fh.write("# comment\n"
+                         "https://cdn.test/x/a.jpg\n"
+                         "https://cdn.test/x/b.mp4\n")
+            catalog = os.path.join(tmp, "cat.json")
+            ns = argparse.Namespace(
+                from_file=lst, catalog=catalog, out=tmp,
+                scan_name=None, no_female_filter=False,
+                auto_scan_pages=True, scan_depth=1,
+                scan_max_pages=5, scan_any_host=False,
+                scan_pattern=None, speed=0.01)
+            mi.cmd_from_list(ns)
+            master = mi.load_json(catalog, None)
+            self.assertIn("list-urls", master["sources"])
+            scat = mi.load_json(os.path.join(
+                tmp, "list-urls", "_source.json"), None)
+            kinds = sorted(e["kind"] for e in scat["items"])
+            self.assertEqual(kinds, ["pictures", "tube"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class TestConversion(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="mi-conv-")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def w(self, name, data):
+        p = os.path.join(self.tmp, name)
+        with open(p, "wb") as fh:
+            fh.write(data)
+        return p
+
+    def test_route_table(self):
+        self.assertEqual(mi.conversion_route("x/y.jpg"), "skip")
+        self.assertEqual(mi.conversion_route("x/y.mp4"), "skip")
+        self.assertEqual(mi.conversion_route("x/y.m4v"), "skip")
+        self.assertEqual(mi.conversion_route("x/y.png"), "jpeg")
+        self.assertEqual(mi.conversion_route("x/y.bmp"), "jpeg")
+        self.assertEqual(mi.conversion_route("x/y.mkv"), "video")
+        self.assertEqual(mi.conversion_route("x/y.webm"), "video")
+        self.assertEqual(mi.conversion_route("x/y.gif"), "gif-video")
+        self.assertIsNone(mi.conversion_route("x/y.txt"))
+        self.assertIsNone(mi.conversion_route("x/y.json"))
+
+    def test_bmp_converts_to_real_jpeg(self):
+        src = self.w("photo.bmp", tiny_bmp())
+        out = mi.normalize_file(src)
+        self.assertTrue(out.endswith(".jpg"), out)
+        with open(out, "rb") as fh:
+            self.assertEqual(fh.read(2), b"\xff\xd8")
+        self.assertFalse(os.path.exists(src))          # original consumed
+
+    def test_png_converts_to_real_jpeg(self):
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8B"
+            "QDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+        src = self.w("photo.png", png)
+        out = mi.normalize_file(src)
+        self.assertTrue(out.endswith(".jpg"), out)
+        self.assertFalse(os.path.exists(src))
+
+    def test_jpeg_passthrough_untouched(self):
+        src = self.w("keep.jpg", b"\xff\xd8fakejpegbytes")
+        self.assertEqual(mi.normalize_file(src), src)
+        self.assertTrue(os.path.exists(src))
+
+    @unittest.skipUnless(mi.find_ffmpeg(), "ffmpeg not available")
+    def test_video_container_to_mp4(self):
+        ff = mi.find_ffmpeg()
+        import subprocess
+        mkv = os.path.join(self.tmp, "clip.mkv")
+        r = subprocess.run(
+            [ff, "-y", "-f", "lavfi",
+             "-i", "testsrc=duration=0.3:size=128x96:rate=10",
+             "-f", "lavfi", "-i", "sine=frequency=440:duration=0.3",
+             "-c:v", "libx264", "-c:a", "aac", mkv],
+            capture_output=True, timeout=60)
+        if r.returncode != 0:
+            self.skipTest("ffmpeg lavfi fixture unavailable")
+        out = mi.normalize_file(mkv)
+        self.assertTrue(out.endswith(".mp4"), out)
+        with open(out, "rb") as fh:
+            head = fh.read(12)
+        self.assertIn(b"ftyp", head)
+        self.assertFalse(os.path.exists(mkv))
+
+    def test_gif_without_ffmpeg_stays(self):
+        orig = mi.find_ffmpeg
+        saved_cache, saved_path = mi._FFMPEG_CACHE["path"], mi.FFMPEG_PATH
+        mi._FFMPEG_CACHE["path"] = ""
+        mi.FFMPEG_PATH = None
+        mi.find_ffmpeg = lambda: None
+        try:
+            src = self.w("anim.gif", GIF_1PX)
+            out = mi.normalize_file(src)
+            self.assertEqual(out, src)                 # honest keep
+        finally:
+            mi.find_ffmpeg = orig
+            mi._FFMPEG_CACHE["path"] = saved_cache
+            mi.FFMPEG_PATH = saved_path
+
+    def test_normalize_library_walks_tree(self):
+        self.w("a.bmp", tiny_bmp())
+        self.w("b.png", base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8B"
+            "QDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="))
+        self.w("keep.mp4", b"\x00\x00\x00\x18ftypmp42isomisom" + b"\x00" * 32)
+        ns = argparse.Namespace(out=self.tmp,
+                                catalog=os.path.join(self.tmp, "cat.json"),
+                                speed=0.01)
+        mi.cmd_normalize_library(ns)
+        names = sorted(os.listdir(self.tmp))
+        self.assertIn("a.jpg", names)
+        self.assertIn("b.jpg", names)
+        self.assertIn("keep.mp4", names)
+        self.assertNotIn("a.bmp", names)
+
+
+class TestDownloadAutoConvert(unittest.TestCase):
+    def _run_download(self, tmp, auto_convert=True):
+        sdir = os.path.join(tmp, "web-src")
+        os.makedirs(sdir, exist_ok=True)
+        cat = {"v": mi.VERSION, "sources": {
+            "web-src": {"dir": sdir, "items": 1, "materialized": 1}}}
+        scat = {"name": "web-src",
+                "spec": {"name": "web-src", "adapter": "weblink"},
+                "items": mi.build_weblink_entries(
+                    ["https://cdn.test/imgs/pic_001.bmp"])}
+        mi.save_json(os.path.join(sdir, "_source.json"), scat)
+        cpath = os.path.join(tmp, "cat.json")
+        mi.save_json(cpath, cat)
+        fx = BytesFakeFetcher({
+            "https://cdn.test/imgs/pic_001.bmp": tiny_bmp()})
+        orig_get = mi.Fetcher.get
+        mi.Fetcher.get = lambda self, url, binary=False, extra=None, \
+            retries=3: fx.get(url, binary=binary)
+        try:
+            ns = argparse.Namespace(
+                speed=0.01, catalog=cpath, out=tmp, only="web-src",
+                hd_only=True, dry_run=False, auto_convert=auto_convert)
+            mi.cmd_download(ns)
+        finally:
+            mi.Fetcher.get = orig_get
+        return mi.load_json(os.path.join(sdir, "_source.json"), None)
+
+    def test_downloaded_bmp_auto_converted(self):
+        tmp = tempfile.mkdtemp(prefix="mi-dlac-")
+        try:
+            scat = self._run_download(tmp, auto_convert=True)
+            fe = scat["items"][0]["files"][0]
+            self.assertTrue(fe["done"])
+            self.assertTrue(fe["file"].endswith(".jpg"), fe["file"])
+            self.assertTrue(os.path.exists(fe["file"]))
+            self.assertFalse(os.path.exists(fe["file"][:-4] + ".bmp"))
+            with open(fe["file"], "rb") as fh:
+                self.assertEqual(fh.read(2), b"\xff\xd8")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_no_convert_keeps_original(self):
+        tmp = tempfile.mkdtemp(prefix="mi-dlnc-")
+        try:
+            scat = self._run_download(tmp, auto_convert=False)
+            fe = scat["items"][0]["files"][0]
+            self.assertTrue(fe["file"].endswith(".bmp"), fe["file"])
+            self.assertTrue(os.path.exists(fe["file"]))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_resume_finds_renamed_artifact(self):
+        tmp = tempfile.mkdtemp(prefix="mi-dlre-")
+        try:
+            scat = self._run_download(tmp, auto_convert=True)
+            jpg_path = scat["items"][0]["files"][0]["file"]
+            scat = self._run_download(tmp, auto_convert=True)
+            self.assertEqual(scat["items"][0]["files"][0]["file"],
+                             jpg_path)
+            self.assertTrue(os.path.exists(jpg_path))   # no re-download
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":
