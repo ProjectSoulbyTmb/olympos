@@ -118,3 +118,5 @@ tag-driven releases).
   consume the proposal queue, promotion still human-gated. Automation:
   weekly staggered learner tasks via `register-learning-tasks.ps1`,
   full sweep via `learning-cycle.ps1`.
+
+- 2026-08-24: **Relay** (`relay/`) online: stable DAEDELUS<->VENUS bridges over the ratatosk bus - workshop build outcomes forwarded exactly-once to the venus mailbox + new `updates` topic (fleet.tick/fleet.build/fleet.repair in the buskit catalogue; persistent seq cursors survive restarts and rotation), Venus intents claimed from `assistant/data/relay/to-fleet/` (build -> daedalus CLI commission, repair -> doctor check+fix sweep with published proof, status -> immediate tick), and the constant fleet update stream with per-cycle heartbeat. Deployed as scheduled task 'Olympos RELAY Bridge' via register-relay-task.ps1 + bootstrap wiring; autopilot contract now enforces the daemon, its installer and the task-name sync. Gate: `python relay/verify_relay.py`.
