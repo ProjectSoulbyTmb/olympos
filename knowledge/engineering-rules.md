@@ -57,10 +57,17 @@ lesson id in `lessons.json`.
     top-level def scan, JSON validity - `safeguards/check.py` wired
     as a pre-commit hook exists because each of these failures
     already happened once.
+17. **Gate suites run bounded and observable**: parallel execution
+    with hard per-suite timeouts (one hung probe must not stall the
+    gate), machine-readable reports on disk, and every result
+    broadcast onto the bus so failures are seen, not felt.
+18. **Security scanners denylist binaries, allowlist nothing**:
+    scanning "text extensions" only is how a `.pem` private key
+    slips past; scan everything except known-binary formats.
 
 ## Security
 
-17. **Capability check per verb** from one declared table; profiles
+19. **Capability check per verb** from one declared table; profiles
     narrow; escalation is admin-only and logged (L013).
-18. **Hash-chain all audit trails**; seal manifests with HMAC plus an
+20. **Hash-chain all audit trails**; seal manifests with HMAC plus an
     independent anchor (L011).
