@@ -168,10 +168,10 @@ def gate_orchestrator_parallel_timeout_report():
         assert results["gamma"]["ok"] is False \
             and "TIMEOUT" in results["gamma"]["tail"]
         assert wall < 20, f"timeout not enforced (wall {wall:.1f}s)"
-        # report shape matches contract
-        # report shape matches the contract (output joined in #56)
-        assert set(results["alpha"]) == {"suite", "ok", "secs", "tail",
-                                         "output"}
+        # report shape matches contract (L030: failures keep output)
+        assert set(results["alpha"]) == {
+            "suite", "ok", "secs", "tail", "output"}
+        assert results["alpha"]["output"] == ""
     finally:
         shutil.rmtree(outer, ignore_errors=True)
 
