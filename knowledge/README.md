@@ -13,6 +13,7 @@ development: read it before designing anything new here.
 | `lessons.json` | Machine-readable database: one object per lesson (`id`, `title`, `category`, `source`, `lesson`, `tags`). Query it with any JSON tooling; treat it as append-only. |
 | `architecture-playbook.md` | Proven architecture patterns with when-to-use guidance. |
 | `engineering-rules.md` | Hard-won rules that prevent repeat failures. |
+| `webstudio/` | External-product DB: Webstudio website builder - agent/MCP integration, data/CMS patterns, design system, publishing, playbooks. Pull from here before building or editing any public-facing site. |
 
 ## Conventions
 
