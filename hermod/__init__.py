@@ -1,6 +1,8 @@
-﻿"""HERMOD - live update feed pipeline (operator-supplied bundles in,
-normalized deduped stores out, Ratatosk shouts between)."""
+"""HERMOD - live update feed pipeline (operator bundles in,
+normalized deduped stores out, Ratatosk shouts between).
 
-from .kernel import FeedRoom, FeedError, entry_sha
+Import kernels directly: from hermod.kernel import FeedRoom
+(kept import-light so tools can read hermod.content standalone).
+"""
 
-__all__ = ["FeedRoom", "FeedError", "entry_sha"]
+VERSION = 1
