@@ -148,6 +148,20 @@ def environment_is_scrubbed():
         os.environ.pop("ATLAS_DEPLOY_TOKEN", None)
 
 
+@check
+def guest_processes_keep_winsock():
+    """Regression: a case-sensitive env allowlist once dropped SystemRoot
+    on Windows, so guest children died with WinError 10106 the moment
+    they opened a socket (daedalus gates caught it)."""
+    with sandbox() as hv:
+        hv.create("winsock")
+        r = hv.exec("winsock", [PY, "-c",
+                                "import socket; socket.socket(); "
+                                "print('ok')"])
+        assert r["ok"], (r.get("exit_code"), r.get("stderr"))
+        assert "ok" in (r.get("stdout") or "")
+
+
 # ------------------------------------------------------------ lifecycle
 
 
