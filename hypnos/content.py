@@ -119,6 +119,10 @@ BUILD_GATES = [
     {"name": "template",
      "argv": ["python", "templates/verify_template.py"],
      "timeout_s": 120},
+    {"name": "poseidon",
+     "argv": ["python", "poseidon/verify_poseidon.py"],
+     "timeout_s": 300},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this
 BUILD_ON_IDLE = True           # the organism proves itself even quiet
+BUILD_MAX_WORKERS = 4          # gates verify concurrently, not in line

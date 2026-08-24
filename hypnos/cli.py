@@ -14,6 +14,7 @@ submit accepts a JSON file (or `-` for stdin) shaped like:
 """
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -158,12 +159,50 @@ def cmd_demo(_args):
     return 0
 
 
+def cmd_schedules(_args):
+    """Recurring duties: cadence, last fire, next due, pending state."""
+    kernel = Kernel()
+    pending = {os.path.basename(p)[:-5]
+               for p in glob.glob(os.path.join(content.QUEUE_DIR,
+                                               "*.json"))}
+    print("HYPNOS recurring duties")
+    if not content.SCHEDULES:
+        print("  (none configured - add rows to hypnos/content.py)")
+        return 0
+    for spec in content.SCHEDULES:
+        name = str(spec.get("name", "?"))
+        every = float(spec.get("every_s", 3600))
+        stamp = float(kernel._sched_stamps.get(name, 0.0))
+        due = time.time() - stamp >= every
+        queued = "queued" if name in pending else ""
+        print("  %-28s every %-6s %s %s"
+              % (name, _human(every),
+                 ("due now" if due else
+                  "next in %s" % _human(max(0.0, stamp + every
+                                            - time.time()))),
+                 queued))
+    return 0
+
+
+def _human(seconds):
+    seconds = int(seconds)
+    if seconds >= 86400:
+        return "%dd" % (seconds // 86400)
+    if seconds >= 3600:
+        return "%dh" % (seconds // 3600)
+    if seconds >= 60:
+        return "%dm" % (seconds // 60)
+    return "%ds" % seconds
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="hypnos", description="silent task organ of Yggdrasil")
     sub = parser.add_subparsers(dest="cmd")
 
     sub.add_parser("status", help="queue depth + counters")
+    sub.add_parser("schedules",
+                   help="recurring duties: cadence + next fire")
     p_submit = sub.add_parser("submit", help="queue a task letter")
     p_submit.add_argument("file", help="task JSON file, or - for stdin")
     p_log = sub.add_parser("log", help="tail the audit trail")
@@ -176,7 +215,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     table = {"status": cmd_status, "submit": cmd_submit,
              "log": cmd_log, "once": cmd_once,
-             "serve": cmd_serve, "demo": cmd_demo}
+             "serve": cmd_serve, "demo": cmd_demo,
+             "schedules": cmd_schedules}
     fn = table.get(args.cmd)
     if fn is None:
         parser.print_help()
