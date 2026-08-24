@@ -7,8 +7,9 @@ automation client or console. JSON-lines protocol:
   <- {"error": null, "result": {...}}
 
 Every response carries an `error` field (null on success), mirroring
-the RSPS server contract. An optional background thread auto-ticks the
-building at TICK_SECONDS_REAL so hosted runs stay alive on their own.
+the shared JSON-lines server contract. An optional background thread
+auto-ticks the building at TICK_SECONDS_REAL so hosted runs stay alive
+on their own.
 """
 
 import os

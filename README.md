@@ -1,73 +1,36 @@
 # Yggdrasil
 
-> Formerly "OSRS Lab". Not affiliated with Jagex. "Old School RuneScape" and "OSRS" are trademarks of Jagex Ltd - used here only descriptively; the engine is original and never touches their services.
-
-A complete, offline, local research sandbox for Old School RuneScape-style
-game AI: a tick-based skilling world, a self-play reinforcement-learning
-combat agent, an LLM strategic player grounded in live OSRS market data,
-and a desktop control hub.
-
-**Scope:** everything runs locally against our own simulation or private
-servers you host. It never connects to Jagex services, and it contains no
-live-game input automation of any kind.
+The protective and operational ecosystem around the Soul fleet: a
+protection kernel, a provenance realm, an automation sandbox, an
+ecosystem health kernel, the THOTH operator kernel, and shared tooling.
 
 ## Quick start
 
-**Easiest:** run `python runner.py` - an interactive menu that walks you
-through every capability with sensible defaults (press Enter to accept):
-
-```
-1) Run an activity (sim or RSPS)      5) Host your RSPS server
-2) Train combat agent (RL)            6) Refresh OSRS knowledge base
-3) Evaluate a trained combat agent    7) Launch desktop dashboard
-4) Run the LLM strategic agent        0) Quit
-```
-
-Or double-click **`Heimdall.exe`** (legacy: `OsrsLab.exe`; keep it next to the
-`osrs-llm-agent` folder) for the GUI hub. From source:
-
 ```powershell
-$py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
-& $py dashboard.py            # GUI: run activities, watch training curves
+python doctor.py            # full local check + safe auto-repairs
+python doctor.py --ci       # environment-independent subset (CI)
+python sentinel.py          # remediate -> all gates -> incident ledger
 ```
 
 ## Components
 
 | Path | What it is |
 |---|---|
-| `dashboard.py` / `Heimdall.exe` | Desktop hub (**Heimdall**, the gate): pick an activity, run it, watch sessions + RL curves live |
-| `play_rsps.py` | **Playable game client** (**Bifrost**): graphical tile world with click/right-click context menus, WASD movement, combat with hit splats, skilling, XP drops, minimap, dialogue trees, prayer/magic/bank/shop/journal tabs, shared-channel chat, **VTuber-style avatar rig** (blink/breath/idle-sway/mouth-flap, emotes: /wave /dance /bow...) - auto-hosts the server if none is running (`python play_rsps.py`, or runner menu "Play now", or `build_client.ps1` for a standalone exe) |
-| `osrs_updater.py` | Continuous live-data refresher: GE prices (4.5k items), item mapping, wiki update-feed watcher -> `knowledge/live/`. Run `python osrs_updater.py --watch 30` to stay current |
-| `Minerva kernel` (`osrs-unified/mind/`) | Tick-based 23-skill world (woodcutting, mining, fishing, cooking, firemaking, smithing, combat, prayer, ranged, magic, runecrafting, thieving, agility, herblore, crafting, fletching, slayer, farming, **construction**, **hunter**), bank/shop/furnace/quests, workshop sawmill + furniture building, bird-snare hunting ground, Ultimate Ironman mode, pause/resume sessions, LLM strategic loop, GE-price + Wiki knowledge pipeline |
-| `osrs-llm-agent/server/` | **Your own RSPS engine**: authoritative JSON-lines game server with per-character instanced worlds + `RemoteGameSDK` client so any strategy runs over the wire unchanged. Original protocol/engine modeled on OSRS mechanics - not interoperable with the official client |
-| `osrs-rl/` | Self-play PPO combat agent (200-iteration trained model: 60% win / 7.5% loss vs opponent pool, undefeated vs heuristic & random baselines), resume support |
-| `osrs-rl/rsps_adapter/` | Client env + Java relay plugin to train against your own Elvarg private server |
+| `zeus/` | **ZEUS**: workspace protection kernel - patrols processes, integrity and churn on a tick loop; audit trail in `zeus/data/audit.jsonl`. Verify: `python zeus/verify_zeus.py` |
 | `vulcan/` | **Vulcan**: offline smart-building automation sandbox - 7-zone thermal sim (37 devices), rules engine (sequences, priorities, mode-scoping, max-fires, motion events) + **warden** self-healing (waste/runaway/stuck-sensor repair, rule circuit-breaker w/ auto-revival, escalated load shedding, corrupt-save recovery), authoritative JSON-lines server on 127.0.0.1:43901. Verify: `python vulcan/verify_vulcan.py` |
+| `hades/` | **Hades**: provenance realm - file fingerprinting, watermarking, and audit of artifact lineage. Verify: `python hades/verify_hades.py` |
+| `gaia/` | **GAIA**: ecosystem health kernel (Node) - collects vitals from every member system (git sync state, commit age, CI verdicts, daemon freshness), scores each 0-100, raises severity-ranked alerts. Test: `cd gaia && npm test` |
+| `thoth-private/` | **THOTH** operator-kernel modules: grants/safety, knowledge routing, scribe documentation service, stabilizer, scaffold, autonomic loop |
+| `image-toolkit/` | Shared image-processing toolkit (Node) |
 
-## Feature parity with similar tools
+## Infrastructure
 
-- vs LLM-game-agent benchmarks (runebench-style): same orient-decide-act loop,
-  SDK-constrained codegen, error-feedback self-debugging, XP/gold scoring -
-  plus persistent session resume and real-market grounding.
-- vs RL game environments: standard PPO+GAE+self-play opponent pool,
-  action masking, checkpoint/resume, evaluation harness.
-- vs MMORPG bot frameworks (OSBot/DreamBot/etc.): those automate Jagex's live
-  client, which violates ToS; this project deliberately implements the same
- *classes* of technology (tick engine, pathing, state machines, RL policies,
-  human-legible scripting API) inside a legal sandbox instead.
-
-## Rebuilding the exe
-
-```powershell
-$py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
-& $py -m pip install -r requirements.txt
-& $py -m PyInstaller --onefile --windowed --name Heimdall `
-    --paths "osrs-llm-agent" --hidden-import bench --hidden-import game.world `
-    --hidden-import game.sdk --hidden-import agent.llm --hidden-import agent.loop `
-    --hidden-import agent.runner --distpath dist `
-    --workpath "$env:TEMP\opencode\pyi_build" --specpath "$env:TEMP\opencode\pyi_build" `
-    dashboard.py
-```
-
-RL training stays CLI-driven (`python osrs-rl/train.py`) because bundling
-PyTorch would balloon the exe from ~11 MB to ~1 GB.
+- `doctor.py` - one-command stabilization: entrypoint compilation,
+  component gates (ZEUS, Vulcan, Hades), protected directories,
+  integrity-baseline age, port squatters, stale bytecode purge.
+- `sentinel.py` - continuous watchdog: runs every product gate,
+  applies safe automatic remediations first, appends incidents to
+  `data/sentinel/incidents.jsonl`. Use `--watch N` to keep watching.
+- `register-zeus-task.ps1`, `register-sentinel-task.ps1`,
+  `register-thoth-task.ps1` - Windows Scheduled Task helpers that keep
+  the kernels running around the clock.

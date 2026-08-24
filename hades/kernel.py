@@ -54,21 +54,14 @@ DEFAULT_CONFIG = {
         {
             "name": "yggdrasil",
             "include": [
-                "dashboard.py", "runner.py", "play_rsps.py", "osrs_updater.py",
-                "rsps_audio.py", "verify_system.py",
-                "osrs-llm-agent/game/**/*.py",
-                "osrs-llm-agent/server/**/*.py",
-                "osrs-llm-agent/agent/**/*.py",
+                "doctor.py",
+                "sentinel.py",
             ],
             "exclude": [],
         },
-        {"name": "minerva",
-         "include": ["osrs-unified/mind/**/*.py"], "exclude": []},
         {"name": "vulcan",
          "include": ["vulcan/**/*.py"],
          "exclude": ["vulcan/state/**"]},
-        {"name": "hyperion",
-         "include": ["hyperion-181/src/main/java/**/*.java"], "exclude": []},
         {"name": "venus",
          "include": [
              "assistant/*.js", "assistant/lib/*.js", "assistant/plugins/*.js",
@@ -230,8 +223,10 @@ class Hades:
             "manifest": manifest,
         }
         payload = json.dumps(doc, sort_keys=True, indent=1).encode("utf-8")
-        with open(self.seal_path, "w", encoding="utf-8") as f:
-            f.write(payload.decode("utf-8"))
+        # Binary write is deliberate: the anchor hashes exactly these
+        # bytes, so newline translation must never touch them.
+        with open(self.seal_path, "wb") as f:
+            f.write(payload)
         anchor = {
             "seal_sha256": hashlib.sha256(payload).hexdigest(),
             "sealed_at": doc["sealed_at"],

@@ -185,16 +185,19 @@ def check_ghosts(h):
 def check_watermark_roundtrip():
     key = b"k" * 32
     payload = "HADES|test|fixture|20260101-000000"
+    sealed = payload + "|" + wm.tag(payload, key)
     tok = wm.token(payload, key)
     text = "x = 1\n"
     marked = wm.embed_text(text, tok, "#")
     found = wm.extract(marked)
-    if found != [payload]:
+    if found != [sealed]:
         return "roundtrip failed: %r" % found
-    if not wm.authenticate(payload, key):
+    if not wm.authenticate(sealed, key):
         return "our own mark failed authentication"
-    if wm.authenticate(payload, b"f" * 32):
+    if wm.authenticate(sealed, b"f" * 32):
         return "mark authenticated with the wrong key"
+    if wm.authenticate(sealed.replace("fixture", "forfeit"), key):
+        return "tampered payload authenticated"
     if wm.extract(text) != []:
         return "clean text produced phantom marks"
     return True
@@ -239,16 +242,21 @@ def check_audit_chain(h, base):
 
 def check_forged_seal(h, base):
     import json
-    with open(h.seal_path, "r", encoding="utf-8") as f:
-        doc = json.load(f)
+    with open(h.seal_path, "rb") as f:
+        original = f.read()
+    doc = json.loads(original.decode("utf-8"))
     target = sorted(doc["manifest"]["files"])[0]
     doc["manifest"]["files"][target]["sha256"] = "f" * 64
-    with open(h.seal_path, "w", encoding="utf-8") as f:
-        json.dump(doc, f)
+    with open(h.seal_path, "wb") as f:
+        f.write(json.dumps(doc).encode("utf-8"))
     try:
         h.verify()
     except TamperError:
+        with open(h.seal_path, "wb") as f:
+            f.write(original)       # restore exact bytes for later checks
         return True
+    with open(h.seal_path, "wb") as f:
+        f.write(original)
     return "forged manifest accepted"
 
 

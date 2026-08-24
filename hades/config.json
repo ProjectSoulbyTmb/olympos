@@ -3,23 +3,8 @@
     {
       "name": "yggdrasil",
       "include": [
-        "dashboard.py",
-        "runner.py",
-        "play_rsps.py",
-        "osrs_updater.py",
-        "rsps_audio.py",
-        "verify_system.py",
-        "osrs-llm-agent/game/**/*.py",
-        "osrs-llm-agent/server/**/*.py",
-        "osrs-llm-agent/agent/**/*.py"
-      ],
-      "exclude": []
-    },
-    {
-      "name": "minerva",
-      "include": [
-        "osrs-unified/mind/**/*.py",
-        "osrs-unified/net/**/*.py"
+        "doctor.py",
+        "sentinel.py"
       ],
       "exclude": []
     },
@@ -27,11 +12,6 @@
       "name": "vulcan",
       "include": ["vulcan/**/*.py"],
       "exclude": ["vulcan/state/**"]
-    },
-    {
-      "name": "hyperion",
-      "include": ["hyperion-181/src/main/java/**/*.java"],
-      "exclude": []
     },
     {
       "name": "venus",

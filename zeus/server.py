@@ -1,8 +1,8 @@
 """ZEUS authoritative server.
 
 One shared Kernel; every connection is a dashboard, operator console
-or automation client. JSON-lines protocol, mirroring the RSPS and
-Vulcan contracts:
+or automation client. JSON-lines protocol, mirroring the Vulcan
+contract:
 
   -> {"cmd": "status", "args": {}}
   <- {"error": null, "result": {...}}

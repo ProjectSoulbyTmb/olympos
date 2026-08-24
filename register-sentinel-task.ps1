@@ -1,6 +1,6 @@
 # Registers (or removes) the Yggdrasil Sentinel as a Windows Scheduled
 # Task: remediation + full gate sweep every 30 minutes, whether you are
-# logged in or not. Mirrors register-updater-task.ps1 conventions.
+# logged in or not.
 #
 #   powershell -ExecutionPolicy Bypass -File register-sentinel-task.ps1
 #   powershell -ExecutionPolicy Bypass -File register-sentinel-task.ps1 -Unregister

@@ -6,7 +6,7 @@ One command that keeps continuous development safe:
     python doctor.py --ci       # environment-independent subset (CI)
     python doctor.py --fix-deps # also pip-install missing requirements
 
-Check phase: entrypoint syntax, component gates (ZEUS, Vulcan),
+Check phase: entrypoint syntax, component gates (ZEUS, Vulcan, Hades),
 requirements coverage, protected directories, ZEUS baseline age,
 owned-port squatters, stale bytecode caches.
 
@@ -27,26 +27,22 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 ENTRYPOINTS = [
-    "runner.py", "dashboard.py", "play_rsps.py", "osrs_updater.py",
-    "perf_bench.py", "verify_system.py",
+    "doctor.py", "sentinel.py",
 ]
 SUITES = [
     ("zeus", os.path.join("zeus", "verify_zeus.py")),
     ("vulcan", os.path.join("vulcan", "verify_vulcan.py")),
+    ("hades", os.path.join("hades", "verify_hades.py")),
 ]
-REQUIREMENTS_IMPORTS = {
-    "numpy": "numpy", "torch": "torch", "pygame": "pygame",
-    "pyinstaller": "PyInstaller",
-}
+REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [
     os.path.join("zeus", "data"),
     os.path.join("zeus", "data", "quarantine"),
 ]
 BASELINE_MAX_AGE_S = 7 * 24 * 3600
-OWNED_PORTS = [43591, 43594, 43901, 43902]
-PYCACHE_SKIP = {".git", "node_modules", "dist", "release", "jdktmp",
-                ".gradle"}
-REPORT_PATH = os.path.join("tools", "health_report.json")
+OWNED_PORTS = [43901, 43902]
+PYCACHE_SKIP = {".git", "node_modules", "dist", "release"}
+REPORT_PATH = os.path.join("data", "health_report.json")
 SUITE_TIMEOUT_S = 240
 
 

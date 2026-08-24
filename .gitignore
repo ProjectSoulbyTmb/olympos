@@ -25,24 +25,11 @@ __pycache__/
 .venv/
 
 # --- generated / churny data ---
-osrs-llm-agent/knowledge/live/
-osrs-llm-agent/server/__pycache__/
 train_console.txt
 ui-errors.log
-data/sentinel/
+data/
 zeus/data/
 
 # --- OS ---
 .DS_Store
 Thumbs.db
-
-osrs-llm-agent/runs/
-
-osrs-llm-agent/server/saves/
-
-# Hyperion-181 toolchain + build outputs
-tools/
-jdktmp/
-hyperion-181/.gradle/
-hyperion-181/build/
-*.class

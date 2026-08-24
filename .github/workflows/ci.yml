@@ -51,13 +51,7 @@ jobs:
         run: python vulcan/verify_vulcan.py
       - name: ZEUS protection-kernel gate
         run: python zeus/verify_zeus.py
-      - name: Install engine deps
-        # Before doctor: its requirements check expects the full import
-        # surface (numpy, torch, pygame, pyinstaller).
-        run: |
-          pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
-          pip install pygame pyinstaller
+      - name: Hades provenance gate
+        run: python hades/verify_hades.py
       - name: Doctor stabilization gate
         run: python doctor.py --ci
-      - name: OsrsLab engine unit tests
-        run: python -m unittest discover -s osrs-unified/tests

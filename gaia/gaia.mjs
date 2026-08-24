@@ -5,7 +5,7 @@
  *
  * The pantheon:
  *   THOTH  operator kernel        (project---soul) - fleet federation, incidents, MTTR
- *   MIND   suite daemon           (osrs-unified)   - network sweeps, patrol, releases
+ *   MIND   suite daemon           (managed suites) - network sweeps, patrol, releases
  *   VENUS  desktop companion      (assistant)      - human interface, voice, automation
  *   GAIA   THIS KERNEL            - watches the whole organism as one system
  *
@@ -109,7 +109,7 @@ function gitVitals(dir) {
   };
 }
 
-/** MIND network posture (osrs-unified convention). */
+/** MIND network posture (managed-suite convention). */
 function netVitals(dir) {
   const file = path.join(dir, 'runs', 'net_report.json');
   if (!fs.existsSync(file)) return null;

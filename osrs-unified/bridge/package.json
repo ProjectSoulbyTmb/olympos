@@ -1,7 +1,0 @@
-{
-  "name": "thoth-mind-relay-bridge",
-  "private": true,
-  "type": "module",
-  "description": "Drop-in adapter connecting thoth-private's relay hub to osrs-unified's durable MIND bus (mind/bus.py). See README.md.",
-  "main": "thoth-relay.js"
-}

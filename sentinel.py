@@ -13,13 +13,12 @@ Usage:
 Exit codes: 0 all green, 1 some gate failed, 2 environment broken.
 
 Remediators are deliberately conservative - they only touch artifacts
-we own: runtime locks, tracked build junk, corrupt saves, gitignore
-drift. Code changes are reported, never auto-rewritten here; each
-realm has its own repair brain (Vulcan warden, Minerva, Venus heart).
+we own: runtime locks, tracked build junk, gitignore drift. Code
+changes are reported, never auto-rewritten here; each realm has its
+own repair brain (Vulcan warden, Venus heart).
 """
 import argparse
 import datetime
-import glob
 import json
 import os
 import shutil
@@ -30,12 +29,6 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
 LEDGER = os.path.join(HERE, "data", "sentinel", "incidents.jsonl")
-JDK17 = next((os.path.join(HERE, "tools", d)
-              for d in sorted(os.listdir(os.path.join(HERE, "tools")))
-              if d.startswith("jdk-17")), None) \
-    if os.path.isdir(os.path.join(HERE, "tools")) else None
-
-REQUIRED_IGNORES = ["tools/", "hyperion-181/.gradle/", "hyperion-181/build/"]
 
 
 def stamp():
@@ -66,20 +59,9 @@ def doctor():
 
     need("python >= 3.10", sys.version_info >= (3, 10),
          sys.version.split()[0])
-    for mod in ("pygame", "numpy"):
-        try:
-            __import__(mod)
-            need(f"module {mod}", True)
-        except ImportError:
-            need(f"module {mod}", False, "pip install -r requirements.txt",
-                 fix=f"{PY} -m pip install {mod}")
     node = shutil.which("node")
     need("node (venus/thoth)", node is not None, node or "not on PATH")
-    need("jdk-17 (hyperion)", JDK17 is not None,
-         JDK17 or "tools/jdk-17* missing - see IMPLEMENTATION.md M0")
-    gw = os.path.join(HERE, "hyperion-181", "gradlew.bat")
-    need("gradle wrapper", os.path.exists(gw))
-    for port in (43590, 43901):
+    for port in (43901,):
         s = socketQuiet()
         busy = s.connect_ex(("127.0.0.1", port)) == 0
         s.close()
@@ -104,10 +86,7 @@ def remediate_tracked_artifacts():
     """git rm --cached anything matching our artifact patterns."""
     out = subprocess.run(["git", "ls-files"], cwd=HERE,
                          capture_output=True, text=True).stdout
-    bad = [p for p in out.splitlines() if
-           p.startswith(("hyperion-181/.gradle/", "hyperion-181/build/",
-                         "tools/", "jdktmp/"))
-           or p.endswith((".pyc", ".class"))]
+    bad = [p for p in out.splitlines() if p.endswith(".pyc")]
     fixed = 0
     for p in bad:
         subprocess.run(["git", "rm", "-r", "--cached", "--quiet", p],
@@ -116,39 +95,8 @@ def remediate_tracked_artifacts():
     return fixed, f"untracked {fixed} artifact file(s)"
 
 
-def remediate_gitignore():
-    gi_path = os.path.join(HERE, ".gitignore")
-    gi = open(gi_path, encoding="utf-8").read() if os.path.exists(gi_path) \
-        else ""
-    missing = [r for r in REQUIRED_IGNORES if r not in gi]
-    if missing:
-        with open(gi_path, "a", encoding="utf-8") as fh:
-            fh.write("\n# sentinel: required ignores\n"
-                     + "\n".join(missing) + "\n")
-    return len(missing), f"restored {len(missing)} ignore pattern(s)" \
-        if missing else "gitignore complete"
-
-
-def remediate_corrupt_rsps_saves():
-    """Quarantine unparseable player snapshots so resume stays healthy."""
-    saves = os.path.join(HERE, "osrs-llm-agent", "server", "saves")
-    if not os.path.isdir(saves):
-        return 0, "no saves dir yet"
-    quarantined = 0
-    for p in glob.glob(os.path.join(saves, "*.json")):
-        try:
-            with open(p, encoding="utf-8") as fh:
-                json.load(fh)
-        except Exception:
-            os.replace(p, p + f".corrupt-{int(time.time())}")
-            quarantined += 1
-    return quarantined, f"quarantined {quarantined} corrupt snapshot(s)"
-
-
 REMEDIATORS = [
     ("tracked-artifacts", remediate_tracked_artifacts),
-    ("gitignore-drift", remediate_gitignore),
-    ("corrupt-rsps-saves", remediate_corrupt_rsps_saves),
 ]
 
 
@@ -178,21 +126,18 @@ def gate(name, cmd, cwd=None, env_extra=None):
 def gate_defs():
     """Every runnable gate with its exact command, cwd and env."""
     defs = [
-        ("yggdrasil verify_system", [PY, "-u", "verify_system.py"],
-         HERE, None),
+        ("zeus suite", [PY, "-u",
+                        os.path.join("zeus", "verify_zeus.py")], HERE, None),
         ("vulcan suite", [PY, "-u",
                           os.path.join("vulcan", "verify_vulcan.py")],
          HERE, None),
-        ("live functional probe", [PY, "-u", "probe_live.py"], HERE, None),
+        ("hades suite", [PY, "-u",
+                         os.path.join("hades", "verify_hades.py")],
+         HERE, None),
     ]
-    if JDK17:
-        # Batch files need cmd.exe on Windows - CreateProcess cannot
-        # spawn gradlew.bat directly.
-        defs.append(("muspelheim gradle build",
-                     ["cmd", "/c", "gradlew.bat", "build", "--no-daemon"],
-                     os.path.join(HERE, "hyperion-181"),
-                     {"JAVA_HOME": JDK17}))
-    if shutil.which("node"):
+    if shutil.which("node") and \
+            os.path.exists(os.path.join(HERE, "assistant",
+                                        "test-heart.js")):
         defs.append(("venus heart",
                      ["node", os.path.join("assistant", "test-heart.js")],
                      HERE, None))
@@ -236,7 +181,9 @@ def pass_gates():
         for name, fn in REMEDIATORS:
             fn()
         cmd, cwd, env_extra = defs.get(res["name"],
-                                       ([PY, "-u", "verify_system.py"],
+                                       ([PY, "-u",
+                                         os.path.join("zeus",
+                                                      "verify_zeus.py")],
                                         HERE, None))
         retried.append(gate(res["name"], cmd, cwd, env_extra))
     return [r for r in results if r["ok"]] + retried
@@ -250,10 +197,9 @@ def main():
     opts = ap.parse_args()
 
     if opts.list:
-        print("\n".join(["yggdrasil verify_system", "vulcan suite",
-                         "live functional probe",
-                         "muspelheim gradle build*", "venus heart*"]))
-        print("* runs when jdk-17 / node present")
+        print("\n".join(["zeus suite", "vulcan suite", "hades suite",
+                         "venus heart*"]))
+        print("* runs when node is present and assistant/ is checked out")
         return 0
     if opts.doctor:
         ok, _ = doctor()

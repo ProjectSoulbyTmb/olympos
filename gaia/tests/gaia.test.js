@@ -99,7 +99,7 @@ test('detectRegressions: no previous history means no regressions', () => {
 
 test('freshAlerts: suppresses identical alerts inside cooldown window', () => {
   const now = Date.now();
-  const alert = { severity: 'warning', system: 'osrs-unified', reasons: ['mind stale'] };
+  const alert = { severity: 'warning', system: 'thoth', reasons: ['mind stale'] };
   const recentLedger = `${JSON.stringify({ at: new Date(now - 5 * 60_000).toISOString(), ...alert })}\n`;
   assert.deepEqual(freshAlerts([alert], recentLedger, now), []);
 

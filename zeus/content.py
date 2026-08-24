@@ -38,17 +38,12 @@ INTEGRITY_EVERY_TICKS = 12
 # Integrity roots, relative to WORKSPACE. Files over MAX_BASELINE_BYTES
 # or under EXCLUDE_DIRS are never hashed.
 PROTECTED_ROOTS = [
-    "runner.py",
-    "dashboard.py",
-    "osrs_updater.py",
-    "play_rsps.py",
-    "verify_system.py",
-    "perf_bench.py",
+    "doctor.py",
+    "sentinel.py",
     "requirements.txt",
     "zeus",
     "vulcan",
-    os.path.join("osrs-llm-agent", "server"),
-    os.path.join("hyperion-181", "src"),
+    "hades",
 ]
 EXCLUDE_DIRS = {".git", "__pycache__", ".gradle", "build", "dist",
                 "release", "node_modules", "data"}
@@ -63,7 +58,7 @@ CHURN_DIRS = [
     ".",
     os.path.join("zeus", "data"),
     os.path.join("vulcan"),
-    os.path.join("tools"),
+    os.path.join("data"),
 ]
 CHURN_MAX_ENTRIES = 4000       # per hot dir per sample
 CHURN_WINDOW_TICKS = 3         # burst = changes summed over this window
@@ -76,7 +71,7 @@ CHURN_NEW_FILE_SHARE = 0.6     # ...and mostly-new files smells synthetic
 # kind="image": process executable name; kind="cmdline": any cmd line
 # substring match. on_death may be "alert" or "restart".
 WATCH_MANIFEST = [
-    {"name": "heimdall", "kind": "image", "match": "Heimdall.exe",
+    {"name": "sentinel", "kind": "contains", "match": "sentinel.py",
      "on_death": "alert"},
     {"name": "dashboard", "kind": "image", "match": "python",
      "on_death": "alert"},
@@ -94,7 +89,7 @@ ESCALATION_POLICY = {          # action once runaway confirmed
 
 # Ports that belong to the ecosystem; an unknown listener elsewhere is
 # only informational, but a stranger ON these ports is suspicious.
-OWNED_PORTS = [43591, 43594, 43901, SERVER_PORT]
+OWNED_PORTS = [43901, SERVER_PORT]
 PORT_SCAN_TOP_N = 200          # how many listening sockets to classify
 
 # ---------- self protection (kernel circuit breakers) ----------

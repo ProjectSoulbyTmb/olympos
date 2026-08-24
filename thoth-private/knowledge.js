@@ -102,11 +102,6 @@ export const knowledge = {
       reply:
         'The stabilizer is THOTH\'s automatic-fix foundation for continuous development. Every recurring repair is a declared foundational point with a scan-apply-verify contract and byte-exact rollback: doc-links (L1, relinks broken Markdown links when a unique target exists), digests (L1, regenerates Auto Scribe fleet facts), and code-hygiene (L2, Prettier + SPDX headers with per-file syntax verification). "thoth stabilize" shows which points are stable or drifting; "thoth stabilize-run" applies the grantable points - each one atomic and independently verified, rolled back on any failure; "stabilize-full" adds the elevated point from an administrator session. Sessions append to .operator/stabilize/history.jsonl and are idempotent over a stable tree. The autonomic loop hands idle ticks to stabilize-run while its grant is live, so drift self-heals without ever chaining unverified mutations.',
     },
-    thothEngineDoctrine: {
-      title: 'RSPS engine doctrine (RuneSource / Hyperion)',
-      reply:
-        'Our RSPS engine follows the distilled laws of RuneSource and Hyperion, recorded in osrs-llm-agent/knowledge/engine_principles.md with citations: single-writer mutable state serialized on the server lock, parallelism reserved for read-only work, cached per-tick state blocks, bounded queues everywhere, a slow-handler watchdog, atomic off-hot-path saves, and simplicity as the performance feature. Applied 2026-08: chat/presence/channel mutations hardened under the single-writer lock, chat feed bounded, watchdog added. Engine PRs that violate these rules are rejected citing that file.',
-    },
     thothCompanionDoctrine: {
       title: 'Companion doctrine (Mate-Engine)',
       reply:
@@ -196,10 +191,6 @@ export const knowledge = {
     {
       id: 'thothStabilize',
       re: /\b(stabiliz\w*|foundational?\s+(?:points?|rails?|fix(?:es)?)|auto[- ]fix\s+foundation|self[- ]heal\w*\s+(?:foundation|session))\b/i,
-    },
-    {
-      id: 'thothEngineDoctrine',
-      re: /\b(runesource|hyperion|317|engine\s+(?:doctrine|principles?|laws?)|tick\s+budget)\b/i,
     },
     {
       id: 'thothCompanionDoctrine',
