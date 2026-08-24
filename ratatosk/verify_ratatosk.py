@@ -712,6 +712,11 @@ def safe_commit_isolated_index():
         if r.returncode:                     # nested-repo quirk: skip
             print("[note] clone unavailable; skipping isolation drill")
             return
+        # CI runners carry no git identity; the drill only needs one
+        # scoped to the scratch clone, never the operator's global
+        for cfg in ("user.name", "user.email"):
+            sp.run(["git", "config", cfg, "safeguards-drill"],
+                   cwd=clone, capture_output=True)
         def w(rel, text):
             p = os.path.join(clone, rel)
             os.makedirs(os.path.dirname(p), exist_ok=True)
