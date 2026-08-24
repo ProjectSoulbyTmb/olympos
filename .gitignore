@@ -27,8 +27,7 @@ __pycache__/
 # --- generated / churny data ---
 train_console.txt
 ui-errors.log
-data/sentinel/
-data/post/
+data/
 zeus/data/
 ptah/data/
 
@@ -42,4 +41,6 @@ jdktmp/
 # --- hades local seal state ---
 hades/state/
 hypnos/data/
-ptah/data/
+
+# --- runtime state & generated site ---
+site/

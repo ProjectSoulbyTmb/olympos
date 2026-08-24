@@ -38,11 +38,15 @@ INTEGRITY_EVERY_TICKS = 12
 # Integrity roots, relative to WORKSPACE. Files over MAX_BASELINE_BYTES
 # or under EXCLUDE_DIRS are never hashed.
 PROTECTED_ROOTS = [
+    "doctor.py",
+    "sentinel.py",
+    "requirements.txt",
     "zeus",
     "vulcan",
     "ratatosk",
     "norn",
     "hades",
+    "ptah",
 ]
 EXCLUDE_DIRS = {".git", "__pycache__", ".gradle", "build", "dist",
                 "release", "node_modules", "data"}
@@ -86,7 +90,7 @@ ESCALATION_POLICY = {          # action once runaway confirmed
 
 # Ports that belong to the ecosystem; an unknown listener elsewhere is
 # only informational, but a stranger ON these ports is suspicious.
-OWNED_PORTS = [43591, 43594, 43901, SERVER_PORT]
+OWNED_PORTS = [43901, SERVER_PORT, 43903]   # vulcan, zeus, ptah
 PORT_SCAN_TOP_N = 200          # how many listening sockets to classify
 
 # ---------- self protection (kernel circuit breakers) ----------

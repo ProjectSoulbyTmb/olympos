@@ -61,3 +61,9 @@ jobs:
         run: python hypnos/verify_hypnos.py
       - name: PTAH builder gate
         run: python ptah/verify_ptah.py
+      - name: Buskit contract gate
+        run: python verify_buskit.py
+      - name: Scope guard gate
+        run: python verify_scope.py
+      - name: Doctor stabilization gate
+        run: python doctor.py --ci
