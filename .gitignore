@@ -13,6 +13,8 @@ release/
 dist/
 build/
 backups/
+kinema/bin/
+ai-stack/
 *.exe
 *.pt
 *.bin
