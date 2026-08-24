@@ -390,6 +390,40 @@ class MemoryTool(Tool):
         return Observation(error=f"unknown op: {op!r}", exit_code=2)
 
 
+# ----------------------------------------------------------------- knowledge
+class KnowledgeTool(Tool):
+    """Search the fleet's curated knowledge library (read-only, SAFE)."""
+
+    name = "knowledge"
+    description = ("Search the distilled fleet library: architecture "
+                   "patterns, protocols, incident playbooks, lessons.")
+    schema_text = '{"query": "<search terms>", "top": <int?, default 3>}'
+
+    def run(self, args, ctx):
+        (query,) = _require(args, "query")
+        root = ctx.repo_root or ""
+        engine_path = os.path.join(root, "knowledge", "engine.py")
+        if not os.path.isfile(engine_path):
+            return Observation(error="knowledge organ not available",
+                               exit_code=2)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "knowledge_engine", engine_path)
+        module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(module)
+        except Exception as exc:              # noqa: BLE001
+            return Observation(error=f"engine load failed: {exc}",
+                               exit_code=2)
+        top = min(int(args.get("top", 3)), 10)
+        hits = module.search(str(query), top=top)
+        if not hits:
+            return Observation(output="(no matches)")
+        lines = [f"{h['title']}  [{h['doc']}]\n    {h['snippet']}"
+                 for h in hits]
+        return Observation(output="\n".join(lines))
+
+
 # ------------------------------------------------------------------- registry
 class ToolRegistry:
     """Ordered tool collection; order defines prompt presentation."""
@@ -416,7 +450,7 @@ class ToolRegistry:
 
 def default_registry():
     """The standard PTAH toolkit."""
-    return ToolRegistry([
+    registry = ToolRegistry([
         TerminalTool(),
         FileEditorTool(),
         GrepTool(),
@@ -424,3 +458,9 @@ def default_registry():
         VerifyGateTool(),
         MemoryTool(),
     ])
+    # knowledge tool joins when the fleet library is present
+    fleet_root = os.path.dirname(os.path.dirname(content.data_dir()))
+    lib_dir = os.path.join(fleet_root, "knowledge", "library")
+    if os.path.isdir(lib_dir) and os.listdir(lib_dir):
+        registry.register(KnowledgeTool())
+    return registry
