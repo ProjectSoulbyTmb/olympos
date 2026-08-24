@@ -153,9 +153,12 @@ sentinel/doctor gating. Ready-to-apply row when desired:
   ~900 px band around the viewport (IntersectionObserver on the scrollport)
   and recycle through a 256-entry LRU (evicted videos are fully unloaded).
   Live DOM stays near-constant while scrolling All-media at library scale.
-- **P3 (partial, v0.4.0)** — ratings, tags, watch positions, bulk ops,
+- **P3 (complete, v0.4.0)** — ratings, tags, watch positions, bulk ops,
   duplicate finder, command palette, hover previews, shuffle, tile sizes.
-  Still open in P3: packaging polish (spec present, rebuild pending).
+- **Packaging (v0.4.1)** — PyInstaller onefile `Aphrodite.exe` (~80 MB,
+  bundles `index.html` + GDI+ helper binaries); rebuild with
+  `python -m PyInstaller Aphrodite.spec --noconfirm` from `aphrodite/`.
+  Smoke-tested: boots, serves `/api/info` contract and full index.
 
 ## Known limits
 
