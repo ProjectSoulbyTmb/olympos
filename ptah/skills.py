@@ -3,8 +3,8 @@
 A skill is a markdown file with a tiny frontmatter header:
 
     ---
-    name: yggdrasil-conventions
-    triggers: yggdrasil, realm, gate, verify
+    name: Olympos-conventions
+    triggers: Olympos, realm, gate, verify
     ---
 
     Body text injected into the system prompt when any trigger appears.

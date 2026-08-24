@@ -2,7 +2,7 @@
 
 Run: python ptah/verify_ptah.py   (exit 0 = all checks pass)
 
-Scenario-driven like every Yggdrasil gate: builds throwaway workspaces,
+Scenario-driven like every Olympos gate: builds throwaway workspaces,
 drives the real agent loop with scripted brains, attacks security from
 every angle (denials, confirmations, escapes), replays conversations,
 boots the REST server on an ephemeral port and even exercises the CLI.
@@ -156,10 +156,10 @@ def check_terminal_scoped_and_timed():
 def check_skills_builtin():
     skills = load_skills(content.BUILTIN_SKILLS_DIR)
     names = {s.name for s in skills}
-    if "yggdrasil-conventions" not in names or "ptah-workflow" not in names:
+    if "Olympos-conventions" not in names or "ptah-workflow" not in names:
         return f"builtin cards missing: {sorted(names)}"
     hit = select_skills(skills, "please verify the gate")[0]
-    if hit.name != "yggdrasil-conventions":
+    if hit.name != "Olympos-conventions":
         return "trigger mismatch"
     return True
 

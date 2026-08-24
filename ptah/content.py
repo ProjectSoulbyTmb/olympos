@@ -1,6 +1,6 @@
 """PTAH content - shared constants, limits and prompt text.
 
-Ptah is the Yggdrasil software-engineering agent kernel: an event-sourced
+Ptah is the Olympos software-engineering agent kernel: an event-sourced
 reasoning-action loop that plans with an LLM and acts through audited,
 security-classified tools inside a scoped workspace.
 
@@ -16,7 +16,7 @@ import os
 # ---------------------------------------------------------------- identity
 REALM = "ptah"
 VERSION = "1.1.0"
-USER_AGENT = f"ptah/{VERSION} (Yggdrasil)"
+USER_AGENT = f"ptah/{VERSION} (Olympos)"
 
 # -------------------------------------------------------------- networking
 SERVER_PORT = 43903            # vulcan hosts 43901; zeus takes 43902

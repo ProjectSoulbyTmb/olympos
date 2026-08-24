@@ -1,7 +1,7 @@
 # One-time elevation bootstrap - the LAST UAC prompt you will ever
 # answer on this machine. Run me once, click Accept, and from then on:
 #
-#   - every Yggdrasil guardian runs ELEVATED via Task Scheduler with
+#   - every Olympos guardian runs ELEVATED via Task Scheduler with
 #     no prompt (scheduled tasks with RunLevel Highest never trigger
 #     UAC at start time), and
 #   - Windows admin-consent policy is switched to silent, so any other
@@ -23,11 +23,11 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
     -ExecutionTimeLimit ([TimeSpan]::Zero)
 
 $pairs = @(
-    @{ Name = "Yggdrasil ZEUS Guardian";
+    @{ Name = "Olympos ZEUS Guardian";
        Exe = $python; Args = "-m zeus.server"; Work = $here },
-    @{ Name = "Yggdrasil HYPNOS Dreamworker";
+    @{ Name = "Olympos HYPNOS Dreamworker";
        Exe = $python; Args = "-m hypnos.daemon"; Work = $here },
-    @{ Name = "Yggdrasil GAIA Pulse";
+    @{ Name = "Olympos GAIA Pulse";
        Exe = $node; Args = "gaia.mjs pulse --watch --every 15m";
        Work = (Join-Path $here "gaia") }
 )

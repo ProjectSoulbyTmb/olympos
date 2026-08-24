@@ -21,7 +21,7 @@ PATROL_SECONDS_REAL = 5.0      # auto-patrol cadence for the hosted server
 # ---------- paths ----------
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WORKSPACE = os.path.dirname(HERE)          # Yggdrasil root
+WORKSPACE = os.path.dirname(HERE)          # Olympos root
 DATA_DIR = os.path.join(HERE, "data")
 QUARANTINE_DIR = os.path.join(DATA_DIR, "quarantine")
 AUDIT_PATH = os.path.join(DATA_DIR, "audit.jsonl")

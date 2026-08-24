@@ -161,7 +161,7 @@ def cmd_demo(_args):
         post.send("ratatoskr", "orders", {"route": "trunk"},
                   frm="odin")
         post.broadcast("nine-realms", "weather",
-                       {"forecast": "fimbulwinter likely"}, frm="yggdrasil")
+                       {"forecast": "fimbulwinter likely"}, frm="Olympos")
         post.beat("ratatoskr", note="laps completed: many")
 
         print("== odin reads his inbox ==")
@@ -184,7 +184,7 @@ def cmd_demo(_args):
 
 def build_parser():
     p = argparse.ArgumentParser(
-        prog="ratatosk", description="Yggdrasil filesystem post office")
+        prog="ratatosk", description="Olympos filesystem post office")
     p.add_argument("--root", default=None,
                    help="override post root (default: data/post)")
     sub = p.add_subparsers(dest="cmd")

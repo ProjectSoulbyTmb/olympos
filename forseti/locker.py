@@ -1,4 +1,4 @@
-"""FORSETI - push-lane arbitration for Yggdrasil.
+"""FORSETI - push-lane arbitration for Olympos.
 
 Named for the judge of the gods: exactly one writer may hold the lane.
 

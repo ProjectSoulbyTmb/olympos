@@ -40,9 +40,9 @@ class TestSkillsParsing(unittest.TestCase):
         from ptah.skills import load_skills
         skills = load_skills(content.BUILTIN_SKILLS_DIR)
         names = {s.name for s in skills}
-        self.assertIn("yggdrasil-conventions", names)
+        self.assertIn("Olympos-conventions", names)
         self.assertIn("ptah-workflow", names)
-        y = next(s for s in skills if s.name == "yggdrasil-conventions")
+        y = next(s for s in skills if s.name == "Olympos-conventions")
         self.assertTrue(y.matches("check the gate before you verify"))
 
 

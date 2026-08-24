@@ -186,13 +186,13 @@ def broadcast_tail_order():
 def cursor_consume_only_new():
     post, tmp = sandbox()
     try:
-        post.broadcast("nine-realms", "a", {"n": 1}, frm="yggdrasil")
-        post.broadcast("nine-realms", "b", {"n": 2}, frm="yggdrasil")
+        post.broadcast("nine-realms", "a", {"n": 1}, frm="Olympos")
+        post.broadcast("nine-realms", "b", {"n": 2}, frm="Olympos")
         first = post.since("nine-realms", "heimdall")
         assert [r["seq"] for r in first] == [1, 2], first
         again = post.since("nine-realms", "heimdall")
         assert again == [], f"cursor should suppress replays: {again}"
-        post.broadcast("nine-realms", "c", {"n": 3}, frm="yggdrasil")
+        post.broadcast("nine-realms", "c", {"n": 3}, frm="Olympos")
         new = post.since("nine-realms", "heimdall")
         assert [r["seq"] for r in new] == [3], new
         other = post.since("nine-realms", "jormungandr")

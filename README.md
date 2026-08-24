@@ -1,4 +1,4 @@
-# Soul Platform
+# Project Olympos
 
 A local-first workspace for building autonomous software systems:
 protection kernels, provenance sealing, a filesystem message bus,
@@ -30,7 +30,7 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 ```powershell
 # arm the full autopilot: ZEUS guardian + HYPNOS dreamworker + GAIA pulse
 # (idempotent; ZEUS asks for one elevated run so it may bolt processes)
-powershell -ExecutionPolicy Bypass -File register-soul-tasks.ps1
+powershell -ExecutionPolicy Bypass -File register-olympos-tasks.ps1
 
 # automation contract: is everything still wired to run itself?
 python verify_autopilot.py

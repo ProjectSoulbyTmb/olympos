@@ -1,6 +1,6 @@
-# Yggdrasil - Architecture
+# Olympos - Architecture
 
-Protective and operational ecosystem for the Soul fleet, converging on
+Protective and operational ecosystem for the Project Olympos fleet, converging on
 one goal: a fully autonomous, open-source game and app development
 platform (see `INTEGRATION.md`).
 
@@ -53,7 +53,7 @@ tag-driven releases).
 ## Decision log
 
 - 2026-08-23: Trademark-hygiene rebrand: public product names moved to
-  the public domain and the ecosystem took the name Yggdrasil. Public
+  the public domain and the ecosystem took the name Olympos. Public
   marks stay retired; internal naming follows the current scope policy
   below.
 - 2026-08-23: Vulcan added with the house contract - all numbers in

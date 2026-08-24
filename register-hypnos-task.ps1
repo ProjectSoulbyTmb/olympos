@@ -13,7 +13,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$taskName = "Yggdrasil HYPNOS Dreamworker"
+$taskName = "Olympos HYPNOS Dreamworker"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
 if (-not (Test-Path $python)) { $python = "python" }

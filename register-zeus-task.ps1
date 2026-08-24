@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$taskName = "Yggdrasil ZEUS Guardian"
+$taskName = "Olympos ZEUS Guardian"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
 if (-not (Test-Path $python)) { $python = "python" }

@@ -1,4 +1,4 @@
-# Registers (or removes) the Yggdrasil Sentinel as a Windows Scheduled
+# Registers (or removes) the Olympos Sentinel as a Windows Scheduled
 # Task: remediation + full gate sweep every 30 minutes, whether you are
 # logged in or not.
 #
@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$taskName = "Yggdrasil Sentinel"
+$taskName = "Olympos Sentinel"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
 if (-not (Test-Path $python)) { $python = "python.exe" }

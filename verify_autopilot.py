@@ -1,9 +1,9 @@
-"""SOUL autopilot gate - proves the organism runs itself.
+"""OLYMPOS autopilot gate - proves the organism runs itself.
 
 Hard contracts (fail the gate):
   1. every organ verify suite is a CI step in .github/workflows/ci.yml
   2. every organ verify suite is a HYPNOS build gate (content.BUILD_GATES)
-  3. every hosted daemon has an installer: register-soul-tasks.ps1
+  3. every hosted daemon has an installer: register-olympos-tasks.ps1
      wires it, and per-organ register scripts stay in sync by name
 Soft report (never fails): which scheduled tasks are live right now.
 
@@ -75,7 +75,7 @@ def build_gates_carry_timeouts():
 
 @check
 def bootstrap_installs_every_hosted_daemon():
-    with open(os.path.join(HERE, "register-soul-tasks.ps1"),
+    with open(os.path.join(HERE, "register-olympos-tasks.ps1"),
               encoding="utf-8-sig") as fh:
         ps = fh.read()
     for daemon, marker in (("zeus", "-m zeus.server"),
@@ -99,7 +99,7 @@ def task_names_match_per_organ_installers():
             m = re.search(r'\$taskName\s*=\s*"([^"]+)"', fh.read())
         assert m, f"no taskName in {script}"
         names[script] = m.group(1)
-    with open(os.path.join(HERE, "register-soul-tasks.ps1"),
+    with open(os.path.join(HERE, "register-olympos-tasks.ps1"),
               encoding="utf-8-sig") as fh:
         ps = fh.read()
     for script, name in names.items():
@@ -125,7 +125,7 @@ def _live_tasks_report():
             ["schtasks", "/query", "/fo", "csv"],
             capture_output=True, text=True, timeout=30)
         rows = [ln for ln in r.stdout.splitlines()
-                if "Yggdrasil" in ln]
+                if "Olympos" in ln]
         return [row.split(",")[0].strip('"') for row in rows]
     except Exception as exc:                  # noqa: BLE001 - soft section
         return [f"<query failed: {exc}>"]
@@ -133,7 +133,7 @@ def _live_tasks_report():
 
 def main():
     print("=" * 64)
-    print("SOUL AUTOPILOT GATE - everything-runs-itself contract")
+    print("OLYMPOS autopilot gate - everything-runs-itself contract")
     print("=" * 64)
     for fn in CHECKS:
         try:
@@ -149,12 +149,12 @@ def main():
     print("-" * 64)
     live = _live_tasks_report()
     if not live:
-        print("scheduled-task probe: no live Yggdrasil tasks here "
+        print("scheduled-task probe: no live Olympos tasks here "
               "(fresh machine/CI - soft section, never fails the gate)")
     elif live[0].startswith("<"):
         print(f"scheduled-task probe: {live[0]}")
     else:
-        print(f"live Yggdrasil tasks: {', '.join(live)}")
+        print(f"live Olympos tasks: {', '.join(live)}")
     total = len(CHECKS)
     print("-" * 64)
     print(f"{total - len(FAILS)}/{total} checks green"
