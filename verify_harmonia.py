@@ -27,7 +27,21 @@ from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SERVER = os.path.join(HERE, "harmonia", "server.py")
-FFMPEG = os.path.join(HERE, "aphrodite", "bin", "ffmpeg.exe")
+
+
+def locate_ffmpeg():
+    """Mirror harmonia's tool discovery so e2e proofs actually run:
+    colocated aphrodite vendor drop -> standalone repo -> PATH."""
+    cand = [os.path.join(HERE, "aphrodite", "bin", "ffmpeg.exe"),
+            r"D:\aphrodite\bin\ffmpeg.exe"]
+    import shutil
+    which = shutil.which("ffmpeg")
+    if which:
+        cand.append(which)
+    return next((c for c in cand if os.path.isfile(c)), None)
+
+
+FFMPEG = locate_ffmpeg()
 
 RESULTS = []
 
