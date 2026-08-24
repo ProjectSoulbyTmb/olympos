@@ -11,6 +11,7 @@ OPTIONAL_SPEC_KEYS = {
     "faults": list,
     "attempts": int,
     "labels": list,
+    "params": dict,
 }
 KNOWN_FAULTS = frozenset()
 
@@ -45,6 +46,15 @@ def validate_spec(spec, blueprint_names=()):
     attempts = spec.get("attempts")
     if isinstance(attempts, int) and not 1 <= attempts <= 10:
         issues.append("error: 'attempts' must be within [1, 10]")
+    params = spec.get("params")
+    if isinstance(params, dict):
+        for k, v in params.items():
+            if not isinstance(k, str) or not k.replace("_", "").isalnum():
+                issues.append(f"error: param name {k!r} must be a "
+                              "simple identifier")
+            if not isinstance(v, (str, int, float, bool)):
+                issues.append(f"error: param {k!r} value must be a "
+                              "scalar (str/int/float/bool)")
     return issues
 
 

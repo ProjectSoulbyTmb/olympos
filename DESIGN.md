@@ -120,6 +120,28 @@ tag-driven releases).
   full sweep via `learning-cycle.ps1`.
 
 
+- 2026-08-24: POSEIDON tide kernel landed (`poseidon/`): fully
+  autonomous commit-and-push - throwaway-index snapshots of root
+  drift carried through `auto/poseidon` (push -> PR -> squash
+  merge) under FORSETI's lock, mirror settled only after origin
+  holds the content; quarantine breaker after three consecutive
+  failures, JSONL tide ledger, Ratatosk announcements. Also repairs
+  the dangling Hypnos build gate that referenced this suite before
+  the realm existed. Gate: `python poseidon/verify_poseidon.py`.
+
+- 2026-08-24: HEBE completed as the Legal & Document Scribe
+  (`hebe/`): full dictation privileges over the workspace (refusing
+  only `.git`/`.worktrees` and credential carriers via filename +
+  content secret scanners), a codified legal corpus (license catalog
+  with canonical MIT/BSD/ISC/Apache/proprietary texts,
+  copyright/trade-secret/NDA/trademark/DMCA playbooks), append-only
+  oath and IP-register ledgers tracked in `hebe/records/`, LICENSE
+  seeding on first boot, inbox drop-in dictation, and her own scoped
+  auto-commit/push lane under FORSETI's lock. Standing L2 grant, no
+  confirmation gate; quarantine breaker after three failures. Gate:
+  `python hebe/verify_hebe.py`; wired into Hypnos build gates, the
+  Olympos task bootstrap, and the realms registry.
+
 - 2026-08-24: **Relay** (`relay/`) online: stable DAEDELUS<->VENUS bridges over the ratatosk bus - workshop build outcomes forwarded exactly-once to the venus mailbox + new `updates` topic (fleet.tick/fleet.build/fleet.repair in the buskit catalogue; persistent seq cursors survive restarts and rotation), Venus intents claimed from `assistant/data/relay/to-fleet/` (build -> daedalus CLI commission, repair -> doctor check+fix sweep with published proof, status -> immediate tick), and the constant fleet update stream with per-cycle heartbeat. Deployed as scheduled task 'Olympos RELAY Bridge' via register-relay-task.ps1 + bootstrap wiring; autopilot contract now enforces the daemon, its installer and the task-name sync. Gate: `python relay/verify_relay.py`.
 
 
@@ -139,4 +161,5 @@ tag-driven releases).
   fixed via pre-boot removal in the woven gate. Root gate
   `verify_deskmate.py` wired into doctor; auto-discovered by CI.
   1964f36 (daedalus: deskmate blueprint - local design-desk service for VENUS (card template/validate/scaffold) + stale-port gate fix)
+
 
