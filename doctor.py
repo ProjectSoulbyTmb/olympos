@@ -34,6 +34,8 @@ SUITES = [
     ("hades", os.path.join("hades", "verify_hades.py")),
     ("ptah", os.path.join("ptah", "verify_ptah.py")),
     ("ratatosk", os.path.join("ratatosk", "verify_ratatosk.py")),
+    ("norn", os.path.join("norn", "verify_norn.py")),
+    ("hypnos", os.path.join("hypnos", "verify_hypnos.py")),
 ]
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [

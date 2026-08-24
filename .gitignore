@@ -45,4 +45,5 @@ hypnos/data/
 # --- runtime state & generated site ---
 data/
 ptah/data/
+data/witness/
 site/

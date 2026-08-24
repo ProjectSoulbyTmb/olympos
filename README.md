@@ -26,6 +26,13 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 ## Quick start
 
 ```powershell
+# arm the full autopilot: ZEUS guardian + HYPNOS dreamworker + GAIA pulse
+# (idempotent; ZEUS asks for one elevated run so it may bolt processes)
+powershell -ExecutionPolicy Bypass -File register-soul-tasks.ps1
+
+# automation contract: is everything still wired to run itself?
+python verify_autopilot.py
+
 # protection kernel status
 python zeus/cli.py
 

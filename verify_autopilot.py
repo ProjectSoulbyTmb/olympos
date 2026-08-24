@@ -143,10 +143,13 @@ def main():
                   f"{type(exc).__name__}: {exc}")
     print("-" * 64)
     live = _live_tasks_report()
-    if live and not live[0].startswith("<"):
-        print(f"live Yggdrasil tasks: {', '.join(live)}")
-    else:
+    if not live:
+        print("scheduled-task probe: no live Yggdrasil tasks here "
+              "(fresh machine/CI - soft section, never fails the gate)")
+    elif live[0].startswith("<"):
         print(f"scheduled-task probe: {live[0]}")
+    else:
+        print(f"live Yggdrasil tasks: {', '.join(live)}")
     total = len(CHECKS)
     print("-" * 64)
     print(f"{total - len(FAILS)}/{total} checks green"
