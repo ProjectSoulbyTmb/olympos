@@ -61,3 +61,5 @@ jobs:
         run: python hypnos/verify_hypnos.py
       - name: PTAH builder gate
         run: python ptah/verify_ptah.py
+      - name: Autopilot contract gate
+        run: python verify_autopilot.py
