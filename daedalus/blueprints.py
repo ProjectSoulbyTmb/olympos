@@ -133,6 +133,157 @@ finally:
     proc.terminate()
 '''
 
+KV_SERVER = '''"""Persistent JSON-lines KV store (DAEDALUS-woven).
+
+Protocol: {"cmd": "set", "k": ..., "v": ...} | {"cmd": "get", "k": ...}
+         | {"cmd": "del", "k": ...} - one JSON response per line.
+State persists to kv.json on every mutation. Run: python kv_server.py
+"""
+
+import json
+import os
+import socket
+import sys
+
+MODE = "{{MODE}}"
+
+
+def _load():
+    if os.path.exists("kv.json"):
+        with open("kv.json", encoding="utf-8") as fh:
+            return json.load(fh)
+    return {}
+
+
+def serve(host="127.0.0.1", port=0):
+    store = _load()
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind((host, port))
+    srv.listen(8)
+    srv.settimeout(0.5)
+    print(f"kv up on {srv.getsockname()[1]} mode={MODE}", flush=True)
+    try:
+        while True:
+            try:
+                conn, _addr = srv.accept()
+            except socket.timeout:
+                continue
+            with conn:
+                buf = conn.makefile("rwb")
+                for raw in buf:
+                    if not raw.strip():
+                        continue
+                    req = json.loads(raw.decode("utf-8"))
+                    cmd = req.get("cmd")
+                    if cmd == "set":
+                        store[req["k"]] = req["v"]
+                        resp = {"ok": True}
+                    elif cmd == "get":
+                        resp = {"ok": True,
+                                "v": store.get(req["k"])}
+                    elif cmd == "del":
+                        store.pop(req["k"], None)
+                        resp = {"ok": True}
+                    else:
+                        resp = {"ok": False,
+                                "error": f"unknown cmd {cmd!r}"}
+                    if cmd == "set" or cmd == "del":
+                        with open("kv.json", "w",
+                                  encoding="utf-8") as fh:
+                            json.dump(store, fh)
+                    buf.write((json.dumps(resp) + "\\n")
+                              .encode("utf-8"))
+                    buf.flush()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    serve(port=int(sys.argv[1]) if len(sys.argv) > 1 else 0)
+'''
+
+KV_VERIFY = '''"""Self-test gate for the woven KV store (exit 0 = pass)."""
+
+import json
+import socket
+import subprocess
+import sys
+
+src = open("kv_server.py", encoding="utf-8").read()
+assert "{{" not in src, "unresolved template placeholder"
+
+proc = subprocess.Popen([sys.executable, "kv_server.py", "0"],
+                        stdout=subprocess.PIPE, text=True)
+try:
+    line = proc.stdout.readline()
+    port = int(line.split("on ")[1])
+    s = socket.create_connection(("127.0.0.1", port), timeout=5)
+    f = s.makefile("rwb")
+
+    def ask(obj):
+        f.write((json.dumps(obj) + "\\n").encode("utf-8"))
+        f.flush()
+        return json.loads(f.readline().decode("utf-8"))
+
+    assert ask({"cmd": "set", "k": "a", "v": 7})["ok"] is True
+    got = ask({"cmd": "get", "k": "a"})
+    assert got["v"] == 7, got
+    ask({"cmd": "del", "k": "a"})
+    assert ask({"cmd": "get", "k": "a"})["v"] is None
+    persisted = json.load(open("kv.json", encoding="utf-8"))
+    assert "a" not in persisted, "del did not persist"
+    s.close()
+    print("kv gate green")
+    sys.exit(0)
+finally:
+    proc.terminate()
+'''
+
+BEAT_WORKER = '''"""Beat worker (DAEDALUS-woven): bounded heartbeat loop.
+
+Writes beats.jsonl, one line per beat, then exits cleanly -
+the house liveness doctrine in miniature.
+"""
+
+import json
+import time
+
+BEATS = {{BEATS}}
+INTERVAL_S = {{INTERVAL_S}}
+
+with open("beats.jsonl", "w", encoding="utf-8") as fh:
+    for i in range(BEATS):
+        fh.write(json.dumps({"beat": i + 1,
+                             "t": round(time.time(), 3)}) + "\\n")
+        fh.flush()
+        time.sleep(INTERVAL_S)
+print(f"{BEATS} beats done", flush=True)
+'''
+
+BEAT_VERIFY = '''"""Self-test gate for the woven beat worker."""
+
+import json
+import subprocess
+import sys
+
+proc = subprocess.Popen([sys.executable, "beat_worker.py"],
+                        stdout=subprocess.PIPE, text=True)
+try:
+    out = proc.communicate(timeout=30)[0]
+    assert proc.returncode == 0, f"worker exited {proc.returncode}"
+    lines = [ln for ln in open("beats.jsonl", encoding="utf-8")
+             if ln.strip()]
+    assert lines, "no beats written"
+    first = json.loads(lines[0])
+    assert first["beat"] == 1 and "t" in first, first
+    print("beat gate green")
+    sys.exit(0)
+finally:
+    proc.terminate()
+'''
+
+
 BLUEPRINTS = {
     "jsonl-echo": {
         "description": "authoritative JSON-lines echo server",
@@ -140,10 +291,16 @@ BLUEPRINTS = {
                   "verify_echo.py": ECHO_VERIFY},
         "gate": [sys.executable, "verify_echo.py"],
         # faults: name -> (file, find, replace). Injected on weave when
-        # the spec asks for them; the fix pass restores canonical text.
+        # the spec asks for them; the repair pass restores canonical
+        # text. "cosmetic_doc" is deliberately innocent - it exercises
+        # culprit isolation (an injected change that cannot fail).
         "faults": {
             "drop_echo": ("echo_server.py",
                           'obj["echo"] = True', "pass"),
+            "bad_bind": ("echo_server.py",
+                         "srv.listen(8)", "srv.listen(-1)"),
+            "cosmetic_doc": ("echo_server.py",
+                             "(DAEDALUS-woven)", "(rewoven)"),
         },
     },
     "http-health": {
@@ -152,6 +309,29 @@ BLUEPRINTS = {
                   "verify_health.py": HTTP_HEALTH_VERIFY},
         "gate": [sys.executable, "verify_health.py"],
         "faults": {},
+    },
+    "kv-store": {
+        "description": "persistent JSON-lines key/value store",
+        "files": {"kv_server.py": KV_SERVER,
+                  "verify_kv.py": KV_VERIFY},
+        "gate": [sys.executable, "verify_kv.py"],
+        "params": {"MODE": "lean"},
+        "faults": {
+            # one unambiguous line - skipping the dump skips persistence
+            "skip_persist": ("kv_server.py",
+                             "json.dump(store, fh)", "pass"),
+        },
+    },
+    "beat-worker": {
+        "description": "bounded heartbeat loop writing beats.jsonl",
+        "files": {"beat_worker.py": BEAT_WORKER,
+                  "verify_beat.py": BEAT_VERIFY},
+        "gate": [sys.executable, "verify_beat.py"],
+        "params": {"BEATS": "3", "INTERVAL_S": "0.05"},
+        "faults": {
+            "zero_beats": ("beat_worker.py",
+                           "range(BEATS)", "range(0)"),
+        },
     },
 }
 

@@ -6,6 +6,7 @@
 #   ZEUS    - 5s protection patrols (processes/integrity/churn)
 #   HYPNOS  - silent task worker + continuous verify-gate builds
 #   GAIA    - fleet-health pulse scoring every organ, history kept
+#   POSEIDON - tide kernel: autonomous commit -> push workflow
 #
 #   powershell -ExecutionPolicy Bypass -File register-soul-tasks.ps1
 #   powershell -ExecutionPolicy Bypass -File register-soul-tasks.ps1 -Unregister
@@ -62,6 +63,8 @@ Install-OrganTask "Yggdrasil HYPNOS Dreamworker" $python `
     "-m hypnos.daemon" $here $false
 Install-OrganTask "Yggdrasil GAIA Pulse" $node `
     "gaia.mjs pulse --watch --every 15m" (Join-Path $here "gaia") $false
+Install-OrganTask "Yggdrasil POSEIDON Tide" $python `
+    "-m poseidon watch --interval 300" $here $false
 
 if ($Unregister) { exit 0 }
 
@@ -69,7 +72,8 @@ Write-Output ""
 Write-Output "autopilot armed. starting what is registered..."
 foreach ($t in ("Yggdrasil ZEUS Guardian",
                 "Yggdrasil HYPNOS Dreamworker",
-                "Yggdrasil GAIA Pulse")) {
+                "Yggdrasil GAIA Pulse",
+                "Yggdrasil POSEIDON Tide")) {
     $st = (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue)
     if ($st) { Start-ScheduledTask -TaskName $t }
 }

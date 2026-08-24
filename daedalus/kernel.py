@@ -85,6 +85,7 @@ class Workshop:
             content.BUILD_ATTEMPTS)
         job = {"id": jid, "blueprint": bp,
                "faults": list(spec.get("faults", [])),
+               "params": dict(spec.get("params", {})),
                "attempts": 0,
                "max_attempts": max(1, attempts_cap),
                "_ceiling_s": content.EXEC_TIMEOUT_S,
@@ -103,17 +104,23 @@ class Workshop:
     # ------------------------------------------------------------ weaving --
 
     @staticmethod
-    def weave(bp_name, dest_dir, faults=()):
-        """Materialize blueprint files; inject named faults. Returns
-        file list. Faults make the gate fail ON PURPOSE until the fix
-        pass restores canonical text."""
+    def weave(bp_name, dest_dir, faults=(), params=None):
+        """Materialize blueprint files; inject named faults; substitute
+        {{PARAM}} placeholders (blueprint defaults first, spec params
+        override). Returns the file list. Faults make the gate fail ON
+        PURPOSE until the repair pass restores canonical text."""
         bp = blueprints.BLUEPRINTS[bp_name]
+        merged = dict(bp.get("params", {}))
+        for k, v in (params or {}).items():
+            merged[str(k)] = v
         woven = []
         for fname, text in bp["files"].items():
             for fault_name in faults:
                 fault = bp["faults"].get(fault_name)
                 if fault and fault[0] == fname:
                     text = text.replace(fault[1], fault[2])
+            for key, val in merged.items():
+                text = text.replace("{{" + key + "}}", str(val))
             path = os.path.join(dest_dir, fname)
             with open(path, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(text)
