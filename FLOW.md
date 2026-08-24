@@ -34,6 +34,12 @@ HEAD - resets or sweeps in one cannot touch another.
 5. **Sync often:** rebase/merge `main` into your branch at least once
    per session. Small frequent PRs lose races; big rare ones start wars.
 6. **Releases:** tag `v*` off `main` only after a green doctor sweep.
+7. **Guardrails:** a shared `pre-push` hook blocks direct `main` pushes
+   at the client for every worktree of this clone. Server-side branch
+   protection/rulesets need GitHub Pro while the repo is private; if the
+   repo goes public or the plan upgrades, add a `main-pr-only` ruleset
+   (require pull request, block force-pushes and deletions) so the rule
+   holds server-side too.
 
 ## Quick reference
 
