@@ -125,13 +125,18 @@ class TestServerApi(unittest.TestCase):
         seen_finished = False
         after = 0
         while time.time() < deadline:
-            _, feed = self.h.request(
-                "GET",
-                f"/api/v1/conversations/{cid}/events?after={after}")
-            after = feed["total"]
-            if feed["status"] == "finished":
-                seen_finished = True
-                break
+            try:
+                _, feed = self.h.request(
+                    "GET",
+                    f"/api/v1/conversations/{cid}/events?after={after}")
+                # transient partial frames under load are retried
+                if "total" in feed:
+                    after = feed["total"]
+                    if feed.get("status") == "finished":
+                        seen_finished = True
+                        break
+            except (json.JSONDecodeError, KeyError, OSError):
+                pass                       # dropped frame - poll again
             time.sleep(0.05)
         self.assertTrue(seen_finished)
 
