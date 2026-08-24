@@ -5,6 +5,7 @@ Parsers are exercised against fixture HTML shaped like the real pages
 pornpics cdni, babesource media/galleries). Fetcher is a stub; no socket
 is ever opened. Exits non-zero on any failure.
 """
+import argparse
 import json
 import os
 import shutil
@@ -276,6 +277,56 @@ class TestResumeLayout(unittest.TestCase):
             mi.save_json(p, {"items": [{"url": "u"}]})
             self.assertEqual(mi.load_json(p, None)["items"][0]["url"], "u")
             self.assertEqual(mi.load_json(os.path.join(tmp, "nope"), 7), 7)
+        finally:
+            shutil.rmtree(tmp)
+
+
+class TestCloneSource(unittest.TestCase):
+    def test_clone_registers_new_source(self):
+        tmp = tempfile.mkdtemp(prefix="mi-clone-")
+        try:
+            sdir = os.path.join(tmp, "dbnaked-riley-reid-tube")
+            os.makedirs(sdir)
+            mi.save_json(os.path.join(sdir, "_source.json"),
+                         {"name": "dbnaked-riley-reid-tube",
+                          "spec": {"name": "dbnaked-riley-reid-tube",
+                                   "adapter": "dbnaked_model",
+                                   "path": "/models/general/R/riley-reid",
+                                   "kind": "tube"},
+                          "items": [{"url": "u", "slug": "s"}]})
+            catalog = os.path.join(tmp, "_ingest_catalog.json")
+            mi.save_json(catalog, {"v": "1.0", "sources": {
+                "dbnaked-riley-reid-tube": {"dir": sdir, "items": 1,
+                                            "materialized": 0}}})
+            ns = argparse.Namespace(
+                out=tmp, catalog=catalog,
+                clone_source="dbnaked-riley-reid-tube",
+                as_name="dbnaked-other-model-tube",
+                set_path="/models/general/O/Other-Model")
+            rc = mi.cmd_clone(ns)
+            self.assertEqual(rc, 0)
+            clone = mi.load_json(os.path.join(
+                tmp, "dbnaked-other-model-tube", "_source.json"), None)
+            self.assertIsNotNone(clone)
+            self.assertEqual(clone["spec"]["path"],
+                             "/models/general/O/Other-Model")
+            self.assertEqual(clone["spec"]["kind"], "tube")
+            self.assertEqual(clone["items"], [])
+            master = mi.load_json(catalog, None)
+            self.assertIn("dbnaked-other-model-tube", master["sources"])
+            self.assertEqual(master["sources"][
+                "dbnaked-other-model-tube"]["items"], 0)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_clone_unknown_source_fails_clean(self):
+        tmp = tempfile.mkdtemp(prefix="mi-clone-")
+        try:
+            ns = argparse.Namespace(
+                out=tmp, catalog=os.path.join(tmp, "cat.json"),
+                clone_source="missing-source",
+                as_name="x", set_path=None)
+            self.assertEqual(mi.cmd_clone(ns), 1)
         finally:
             shutil.rmtree(tmp)
 
