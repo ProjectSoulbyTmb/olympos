@@ -1,4 +1,4 @@
-"""ZEUS authoritative server.
+﻿"""ZEUS authoritative server.
 
 One shared Kernel; every connection is a dashboard, operator console
 or automation client. JSON-lines protocol, mirroring the Vulcan
@@ -47,7 +47,7 @@ class ZeusServer:
     def __init__(self, host=None, port=None, kernel=None,
                  auto_patrol=True):
         self.host = host or content.SERVER_HOST
-        self.port = port or content.SERVER_PORT
+        self.port = content.SERVER_PORT if port is None else port
         self.kernel = kernel if kernel is not None else Kernel()
         self.sdk = ZeusSDK(self.kernel)
         self.sessions = {}

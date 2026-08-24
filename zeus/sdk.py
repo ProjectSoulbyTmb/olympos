@@ -1,4 +1,4 @@
-"""ZEUS SDK - the only surface dashboards/operators see.
+﻿"""ZEUS SDK - the only surface dashboards/operators see.
 
 Two interchangeable faces:
   ZeusClient   JSON-lines TCP client speaking to a hosted ZeusServer
@@ -149,7 +149,7 @@ class ZeusClient:
 
     def __init__(self, host=None, port=None, timeout=5.0):
         self.host = host or content.SERVER_HOST
-        self.port = port or content.SERVER_PORT
+        self.port = content.SERVER_PORT if port is None else port
         self.timeout = timeout
         self._sock = None
         self._fh = None

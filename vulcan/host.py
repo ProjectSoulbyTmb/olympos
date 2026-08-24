@@ -39,7 +39,7 @@ import content
 class BuildingServer:
     def __init__(self, host=None, port=None, world=None, auto_tick=True):
         self.host = host or content.SERVER_HOST
-        self.port = port or content.SERVER_PORT
+        self.port = content.SERVER_PORT if port is None else port
         self.world = world if world is not None else World()
         self.engine = RuleEngine(self.world)
         self.sdk = VulcanSDK(self.world, self.engine)

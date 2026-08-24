@@ -195,7 +195,7 @@ class VulcanClient:
 
     def __init__(self, host=None, port=None, timeout=5.0):
         self.host = host or content.SERVER_HOST
-        self.port = port or content.SERVER_PORT
+        self.port = content.SERVER_PORT if port is None else port
         self.timeout = timeout
         self._sock = None
         self._fh = None
