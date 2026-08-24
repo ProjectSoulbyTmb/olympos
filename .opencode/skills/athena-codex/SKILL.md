@@ -77,13 +77,19 @@ requires an explicit ADR with migration + rollback.
 
 ## 5. Feeding protocol (growing the codex)
 
+- The learning SUBFLEET (metis/argus/logia) sweeps the evidence
+  streams on a schedule and stages candidate lessons in
+  `knowledge/proposals/*.proposal.json` - schema and promotion
+  workflow live in the `fleet-learning` skill. Athena validates and
+  ranks the queue every cycle (`python -m learning report`).
 - New durable lessons are appended to `knowledge/lessons.json` with the
   next monotonic `L###`; never renumber; deprecate, don't delete. Each
-  cites its source organ/module or incident.
+  cites its source organ/module or incident - and nothing lands
+  without operator sign-off.
 - When a cycle or design surfaces a repeat failure, draft the lesson
-  entry and propose it to the operator — the vault is append-only by
+  entry and propose it to the operator - the vault is append-only by
   convention, so additions deserve a human yes.
-- Update §2 disk truth whenever the audit finds drift; date every
+- Update A2 disk truth whenever the audit finds drift; date every
   revision. Stale truth is worse than missing truth.
 
 ## 6. Autonomy bounds (playbook pattern 9, L013/L017)
@@ -91,3 +97,17 @@ requires an explicit ADR with migration + rollback.
 Bounded loops, persisted cycle state, capability checks per action,
 quarantine over destruction, judgment calls escalate to humans. An
 unbounded autonomous process is not autonomy — it is an incident.
+
+## 7. Learning subfleet & proposal pipeline
+
+| Agent | Diet | Output |
+|---|---|---|
+| @metis | incidents.jsonl, audit.jsonl, health_report FAILs, gate failures | <=5 lesson proposals/cycle |
+| @argus | doc-vs-disk claims: file tables, registry, ports, codex truth | <=5 drift corrections/cycle |
+| @logia | cycle logs, playbook, rules, proposals queue | <=3 pattern/rule amendments (>=3 corroborations) |
+
+Consumption: start each planning cycle with `python -m learning report`,
+grade the queue (validate evidence, dedupe vs L###), fold winners into
+SPECIFY, reject losers with a recorded reason, and stage final wording
+for operator sign-off. Focused runs: `/metis-cycle`, `/argus-cycle`,
+`/logia-cycle`; unattended sweeps: `learning-cycle.ps1`.

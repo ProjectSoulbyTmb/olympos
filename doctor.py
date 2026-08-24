@@ -1,4 +1,4 @@
-"""Yggdrasil doctor - automatic stabilization foundation.
+﻿"""Yggdrasil doctor - automatic stabilization foundation.
 
 One command that keeps continuous development safe:
 
@@ -61,6 +61,7 @@ SUITES = [
     ("coverage", "verify_coverage.py"),
     ("template", os.path.join("templates", "verify_template.py")),
     ("system", "verify_system.py"),
+    ("learning", "verify_learning.py"),
 ]
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [
