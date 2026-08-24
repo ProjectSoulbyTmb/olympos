@@ -34,3 +34,9 @@ EVENTS_MAX = 500
 
 SUBSYSTEM_FAIL_LIMIT = 3
 SUBSYSTEM_REVIVE_TICKS = 6
+
+# ---------- fleet fluidity ----------
+
+LANE_COOLDOWN_AFTER_FAILS = 3   # consecutive failures -> lane pauses
+LANE_COOLDOWN_S = 45.0          # pause before the lane rejoins the pool
+PUMP_IDLE_WAIT_S = 0.25         # pump nap between quiet cycles

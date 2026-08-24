@@ -207,6 +207,25 @@ class DaedalusServer:
         return {"drained": len(done), "results": done,
                 "warden_findings": findings}
 
+    def api_fleet_drain(self, max_jobs=None):
+        """Parallel drain: every free lane weaves simultaneously."""
+        r = self.ws.drain_parallel(max_jobs)
+        findings = self.ws.warden.patrol()
+        return {"drained": r["drained"], "results": r["results"],
+                "warden_findings": findings}
+
+    def api_pump_start(self):
+        return {"running": self.ws.pump_start()}
+
+    def api_pump_stop(self):
+        stopped = self.ws.pump_stop()
+        return {"was_running": stopped, "running": self.ws.pump_running()}
+
+    def api_pump_status(self):
+        return {"running": self.ws.pump_running(),
+                "queued": len(self.ws.queue),
+                "lanes_busy": self.ws.fleet.busy_count()}
+
     @staticmethod
     def _send(conn, error=None, result=None):
         try:
