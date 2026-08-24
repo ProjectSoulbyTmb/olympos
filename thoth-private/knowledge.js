@@ -97,6 +97,11 @@ export const knowledge = {
       reply:
         'Our RSPS engine follows the distilled laws of RuneSource and Hyperion, recorded in osrs-llm-agent/knowledge/engine_principles.md with citations: single-writer mutable state serialized on the server lock, parallelism reserved for read-only work, cached per-tick state blocks, bounded queues everywhere, a slow-handler watchdog, atomic off-hot-path saves, and simplicity as the performance feature. Applied 2026-08: chat/presence/channel mutations hardened under the single-writer lock, chat feed bounded, watchdog added. Engine PRs that violate these rules are rejected citing that file.',
     },
+    thothCompanionDoctrine: {
+      title: 'Companion doctrine (Mate-Engine)',
+      reply:
+        "Eidovara's companion layer follows lessons distilled from Mate-Engine in docs/COMPANION_DOCTRINE.md: resource budgets track the asset (companion looks are capped at 8 MiB / 4096 px and refused with a fallback if oversized), smooth presence respects the reduced-motion preset, chat runs local-first through the loopback model provider with offline fallback, extension goes through the single feature-registry seam, and every bundled asset carries a license notice. Deliberately not adopted: a full VRM pipeline, multi-avatar sync, Discord Rich Presence, and paid exclusives - each documented with reasons.",
+    },
     thothAdultWellness: {
       title: 'Adult wellness and control',
       reply:
@@ -177,6 +182,10 @@ export const knowledge = {
     {
       id: 'thothEngineDoctrine',
       re: /\b(runesource|hyperion|317|engine\s+(?:doctrine|principles?|laws?)|tick\s+budget)\b/i,
+    },
+    {
+      id: 'thothCompanionDoctrine',
+      re: /\b(mate[- ]?engine|desktop\s+mate|vrm|companion\s+(?:doctrine|engine|budget))\b/i,
     },
     {
       id: 'thoth',
