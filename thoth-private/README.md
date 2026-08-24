@@ -60,6 +60,16 @@ nothing leaves this PC.
 - Every tick emits a relay `autonomic` event; state persists in
   `engine.state.thoth.auto`.
 
+## Code repair (v3.1.0+)
+
+- `repair.js` scans first-party code for unfinished markers and missing SPDX
+  headers (`thoth repair`, L0) and prints a wiring checklist separating
+  automation-fixable items from human decisions (`thoth wire`, L0).
+- `thoth repair-fix` (L2, like comply-fix) applies ONLY deterministic repairs:
+  Prettier with the repo `.prettierrc` + SPDX header insertion. Every rewrite
+  is syntax-verified; failures are restored byte-for-byte and reported.
+  Stubbed logic and startup-frozen wiring stay human-only by contract.
+
 ## Update procedure
 
 1. Edit here or in `../thoth-private`, then mirror.

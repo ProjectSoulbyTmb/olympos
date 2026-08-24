@@ -1,22 +1,22 @@
 {
-  "fetched": "2026-08-23T04:49:53+00:00",
+  "fetched": "2026-08-24T01:28:03+00:00",
   "tracked_prices": {
     "Logs": {
-      "buy": 23,
+      "buy": 24,
       "sell": 23,
       "mid": 23,
       "limit": 15000
     },
     "Oak logs": {
-      "buy": 44,
+      "buy": 41,
       "sell": 40,
-      "mid": 42,
+      "mid": 40,
       "limit": 15000
     },
     "Willow logs": {
       "buy": 22,
-      "sell": 22,
-      "mid": 22,
+      "sell": 21,
+      "mid": 21,
       "limit": 15000
     },
     "Copper ore": {
@@ -27,68 +27,68 @@
     },
     "Tin ore": {
       "buy": 13,
-      "sell": 11,
-      "mid": 12,
+      "sell": 13,
+      "mid": 13,
       "limit": 13000
     },
     "Iron ore": {
-      "buy": 72,
-      "sell": 71,
-      "mid": 71,
+      "buy": 70,
+      "sell": 70,
+      "mid": 70,
       "limit": 13000
     },
     "Raw shrimps": {
-      "buy": 21,
-      "sell": 25,
-      "mid": 23,
+      "buy": 22,
+      "sell": 22,
+      "mid": 22,
       "limit": 15000
     },
     "Shrimps": {
-      "buy": 20,
-      "sell": 24,
+      "buy": 25,
+      "sell": 20,
       "mid": 22,
       "limit": 6000
     },
     "Iron axe": {
-      "buy": 90,
-      "sell": 107,
-      "mid": 98,
+      "buy": 112,
+      "sell": 55,
+      "mid": 83,
       "limit": 40
     },
     "Steel axe": {
-      "buy": 162,
+      "buy": 300,
       "sell": 161,
-      "mid": 161,
+      "mid": 230,
       "limit": 40
     },
     "Black axe": {
-      "buy": 994,
-      "sell": 1149,
-      "mid": 1071,
+      "buy": 1006,
+      "sell": 1001,
+      "mid": 1003,
       "limit": 40
     },
     "Mithril axe": {
-      "buy": 166,
-      "sell": 183,
-      "mid": 174,
+      "buy": 132,
+      "sell": 128,
+      "mid": 130,
       "limit": 40
     },
     "Bronze pickaxe": {
-      "buy": 89,
-      "sell": 80,
-      "mid": 84,
+      "buy": 73,
+      "sell": 64,
+      "mid": 68,
       "limit": 40
     },
     "Iron pickaxe": {
-      "buy": 69,
-      "sell": 50,
-      "mid": 59,
+      "buy": 49,
+      "sell": 20,
+      "mid": 34,
       "limit": 40
     },
     "Steel pickaxe": {
-      "buy": 104,
-      "sell": 101,
-      "mid": 102,
+      "buy": 173,
+      "sell": 220,
+      "mid": 196,
       "limit": 40
     }
   },

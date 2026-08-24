@@ -78,6 +78,8 @@ def cmd_patrol(root, state, loop=0, llm=False, base_url=None, model=None,
                           f"ok={test_result['ok']} ran={test_result['ran']} "
                           f"({test_result['duration_s']}s)")
                 if not test_result["ok"]:
+                    state.log("engineer", "tests-failed-tail",
+                              test_result.get("output", "")[-4000:])
                     advice = engineer.diagnose(test_result)
                     for a in advice:
                         state.log("engineer", "diagnosis",

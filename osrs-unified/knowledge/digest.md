@@ -1,6 +1,6 @@
 # OSRS ground-truth knowledge
 
-Fetched: 2026-08-23T04:49:53+00:00
+Fetched: 2026-08-24T01:28:03+00:00
 
 ## Sources
 - Grand Exchange real-time prices: https://prices.runescape.wiki/api/v1/osrs/latest
@@ -22,21 +22,21 @@ Fetched: 2026-08-23T04:49:53+00:00
 ## Live Grand Exchange snapshot (tracked items)
 | Item | Buy (high) | Sell (low) | Mid | GE limit /4h |
 |---|---|---|---|---|
-| Black axe | 994 | 1149 | 1071 | 40 |
-| Bronze pickaxe | 89 | 80 | 84 | 40 |
+| Black axe | 1006 | 1001 | 1003 | 40 |
+| Bronze pickaxe | 73 | 64 | 68 | 40 |
 | Copper ore | 11 | 10 | 10 | 13000 |
-| Iron axe | 90 | 107 | 98 | 40 |
-| Iron ore | 72 | 71 | 71 | 13000 |
-| Iron pickaxe | 69 | 50 | 59 | 40 |
-| Logs | 23 | 23 | 23 | 15000 |
-| Mithril axe | 166 | 183 | 174 | 40 |
-| Oak logs | 44 | 40 | 42 | 15000 |
-| Raw shrimps | 21 | 25 | 23 | 15000 |
-| Shrimps | 20 | 24 | 22 | 6000 |
-| Steel axe | 162 | 161 | 161 | 40 |
-| Steel pickaxe | 104 | 101 | 102 | 40 |
-| Tin ore | 13 | 11 | 12 | 13000 |
-| Willow logs | 22 | 22 | 22 | 15000 |
+| Iron axe | 112 | 55 | 83 | 40 |
+| Iron ore | 70 | 70 | 70 | 13000 |
+| Iron pickaxe | 49 | 20 | 34 | 40 |
+| Logs | 24 | 23 | 23 | 15000 |
+| Mithril axe | 132 | 128 | 130 | 40 |
+| Oak logs | 41 | 40 | 40 | 15000 |
+| Raw shrimps | 22 | 22 | 22 | 15000 |
+| Shrimps | 25 | 20 | 22 | 6000 |
+| Steel axe | 300 | 161 | 230 | 40 |
+| Steel pickaxe | 173 | 220 | 196 | 40 |
+| Tin ore | 13 | 13 | 13 | 13000 |
+| Willow logs | 22 | 21 | 21 | 15000 |
 
 ## Wiki article digests
 
@@ -476,7 +476,7 @@ This guide aims to assist players in training Cooking by using the most effectiv
 === Levels 1–30: Poison karambwan ===
 From level 1 to 30, 1-tick cook raw karambwan into poison karambwan. Karambwan can be cooked without tick delay by holding down 1 and rapidly using raw karambwan on a fire or range. This method costs money, but the overall loss will be relatively small as reaching level 30 would take less than ten minutes.
 Note that cooking poison karambwan does not have any requirements, unlike cooked karambwan.
-168 successfully cooked poison karambwan are required to reach level 30. Players are advised to buy at least 500 raw karambwan, as the burn rate is high at lower levels. Assuming all 500 raw karambwan are used to reach level 30, this would result in a loss of −133,000. If the player is not going to use tick manipulation, it is recommended to cook other fish (see below) as this is cheaper and it would offer similar experience rates.
+168 successfully cooked poison karambwan are required to reach level 30. Players are advised to buy at least 500 raw karambwan, as the burn rate is high at lower levels. Assuming all 500 raw karambwan are used to reach level 30, this would result in a loss of −134,500. If the player is not going to use tick manipulation, it is recommended to cook other fish (see below) as this is cheaper and it would offer similar experience rates.
 
 
 === Levels 1–30: Cooking fish ===

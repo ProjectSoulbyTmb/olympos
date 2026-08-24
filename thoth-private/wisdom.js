@@ -173,6 +173,10 @@ export const PLAYBOOKS = [
     title: 'CI style/format drift',
     diagnosis: 'Formatting debt blocks every gate (seen in practice 2026-08-23).',
     steps: [
+      {
+        text: 'Run "thoth repair-fix" to apply prettier + SPDX repairs with per-file verification.',
+        klass: 'L2',
+      },
       { text: 'npx prettier --write . then npm run format:check', human: true },
       { text: 'Commit through the guarded path; pre-push reruns lint + full tests.', human: true },
     ],

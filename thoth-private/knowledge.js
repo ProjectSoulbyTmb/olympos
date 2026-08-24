@@ -82,6 +82,11 @@ export const knowledge = {
       reply:
         '"thoth auto on" starts the autonomic heartbeat: every 15 minutes (configurable 5-240) it sweeps the fleet, reconciles incident memory, refreshes learned facts, matches playbooks, and applies at most ONE action your standing grants already permit - then reports through the console feed. "thoth auto tick" runs one cycle on demand; "thoth auto off" stops it; the master switch pauses everything exactly as with manual commands. It never chains actions across ticks into a plan you have not seen, never touches elevated tools, and every decision lands in your local profile.',
     },
+    thothRepair: {
+      title: 'Automatic code repair and unfinished-code wiring',
+      reply:
+        'THOTH scans first-party code for unfinished markers (TODO/FIXME/not-implemented) and missing license headers ("thoth repair", read-only), and reports a wiring checklist separating what automation may fix from what needs your decision ("thoth wire"). "thoth repair-fix" applies only deterministic repairs - Prettier with the repository config and SPDX header insertion - and syntax-verifies every rewritten file, restoring any that fail before they ever reach git. Because it writes source files it is elevated (L2): run it from an administrator session or with session elevation armed. Implementing stubbed logic and wiring new features into startup-frozen surfaces stay human-only by contract.',
+    },
     thothAdultWellness: {
       title: 'Adult wellness and control',
       reply:
@@ -150,6 +155,10 @@ export const knowledge = {
     {
       id: 'thothAuto',
       re: /\b(autonomic|self[- ]driving|auto(?:matic)?\s+(?:mode|loop|pilot|tick)|thoth\s+auto)\b/i,
+    },
+    {
+      id: 'thothRepair',
+      re: /\b(auto[- ]fix|self[- ]heal|repair|unfinished|stub[s]?|missing\s+headers?)\b/i,
     },
     {
       id: 'thoth',

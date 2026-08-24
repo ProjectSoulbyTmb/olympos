@@ -22,6 +22,7 @@ import { fleetStatus, incidents, reconcileIncidents } from './federation.js';
 import { observeFromSweeps, summarize, teach, unteach } from './learn.js';
 import { ESCALATION, FACTS, TOPOLOGY, adviseFor } from './wisdom.js';
 import { autoStatus, runTick, startAuto, stopAuto } from './autonomic.js';
+import { applySafeFixes, scanUnfinished, wiringReport } from './repair.js';
 
 async function complianceScanner() {
   const root = process.cwd();
@@ -312,6 +313,65 @@ export function buildTools() {
         }
         const s = autoStatus(engine);
         return `Autonomic loop: ${s.enabled ? 'ON' : 'OFF'} | every ${s.intervalMin} min | ticks ${s.ticks}${s.lastTickAt ? ` | last ${s.lastTickAt}` : ''}${s.lastAction ? ` | last action ${s.lastAction.playbook} -> ${s.lastAction.tool}` : ''}`;
+      },
+    },
+    {
+      name: 'repair',
+      klass: 'L0',
+      summary: 'Unfinished-code scan; --fix applies verified mechanical repairs (elevated).',
+      usage: 'thoth repair [--fix]',
+      run(engine, args) {
+        if (/\b--fix\b/.test(String(args || ''))) {
+          // Elevated path: re-enter through the gate so the class is enforced.
+          return {
+            reply: 'Use "thoth repair --fix" through an administrator session.',
+            data: null,
+          };
+        }
+        const scan = scanUnfinished(process.cwd());
+        return (
+          `Scan: ${scan.filesScanned} files | stubs ${scan.stubs.length} | missing SPDX headers ${scan.missingHeaders.length}\n` +
+          (scan.stubs.length
+            ? scan.stubs
+                .slice(0, 5)
+                .map(s => `- ${s.file}:${s.line}: ${s.snippet}`)
+                .join('\n')
+            : '- no unfinished markers') +
+          `\nApply verified fixes with: thoth repair --fix (administrator session)`
+        );
+      },
+    },
+    {
+      name: 'repair-fix',
+      klass: 'L2',
+      summary: 'Apply deterministic code repairs (prettier + SPDX), syntax-verified per file.',
+      usage: 'thoth repair-fix',
+      run(engine) {
+        const result = applySafeFixes(process.cwd());
+        engine.store.save(engine.state);
+        return [
+          `Formatted: ${result.formatted ? 'yes' : 'no'}`,
+          `SPDX headers added: ${result.headersAdded.length}${result.headersAdded.length ? ` (${result.headersAdded.slice(0, 6).join(', ')})` : ''}`,
+          `Reverted after failed verification: ${result.reverted.length}`,
+          result.errors.length ? `Errors: ${result.errors.join(' | ')}` : 'No errors.',
+        ].join('\n');
+      },
+    },
+    {
+      name: 'wire',
+      klass: 'L0',
+      summary: 'Wiring checklist: what automation may fix vs what needs a human decision.',
+      usage: 'thoth wire',
+      run() {
+        const r = wiringReport(process.cwd());
+        return [
+          `Wiring report - ${r.filesScanned} files scanned, ${r.stubs} stub marker(s), ${r.missingHeaders} missing header(s)`,
+          r.examples.length
+            ? `Examples:\n${r.examples.map(e => `  - ${e.file}:${e.line}`).join('\n')}`
+            : '  - clean',
+          `Automation may fix: ${r.automationMay.join('; ')}`,
+          `Human-only: ${r.humanOnly.join('; ')}`,
+        ].join('\n');
       },
     },
     {
