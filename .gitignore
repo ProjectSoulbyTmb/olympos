@@ -30,6 +30,7 @@ ui-errors.log
 data/
 zeus/data/
 ptah/data/
+hypnos/data/
 
 # --- OS ---
 .DS_Store
@@ -40,10 +41,7 @@ jdktmp/
 
 # --- hades local seal state ---
 hades/state/
-hypnos/data/
 
 # --- runtime state & generated site ---
-data/
-ptah/data/
-data/witness/
 site/
+.opencode/
