@@ -87,7 +87,10 @@ class ZeusServer:
 
     def _bind(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # No SO_REUSEADDR here: on Windows it permits double-binds, so
+        # two concurrent self-verification runs could silently share a
+        # port and clients would cross-connect. A collision must fail
+        # loudly into the retry below instead.
         last_err = None
         for _ in range(10):
             try:
