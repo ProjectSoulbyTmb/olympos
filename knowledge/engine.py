@@ -2,8 +2,8 @@
 
 Pure standard library. Indexes every markdown document under
 knowledge/ (including this library/) plus rendered entries from
-knowledge/lessons.json, then answers TF-IDF ranked queries with
-sentence snippets.
+knowledge/lessons.json and external-product databases (webstudio/),
+then answers TF-IDF ranked queries with sentence snippets.
 
 CLI:
     python knowledge/engine.py rebuild
@@ -24,6 +24,14 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIBRARY_DIR = os.path.join(HERE, "library")
 LESSONS_PATH = os.path.join(HERE, "lessons.json")
+
+# External-product databases: rendered one-doc-per-entry into the corpus.
+# Each spec: subdir under knowledge/, json file, list key, doc-id prefix.
+# New external DBs (e.g. another SaaS we integrate) join by adding a spec.
+_DB_SPECS = (
+    {"dir": "webstudio", "file": "webstudio.json",
+     "list_key": "entries", "prefix": "ws"},
+)
 _INDEX_PATH = os.path.join(HERE, ".index.json")
 
 _SNIPPET_DF = {}
@@ -79,6 +87,47 @@ def _docs():
                        "path": LESSONS_PATH}
         except (OSError, ValueError):
             pass
+    for spec in _DB_SPECS:
+        db_dir = os.path.join(HERE, spec["dir"])
+        # prose topic files, same treatment as library docs
+        if os.path.isdir(db_dir):
+            for fname in sorted(os.listdir(db_dir)):
+                if not fname.endswith(".md"):
+                    continue
+                path = os.path.join(db_dir, fname)
+                with open(path, "r", encoding="utf-8") as fh:
+                    body = fh.read()
+                title = fname[:-3]
+                first = body.splitlines()[0].lstrip("# ").strip() \
+                    if body else ""
+                if first:
+                    title = first
+                yield {"id": spec["prefix"] + "-doc:" + fname,
+                       "title": title, "body": body, "path": path}
+        # machine-readable entries rendered into searchable documents
+        db_path = os.path.join(db_dir, spec["file"]) \
+            if spec.get("file") else None
+        if not db_path or not os.path.isfile(db_path):
+            continue
+        try:
+            with open(db_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        for entry in data.get(spec["list_key"], []):
+            eid = str(entry.get("id", "?"))
+            tags = entry.get("tags", [])
+            sources = entry.get("sources", [])
+            body = (f"{entry.get('title', '')}\n"
+                    f"category: {entry.get('category', '')}\n"
+                    f"{entry.get('summary', '')}\n"
+                    f"{entry.get('details', '')}\n"
+                    f"tags: {' '.join(tags)}\n"
+                    f"sources: {' '.join(sources)}")
+            yield {"id": f"{spec['prefix']}:{eid}",
+                   "title": entry.get("title", eid),
+                   "body": body,
+                   "path": db_path}
 
 
 def build_index():

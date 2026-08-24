@@ -18,15 +18,15 @@ of the ATHENA doctrine).
    proposed `fleet.json`.
 2. `STRATEGY.md` — direction of travel: tier model, gaps, phased
    roadmap Phase 0–4, risk register, non-goals.
-3. `knowledge/engineering-rules.md` — 16 binding rules, each citing a
+3. `knowledge/engineering-rules.md` — 21 binding rules, each citing a
    lesson id. These are law, not advice.
 4. `knowledge/architecture-playbook.md` — 10 proven patterns with
    lesson ids; use as default shapes for new designs.
 5. `knowledge/lessons.json` — append-only lesson database (`id` L###,
    `title`, `category`, `source`, `lesson`, `tags`). Query with any
    JSON tooling; cite ids in designs.
-6. `DESIGN.md` — referenced by both model docs but **absent from disk**
-   (see §2). If found, it defines what the architecture IS.
+6. `DESIGN.md` — present at root (re-verified 2026-08-24): ecosystem
+   table, hard rules, decision log. Defines what the architecture IS.
 
 ## 2. Disk truth (audited 2026-08-24, post-restoration)
 
@@ -40,13 +40,28 @@ tree, forseti organ. Safeguards pre-commit gate activates via
 Shipping protocol: FLOW.md - private worktrees + auto/* branches +
 squash PRs; direct pushes to main are hook-blocked.
 
-Still missing: `DESIGN.md`. Roles of `buskit/`, `hypnos/`, `tools/`
-were verified via their verify suites; anything new gets inspected
-before being cited in a design.
+`DESIGN.md` present at root (re-verified 2026-08-24). Roles of
+`buskit/`, `hypnos/`, `tools/` verified via their verify suites;
+anything new gets inspected before being cited in a design.
 
-Ports (registry = single source): vulcan `:43901`, zeus `:43902`,
-ptah `:43903`. `43590/43591` are retired; any listener there is a
-squatter finding.
+Disk watchlist (audit 2026-08-24): `heart/` is a self-managed nested
+repo (ex-DeskMate), v0.2.0 desk companion on port 4767, zero runtime
+deps — designed under `docs/adr/0001`, registry row pending H0
+sign-off; `hebe/` claimed by its lane (registry row exists). `docs/`
+founded 2026-08-24 (`adr/`, `plans/cycles/`, `contracts/`) holds the
+ATHENA artifact suite.
+
+Knowledge organ (audited 2026-08-24, post webstudio wiring):
+`knowledge/engine.py` TF-IDF search now indexes library docs,
+lessons.json, and external-product databases via `_DB_SPECS`
+(first: `knowledge/webstudio/` - Webstudio website-builder DB with
+25 WS-### entries + 7 topic files). `knowledge/verify_knowledge.py`
+runs 7 gates (schema, monotonic ids, retrieval) wired into
+`doctor.py --ci`; PTAH `knowledge` tool covers product DBs.
+
+Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
+ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
+`43590/43591` are retired; any listener there is a squatter finding.
 
 ## 3. The five guarantees (each has an owner and a test)
 

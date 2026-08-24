@@ -71,3 +71,8 @@ lesson id in `lessons.json`.
     narrow; escalation is admin-only and logged (L013).
 20. **Hash-chain all audit trails**; seal manifests with HMAC plus an
     independent anchor (L011).
+21. **Verify HEAD's branch before committing, and verify the remote
+    moved after pushing** (L031): check `git symbolic-ref HEAD` in
+    shared worktrees; after push, compare `origin/<branch>` — a no-op
+    push exits 0. Never merge a PR whose `gh pr diff` file list does
+    not match the intended change exactly.
