@@ -159,8 +159,15 @@ def gate(name, cmd, cwd=None, env_extra=None):
     if env_extra:
         env.update(env_extra)
     t0 = time.time()
-    proc = subprocess.run(cmd, cwd=cwd or HERE, capture_output=True,
-                          text=True, env=env)
+    try:
+        proc = subprocess.run(cmd, cwd=cwd or HERE, capture_output=True,
+                              text=True, env=env)
+    except OSError as exc:
+        # A missing/unspawnable executable is gate data, not a
+        # sentinel crash: record it and keep the sweep alive.
+        return {"name": name, "ok": False, "exit": -1,
+                "secs": round(time.time() - t0, 1),
+                "tail": f"OSError spawning {cmd[0]!r}: {exc}"}
     dt = round(time.time() - t0, 1)
     tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-3:])
     ok = proc.returncode == 0
@@ -168,8 +175,9 @@ def gate(name, cmd, cwd=None, env_extra=None):
             "secs": dt, "tail": tail}
 
 
-def run_gates():
-    gates = [
+def gate_defs():
+    """Every runnable gate with its exact command, cwd and env."""
+    defs = [
         ("yggdrasil verify_system", [PY, "-u", "verify_system.py"],
          HERE, None),
         ("vulcan suite", [PY, "-u",
@@ -178,18 +186,22 @@ def run_gates():
         ("live functional probe", [PY, "-u", "probe_live.py"], HERE, None),
     ]
     if JDK17:
-        gates.append(("muspelheim gradle build",
-                      ["gradlew.bat", "build", "--no-daemon"],
-                      os.path.join(HERE, "hyperion-181"),
-                      {"JAVA_HOME": JDK17}))
-    else:
-        log("muspelheim gate skipped (no jdk-17 in tools/)")
+        # Batch files need cmd.exe on Windows - CreateProcess cannot
+        # spawn gradlew.bat directly.
+        defs.append(("muspelheim gradle build",
+                     ["cmd", "/c", "gradlew.bat", "build", "--no-daemon"],
+                     os.path.join(HERE, "hyperion-181"),
+                     {"JAVA_HOME": JDK17}))
     if shutil.which("node"):
-        gates.append(("venus heart",
-                      ["node", os.path.join("assistant", "test-heart.js")],
-                      HERE, None))
+        defs.append(("venus heart",
+                     ["node", os.path.join("assistant", "test-heart.js")],
+                     HERE, None))
+    return defs
+
+
+def run_gates():
     results = []
-    for name, cmd, cwd, env_extra in gates:
+    for name, cmd, cwd, env_extra in gate_defs():
         log(f"gate: {name} ...")
         res = gate(name, cmd, cwd, env_extra)
         results.append(res)
@@ -214,23 +226,18 @@ def remediate_all():
 def pass_gates():
     results = run_gates()
     # one remediated retry for anything red - transient drift often
-    # clears once artifacts are quarantined
+    # clears once artifacts are quarantined; retries reuse the exact
+    # command, cwd and env of the original gate definition.
+    defs = {name: (cmd, cwd, env_extra)
+            for name, cmd, cwd, env_extra in gate_defs()}
     retried = []
     for res in [r for r in results if not r["ok"]]:
         log(f"retry after remediation: {res['name']}")
         for name, fn in REMEDIATORS:
             fn()
-        env_extra = {"JAVA_HOME": JDK17} \
-            if "muspelheim" in res["name"] and JDK17 else None
-        cwd = os.path.join(HERE, "hyperion-181") \
-            if "muspelheim" in res["name"] else HERE
-        cmd = {"yggdrasil verify_system": [PY, "-u", "verify_system.py"],
-               "vulcan suite": [PY, "-u",
-                                os.path.join("vulcan",
-                                             "verify_vulcan.py")],
-                "live functional probe": [PY, "-u", "probe_live.py"],
-                }.get(res["name"]) or \
-            ["gradlew.bat", "build", "--no-daemon"]
+        cmd, cwd, env_extra = defs.get(res["name"],
+                                       ([PY, "-u", "verify_system.py"],
+                                        HERE, None))
         retried.append(gate(res["name"], cmd, cwd, env_extra))
     return [r for r in results if r["ok"]] + retried
 

@@ -475,7 +475,9 @@ def t_rsps_socket():
     srv.start_async()
     time.sleep(0.6)
     try:
-        a = RemoteGameSDK(name="verifier", port=43911)
+        # fresh=True: the verifier must not resume a persisted session
+        # whose tick budget earlier runs already drained.
+        a = RemoteGameSDK(name="verifier", port=43911, fresh=True)
         for _ in range(12):
             try:
                 a.walk("tree_1" if _ % 2 == 0 else "tree_2")
