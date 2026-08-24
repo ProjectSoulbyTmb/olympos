@@ -234,6 +234,8 @@ class Hypervisor:
     def stop(self, name):
         g = self.get(name)
         if not g.busy:
+            # every lifecycle command is auditable, even no-ops
+            self.log("stop", guest=g.id, was_running=False)
             return {"stopped": g.id, "was_running": False}
         _kill_tree(g.proc.pid)
         try:
