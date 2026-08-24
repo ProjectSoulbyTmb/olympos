@@ -294,6 +294,21 @@
         "hebe/verify_hebe.py"
       ],
       "profile": "operator"
+    },
+    {
+      "name": "knowledge",
+      "kind": "knowledge",
+      "engine": "tfidf-corpus-organ",
+      "port": null,
+      "sdk": null,
+      "path": "knowledge/",
+      "tier": 0,
+      "lang": "python",
+      "verify": [
+        "python",
+        "knowledge/verify_knowledge.py"
+      ],
+      "profile": "watcher"
     }
   ]
 }

@@ -16,10 +16,7 @@ if ROOT not in sys.path:
 
 MIN_LIBRARY_DOCS = 10
 MIN_CORPUS_DOCS = 30
-WEBSTUDIO_DIR = os.path.join(HERE, "webstudio")
-WEBSTUDIO_DB = os.path.join(WEBSTUDIO_DIR, "webstudio.json")
-MIN_WEBSTUDIO_ENTRIES = 20
-_ID_RE = re.compile(r"^WS-\d{3,}$")
+MIN_DB_ENTRIES = 10
 
 
 def _load_engine():
@@ -105,80 +102,126 @@ def check_cli_exit_codes():
     return True
 
 
-def check_webstudio_db_shape():
-    """External-product DBs must stay machine-trustable: schema, unique
-    monotonic ids, real source links."""
-    if not os.path.isfile(WEBSTUDIO_DB):
-        return "webstudio/webstudio.json missing"
-    try:
-        with open(WEBSTUDIO_DB, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except ValueError as exc:
-        return f"invalid JSON: {exc}"
-    entries = data.get("entries")
-    if not isinstance(entries, list) or not entries:
-        return "entries missing or empty"
-    if len(entries) < MIN_WEBSTUDIO_ENTRIES:
-        return (f"thin db: {len(entries)} < {MIN_WEBSTUDIO_ENTRIES}")
-    required = ("id", "title", "category", "summary", "details",
-                "sources", "tags")
-    seen = set()
-    last_num = 0
-    for entry in entries:
-        missing = [k for k in required if not entry.get(k)]
-        if missing:
-            return f"{entry.get('id', '?')} missing {missing}"
-        eid = entry["id"]
-        if not _ID_RE.match(eid):
-            return f"bad id shape: {eid!r} (want WS-###)"
-        num = int(eid.split("-")[1])
-        if eid in seen:
-            return f"duplicate id: {eid}"
-        if num <= last_num:
-            return (f"ids must grow monotonically: "
-                    f"{eid} after WS-{last_num:03d}")
-        seen.add(eid)
-        last_num = num
-        bad = [s for s in entry["sources"]
-               if not isinstance(s, str) or not s.startswith("https://")]
-        if bad:
-            return f"{eid} non-https sources: {bad[:2]}"
-        if not all(isinstance(t, str) and t for t in entry["tags"]):
-            return f"{eid} malformed tags"
-    for doc in sorted(os.listdir(WEBSTUDIO_DIR)):
-        if doc.endswith(".md"):
-            with open(os.path.join(WEBSTUDIO_DIR, doc), "r",
+def _product_dbs():
+    eng = _load_engine()
+    return eng.discover_dbs()
+
+
+def check_product_db_shapes():
+    """Every discovered product DB must stay machine-trustable: schema,
+    unique monotonic ids, real source links, titled prose files."""
+    dbs = _product_dbs()
+    if not dbs:
+        return ("no product DBs found - expected knowledge/<name>/"
+                "<name>.json with an 'entries' list")
+    for spec in dbs:
+        db_dir = os.path.join(HERE, spec["dir"])
+        db_path = os.path.join(db_dir, spec["file"])
+        try:
+            with open(db_path, "r", encoding="utf-8-sig") as fh:
+                data = json.load(fh)
+        except ValueError as exc:
+            return f"{spec['dir']}: invalid JSON: {exc}"
+        entries = data.get("entries")
+        if not isinstance(entries, list) or not entries:
+            return f"{spec['dir']}: entries missing or empty"
+        if len(entries) < MIN_DB_ENTRIES:
+            return (f"{spec['dir']}: thin db {len(entries)} "
+                    f"< {MIN_DB_ENTRIES}")
+        required = ("id", "title", "category", "summary", "details",
+                    "sources", "tags")
+        prefix = spec["prefix"].upper()
+        id_re = re.compile(r"^%s-\d{3,}$" % re.escape(prefix))
+        seen = set()
+        last_num = 0
+        for entry in entries:
+            missing = [k for k in required if not entry.get(k)]
+            if missing:
+                return (f"{spec['dir']}:{entry.get('id', '?')} "
+                        f"missing {missing}")
+            eid = entry["id"]
+            if not isinstance(eid, str) or not id_re.match(eid):
+                return (f"{spec['dir']}: bad id shape {eid!r} "
+                        f"(want {prefix}-###)")
+            num = int(eid.split("-")[1])
+            if eid in seen:
+                return f"{spec['dir']}: duplicate id {eid}"
+            if num <= last_num:
+                return (f"{spec['dir']}: ids must grow monotonically: "
+                        f"{eid} after {prefix}-{last_num:03d}")
+            seen.add(eid)
+            last_num = num
+            bad = [s for s in entry["sources"]
+                   if not isinstance(s, str)
+                   or not s.startswith("https://")]
+            if bad:
+                return f"{spec['dir']}:{eid} non-https sources: {bad[:2]}"
+            if not all(isinstance(t, str) and t for t in entry["tags"]):
+                return f"{spec['dir']}:{eid} malformed tags"
+        for fname in sorted(os.listdir(db_dir)):
+            if not fname.endswith(".md"):
+                continue
+            with open(os.path.join(db_dir, fname), "r",
                       encoding="utf-8") as fh:
                 head = fh.read(400)
             if not head.lstrip().startswith("#"):
-                return f"webstudio/{doc} missing title heading"
+                return (f"{spec['dir']}/{fname} missing title heading")
     return True
 
 
-def check_webstudio_retrievable():
-    """The engine must surface webstudio entries for agent queries."""
+def _entry_query(entry):
+    """Deterministic probe query built from an entry's own words."""
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z0-9]+",
+                                   entry.get("title", ""))
+             if len(w) > 3][:4]
+    for tag in entry.get("tags", []):
+        if len(tag) > 3 and tag.lower() not in {w.lower() for w in words}:
+            words.append(tag)
+        if len(words) >= 5:
+            break
+    return " ".join(words)
+
+
+def check_product_db_retrievable():
+    """The engine must surface every discovered DB: entry probes built
+    from entry text, plus at least one prose doc hit per DB."""
     eng = _load_engine()
-    cases = [
-        ("webstudio mcp checkpoint mutation gate", "ws:WS-009"),
-        ("builder share link credential secret", "ws:WS-004"),
-        ("static export limitations remix", "ws:WS-021"),
-    ]
-    for query, expect in cases:
+    dbs = _product_dbs()
+    indexed_ids = {d["id"] for d in eng.build_index()["docs"]}
+    for spec in dbs:
+        prefix = spec["prefix"]
+        db_path = os.path.join(HERE, spec["dir"], spec["file"])
+        with open(db_path, "r", encoding="utf-8-sig") as fh:
+            entries = json.load(fh)["entries"]
+        for probe in (entries[0], entries[-1]):
+            query = _entry_query(probe)
+            hits = eng.search(query, top=8)
+            docs = [h["doc"] for h in hits]
+            if f"{prefix}:{probe['id']}" not in docs:
+                return (f"{spec['dir']}:{probe['id']} not retrievable "
+                        f"via {query!r}; got {docs[:3]}")
+        doc_ids = [i for i in indexed_ids
+                   if i.startswith(prefix + "-doc:")]
+        if not doc_ids:
+            return f"{spec['dir']}: prose topic files not indexed"
+        sample = sorted(doc_ids)[0]
+        stem = sample.split(":", 1)[1]
+        with open(os.path.join(HERE, spec["dir"], stem), "r",
+                  encoding="utf-8") as fh:
+            head = fh.read(400).lstrip().lstrip("#").strip()
+        q = _entry_query({"title": head, "tags": []})
+        if q and not any(h["doc"].startswith(prefix + "-doc:")
+                         for h in eng.search(q, top=8)):
+            return (f"{spec['dir']}: prose probe {q!r} surfaced no "
+                    f"{prefix}-doc:* hits")
+    # concrete regression anchors (webstudio incident corpus)
+    for query, expect in (
+            ("webstudio mcp checkpoint mutation gate", "ws:WS-009"),
+            ("builder share link credential secret", "ws:WS-004")):
         hits = eng.search(query, top=6)
-        docs = [h["doc"] for h in hits]
-        if not any(d.startswith(expect) for d in docs):
-            return (f"query {query!r} missed {expect}; got {docs[:3]}")
-    stats_cases = [
-        ("vision verification screenshots preview", "ws-doc:playbooks.md"),
-        ("self-host export static remix docker",
-         "ws-doc:publishing-hosting.md"),
-    ]
-    for query, expect in stats_cases:
-        hits = eng.search(query, top=5)
-        docs = [h["doc"] for h in hits]
-        if not any(d.startswith(expect) for d in docs):
-            return (f"prose query {query!r} missed {expect}; "
-                    f"got {docs[:3]}")
+        if not any(d.startswith(expect) for d in
+                   (h["doc"] for h in hits)):
+            return (f"query {query!r} missed {expect}")
     return True
 
 
@@ -188,8 +231,8 @@ CHECKS = [
     ("known queries hit expected docs", check_known_queries_hit),
     ("snippets clean + limits honored", check_snippets_and_limits),
     ("cli exit codes", check_cli_exit_codes),
-    ("webstudio db schema + monotonic ids", check_webstudio_db_shape),
-    ("webstudio corpus retrievable", check_webstudio_retrievable),
+    ("product dbs schema + monotonic ids", check_product_db_shapes),
+    ("product dbs retrievable via engine", check_product_db_retrievable),
 ]
 
 

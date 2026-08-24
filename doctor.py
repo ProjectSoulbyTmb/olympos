@@ -45,11 +45,31 @@ def _registry_ports():
         return set()
 
 
+def _knowledge_suites():
+    """Every knowledge/verify_*.py joins the battery automatically.
+
+    Subsystem gates dropped into knowledge/ (one per product DB or
+    organ concern) wire themselves into doctor and CI with no list
+    edit - same convention-over-registration rule as the engine's
+    product-db discovery."""
+    found = []
+    kdir = os.path.join(HERE, "knowledge")
+    try:
+        names = sorted(os.listdir(kdir))
+    except OSError:
+        return found
+    for fname in names:
+        if fname.startswith("verify_") and fname.endswith(".py"):
+            found.append(("knowledge:" + fname[7:-3],
+                          os.path.join("knowledge", fname)))
+    return found
+
+
 SUITES = [
     ("zeus", os.path.join("zeus", "verify_zeus.py")),
     ("vulcan", os.path.join("vulcan", "verify_vulcan.py")),
     ("hades", os.path.join("hades", "verify_hades.py")),
-    ("knowledge", os.path.join("knowledge", "verify_knowledge.py")),
+] + _knowledge_suites() + [
     ("ptah", os.path.join("ptah", "verify_ptah.py")),
     ("ratatosk", os.path.join("ratatosk", "verify_ratatosk.py")),
     ("norn", os.path.join("norn", "verify_norn.py")),

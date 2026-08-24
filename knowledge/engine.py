@@ -1,13 +1,16 @@
-﻿"""Knowledge engine - inverted-index search over the fleet's corpus.
+"""Knowledge engine - inverted-index search over the fleet's corpus.
 
 Pure standard library. Indexes every markdown document under
 knowledge/ (including this library/) plus rendered entries from
-knowledge/lessons.json and external-product databases (webstudio/),
-then answers TF-IDF ranked queries with sentence snippets.
+knowledge/lessons.json and product databases discovered by
+convention (webstudio/ today, more tomorrow), then answers TF-IDF
+ranked queries with sentence snippets. The index self-invalidates on
+corpus changes, so agents never serve stale results.
 
 CLI:
     python knowledge/engine.py rebuild
     python knowledge/engine.py stats
+    python knowledge/engine.py dbs
     python knowledge/engine.py search "worktree protocol" --top 3
 
 Library API:
@@ -15,6 +18,7 @@ Library API:
     hits = search("confirmation gate re-arm", top=3)
 """
 
+import hashlib
 import json
 import math
 import os
@@ -25,14 +29,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LIBRARY_DIR = os.path.join(HERE, "library")
 LESSONS_PATH = os.path.join(HERE, "lessons.json")
 
-# External-product databases: rendered one-doc-per-entry into the corpus.
-# Each spec: subdir under knowledge/, json file, list key, doc-id prefix.
-# New external DBs (e.g. another SaaS we integrate) join by adding a spec.
-_DB_SPECS = (
-    {"dir": "webstudio", "file": "webstudio.json",
-     "list_key": "entries", "prefix": "ws"},
-)
+# Product databases self-register by convention: any subdirectory
+# knowledge/<product>/ containing <product>.json with a non-empty
+# top-level "entries" list is indexed automatically - markdown topic
+# files alongside it too. Dropping the directory is the whole act of
+# onboarding; no code change, no spec edit, no manual rebuild.
+_DB_SKIP_DIRS = {"library", "proposals", "__pycache__"}
 _INDEX_PATH = os.path.join(HERE, ".index.json")
+
+# Bump whenever indexing BEHAVIOR changes (parsing, fields, prefixes):
+# folds into the corpus signature so caches built by older code are
+# always invalidated - a signature alone cannot vouch for content.
+_ENGINE_VERSION = "2"
 
 _SNIPPET_DF = {}
 _SNIPPET_N = 1
@@ -56,6 +64,50 @@ _STOPWORDS = {
 def _tokens(text):
     return [t for t in _TOKEN_RE.findall(text.lower())
             if t not in _STOPWORDS]
+
+
+def discover_dbs():
+    """Find every convention-conforming product DB under knowledge/.
+
+    Returns deterministic [{"dir", "file", "prefix"}] specs. A DB must
+    be a subdirectory holding <dirname>.json whose parsed form is an
+    object with a non-empty "entries" list. Doc-id prefix defaults to
+    the directory name and may be overridden by a top-level "prefix"
+    field (e.g. "ws" for webstudio) - useful for compact ids like
+    WS-001. Anything malformed is skipped silently here -
+    verify_knowledge.py reports shape problems as gate failures so
+    authors see them.
+    """
+    dbs = []
+    try:
+        names = sorted(os.listdir(HERE))
+    except OSError:
+        return dbs
+    for name in names:
+        if name in _DB_SKIP_DIRS or name.startswith("."):
+            continue
+        path = os.path.join(HERE, name)
+        if not os.path.isdir(path):
+            continue
+        db_file = name + ".json"
+        db_path = os.path.join(path, db_file)
+        if not os.path.isfile(db_path):
+            continue
+        try:
+            with open(db_path, "r", encoding="utf-8-sig") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and isinstance(data.get("entries"), list) \
+                and data["entries"]:
+            prefix = str(data.get("prefix") or "").strip().lower()
+            if not prefix:
+                prefix = re.sub(r"[^a-z0-9]+", "-",
+                                name.lower()).strip("-")
+            if prefix and re.match(r"^[a-z][a-z0-9-]*$", prefix):
+                dbs.append({"dir": name, "file": db_file,
+                            "list_key": "entries", "prefix": prefix})
+    return dbs
 
 
 def _docs():
@@ -87,30 +139,26 @@ def _docs():
                        "path": LESSONS_PATH}
         except (OSError, ValueError):
             pass
-    for spec in _DB_SPECS:
+    for spec in discover_dbs():
         db_dir = os.path.join(HERE, spec["dir"])
         # prose topic files, same treatment as library docs
-        if os.path.isdir(db_dir):
-            for fname in sorted(os.listdir(db_dir)):
-                if not fname.endswith(".md"):
-                    continue
-                path = os.path.join(db_dir, fname)
-                with open(path, "r", encoding="utf-8") as fh:
-                    body = fh.read()
-                title = fname[:-3]
-                first = body.splitlines()[0].lstrip("# ").strip() \
-                    if body else ""
-                if first:
-                    title = first
-                yield {"id": spec["prefix"] + "-doc:" + fname,
-                       "title": title, "body": body, "path": path}
+        for fname in sorted(os.listdir(db_dir)):
+            if not fname.endswith(".md"):
+                continue
+            path = os.path.join(db_dir, fname)
+            with open(path, "r", encoding="utf-8") as fh:
+                body = fh.read()
+            title = fname[:-3]
+            first = body.splitlines()[0].lstrip("# ").strip() \
+                if body else ""
+            if first:
+                title = first
+            yield {"id": spec["prefix"] + "-doc:" + fname,
+                   "title": title, "body": body, "path": path}
         # machine-readable entries rendered into searchable documents
-        db_path = os.path.join(db_dir, spec["file"]) \
-            if spec.get("file") else None
-        if not db_path or not os.path.isfile(db_path):
-            continue
+        db_path = os.path.join(db_dir, spec["file"])
         try:
-            with open(db_path, "r", encoding="utf-8") as fh:
+            with open(db_path, "r", encoding="utf-8-sig") as fh:
                 data = json.load(fh)
         except (OSError, ValueError):
             continue
@@ -130,6 +178,35 @@ def _docs():
                    "path": db_path}
 
 
+def _corpus_signature():
+    """Stable fingerprint of every md/json file feeding the corpus.
+
+    Excludes the index itself. Any add/edit/delete flips the hash, and
+    _load_or_build rebuilds instead of serving stale results - this is
+    what makes new product DBs wire themselves in with no manual
+    `rebuild` step.
+    """
+    parts = []
+    for dirpath, dirnames, filenames in os.walk(HERE):
+        dirnames[:] = sorted(d for d in dirnames
+                             if d != "__pycache__" and not d.startswith("."))
+        for fname in sorted(filenames):
+            if not fname.endswith((".md", ".json")):
+                continue
+            path = os.path.join(dirpath, fname)
+            if os.path.abspath(path) == os.path.abspath(_INDEX_PATH):
+                continue
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            parts.append("%s|%d|%d" % (os.path.relpath(path, HERE),
+                                       st.st_mtime_ns, st.st_size))
+    return hashlib.sha1(
+        (_ENGINE_VERSION + "\n" + "\n".join(parts)).encode("utf-8")
+    ).hexdigest()
+
+
 def build_index():
     postings = {}
     doclen = {}
@@ -147,14 +224,17 @@ def build_index():
             counts[tok] = counts.get(tok, 0) + 1
         for term, tf in counts.items():
             postings.setdefault(term, {})[did] = tf
-    return {"docs": docs, "postings": postings, "doclen": doclen}
+    return {"docs": docs, "postings": postings, "doclen": doclen,
+            "signature": _corpus_signature()}
 
 
 def _load_or_build(rebuild=False):
     if not rebuild and os.path.isfile(_INDEX_PATH):
         try:
             with open(_INDEX_PATH, "r", encoding="utf-8") as fh:
-                return json.load(fh)
+                index = json.load(fh)
+            if index.get("signature") == _corpus_signature():
+                return index
         except (OSError, ValueError):
             pass
     index = build_index()
@@ -242,7 +322,8 @@ def _snippet(path, terms, width=240, body=""):
 def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(description="knowledge engine")
-    ap.add_argument("command", choices=["rebuild", "stats", "search"])
+    ap.add_argument("command", choices=["rebuild", "stats", "dbs",
+                                        "search"])
     ap.add_argument("query", nargs="?", default="")
     ap.add_argument("--top", type=int, default=5)
     ap.add_argument("--json", action="store_true")
@@ -256,6 +337,10 @@ def main(argv=None):
         print(f"indexed {len(index['docs'])} docs, "
               f"{len(index['postings'])} terms "
               f"in {time.time() - started:.2f}s")
+        return 0
+    if opts.command == "dbs":
+        for spec in discover_dbs():
+            print(f"{spec['dir']} (prefix {spec['prefix']}:)")
         return 0
     if opts.command == "stats":
         index = _load_or_build()
