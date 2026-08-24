@@ -54,6 +54,7 @@ class Workshop:
                               self.hv)
         self.warden = Warden(self)
         self.queue = deque()
+        self._wake = threading.Event()   # fluid: submit nudges the pump
         self.history = deque(maxlen=content.EVENTS_MAX)
         self.jobs = {}             # id -> job dict (live)
         self.quarantine_seconds = 120.0
@@ -95,6 +96,7 @@ class Workshop:
                 raise BuildError("workshop backlog full")
             self.jobs[jid] = job
         self.queue.append(job)
+        self._wake.set()                 # fluid: wake the pump now
         self.log("submit", job=jid, blueprint=bp)
         return dict(job)
 
@@ -136,7 +138,7 @@ class Workshop:
             result = self._attempt_on_lane(lane, job)
         except AtlasError as exc:
             self.finalize(job, ok=False, error=f"atlas: {exc}")
-            lane.release(False, str(exc))
+            lane.release(False, str(exc), heal=True)
             return {"id": job["id"], "ok": False, "error": str(exc)}
         return result
 
@@ -195,6 +197,89 @@ class Workshop:
         job["state"] = "queued"
         job["_started"] = _now()
         self.queue.appendleft(job)
+
+    # ------------------------------------------------------- fluidity --
+
+    def drain_parallel(self, max_jobs=None):
+        """Weave up to max_jobs at once - one thread per lane.
+
+        This is what the fleet is FOR: sequential drains leave N-1
+        lanes idle. Each thread owns its lane exclusively; shared
+        mutations (history chain, jobs dict) stay inside their locks.
+        """
+        cap = max(1, int(max_jobs or content.MAX_CONCURRENT_BUILDS))
+        done = []
+        threads = []
+        while len(threads) < cap and self.queue:
+            lane = self.fleet.acquire()
+            if lane is None:
+                break                    # every lane busy / cooling
+            job = self.queue.popleft()
+            if job["id"] not in self.jobs:
+                continue
+            lane.take(job)
+            t = threading.Thread(target=self._run_on_lane,
+                                 args=(lane, job, done),
+                                 name=f"weave-{lane.name}",
+                                 daemon=True)
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+        return {"drained": len(done), "results": done}
+
+    def _run_on_lane(self, lane, job, done):
+        try:
+            done.append(self._attempt_on_lane(lane, job))
+        except AtlasError as exc:
+            # structural guest sickness: finalize, then let the lane
+            # rebuild its own world instead of dying with it
+            self.finalize(job, ok=False, error=f"atlas: {exc}")
+            lane.release(False, str(exc), heal=True)
+            done.append({"id": job["id"], "ok": False,
+                         "error": str(exc)})
+
+    def pump_start(self):
+        """Fluid mode: a background weaver keeps lanes saturated so
+        builds flow without anyone calling build_next by hand."""
+        pump = getattr(self, "_pump", None)
+        if pump is not None and pump.is_alive():
+            return False
+        self._pump_stop = threading.Event()
+
+        def _loop():
+            while not self._pump_stop.wait(content.PUMP_IDLE_WAIT_S):
+                worked = False
+                while True:
+                    r = self.build_next()
+                    if r is None:
+                        break
+                    worked = True
+                if worked:
+                    self._wake.set()     # immediately look for more
+
+        self._pump = threading.Thread(target=_loop,
+                                      name="daedalus-pump",
+                                      daemon=True)
+        self._pump.start()
+        self.log("pump", state="start")
+        return True
+
+    def pump_stop(self):
+        ev = getattr(self, "_pump_stop", None)
+        if ev is None:
+            return False
+        ev.set()
+        pump = getattr(self, "_pump", None)
+        if pump is not None:
+            pump.join(timeout=2)
+        self._pump = None
+        self.log("pump", state="stop")
+        return True
+
+    def pump_running(self):
+        pump = getattr(self, "_pump", None)
+        return bool(pump is not None and pump.is_alive())
 
     def finalize(self, job, ok, error=None, result=None):
         job["state"] = "done"

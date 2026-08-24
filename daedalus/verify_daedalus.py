@@ -172,6 +172,104 @@ def audit_trail_is_tamper_evident():
         assert not ok and bad == 1, (ok, bad)
 
 
+@check
+def parallel_drain_weaves_every_lane_at_once():
+    import time as _t
+
+    def slow_gate(bp_dir):
+        return None
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=2)
+        ids = [ws.submit({"blueprint": "jsonl-echo",
+                          "name": f"par-{i}"})["id"] for i in range(2)]
+        t0 = _t.time()
+        r = ws.drain_parallel(max_jobs=2)
+        elapsed = _t.time() - t0
+        assert r["drained"] == 2, r
+        assert all(x.get("ok") for x in r["results"]), r
+        snap = ws.fleet.snapshot()
+        assert sum(1 for l in snap if l["ok"] == 1) == 2, \
+            "both lanes must have woven one build"
+        # two ~0.4s gate runs joined concurrently must beat their sum
+        assert elapsed < 1.6, f"parallel drain ran serially ({elapsed}s)"
+
+
+@check
+def flapping_lane_cools_down_instead_of_looping():
+    from daedalus import content as dc
+    from daedalus.fleet import SubFleet
+    with sandbox() as hv:
+        saved = dc.LANE_COOLDOWN_S
+        dc.LANE_COOLDOWN_S = 0.05
+        try:
+            pool = SubFleet(2, hv)
+            hot = pool.lanes[0]
+            job = {"blueprint": "jsonl-echo", "id": "hot-job"}
+            for _ in range(dc.LANE_COOLDOWN_AFTER_FAILS):
+                hot.take(dict(job))
+                hot.release(False, "gate red")
+            assert hot.cooldown_until > 0, "cooldown never engaged"
+            picked = pool.acquire(job)
+            assert picked is not hot, "cooling lane was handed work"
+            import time as _t
+            _t.sleep(0.07)
+            assert hot.available(), "lane never rejoined after cooldown"
+        finally:
+            dc.LANE_COOLDOWN_S = saved
+
+
+@check
+def dispatch_prefers_the_warm_lane():
+    from daedalus.fleet import SubFleet
+    with sandbox() as hv:
+        pool = SubFleet(2, hv)
+        warm = pool.lanes[0]
+        warm.take({"blueprint": "jsonl-echo", "id": "warm-up"})
+        warm.release(True)
+        again = pool.acquire({"blueprint": "jsonl-echo"})
+        assert again is warm, "affinity ignored a proven-warm lane"
+
+
+@check
+def sick_guest_rebuilds_itself():
+    import sys as _sys
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        lane = ws.fleet.lanes[0]
+        dead = lane.guest
+        old_world = hv.get(dead)          # object identity, not the key:
+        lane.release(False, "guest world corrupted", heal=True)
+        # the lane re-slugs to the same id by design, so a rebirth is
+        # proven by a DIFFERENT world object behind that key...
+        assert hv.guests[dead] is not old_world, \
+            "same world object survived the heal"
+        assert lane.rebuilds == 1, "lane did not self-build"
+        r = hv.exec(lane.guest, [_sys.executable, "-c", "print(1)"])
+        assert r["ok"], "freshly built guest cannot run jobs"
+
+
+@check
+def pump_drains_the_queue_autonomously():
+    import time as _t
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        assert ws.pump_start() is True
+        try:
+            jid = ws.submit({"blueprint": "jsonl-echo",
+                             "name": "fluid"})["id"]
+            deadline = _t.time() + 10
+            while _t.time() < deadline:
+                if ws.jobs[jid]["state"] == "done":
+                    break
+                _t.sleep(0.1)
+            else:
+                raise AssertionError("pump never drained the queue")
+            assert ws.history[-1]["ok"], ws.history[-1]
+        finally:
+            ws.pump_stop()
+        assert not ws.pump_running(), "pump refused to stop"
+
+
 def main():
     print("=" * 64)
     print("DAEDALUS WORKSHOP GATE - subfleet builds that learn")

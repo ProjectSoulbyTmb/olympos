@@ -102,6 +102,18 @@
       "verify": ["npm", "test"],
       "workdir": "gaia",
       "profile": "watcher"
+    },
+    {
+      "name": "daedalus",
+      "kind": "workshop",
+      "engine": "builder-fleet",
+      "port": 43905,
+      "sdk": "DaedalusSDK",
+      "path": "daedalus/server.py",
+      "tier": 1,
+      "lang": "python",
+      "verify": ["python", "daedalus/verify_daedalus.py"],
+      "profile": "operator"
     }
   ]
 }
