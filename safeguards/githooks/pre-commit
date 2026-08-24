@@ -1,0 +1,7 @@
+#!/bin/sh
+# Soul Platform pre-commit gate - engineering rule 16 / FLOW.md rule 4.
+# Activated per clone or worktree via:
+#   git config core.hooksPath safeguards/githooks
+# (relative hooksPath resolves against the repo root of each checkout,
+#  so every writer and every CI runner gets the same gate)
+python "$(git rev-parse --show-toplevel)/safeguards/check.py" --strict
