@@ -378,6 +378,20 @@
         "ci",
         "diagnosis"
       ]
+    },
+    {
+      "id": "L031",
+      "title": "Verify which branch HEAD rides before committing, then verify the push moved",
+      "category": "process",
+      "source": "hermes lane incident 2026-08-24: worktree HEAD attached to a foreign branch name; wiring commit landed off-lane, push of the named ref was a silent no-op, and an empty PR merged",
+      "lesson": "In multi-writer worktree fleets, never assume a checkout's HEAD is attached to your own lane branch - another session may have repurposed the directory. Before committing, check `git symbolic-ref HEAD`; if it is not yours, switch or fix refs first. After pushing, confirm the remote actually advanced (`git fetch` + compare `rev-parse origin/<branch>`): pushing a *named ref* pushes that ref, not HEAD, and a no-op push still exits 0. Gate any PR merge on `gh pr diff` listing exactly the files you intended to change.",
+      "tags": [
+        "git",
+        "worktrees",
+        "multi-agent",
+        "verification",
+        "lanes"
+      ]
     }
   ]
 }
