@@ -1,0 +1,30 @@
+{
+  "sweep_seconds": 30,
+  "status_port": 43909,
+  "products": [
+    {
+      "name": "aphrodite",
+      "port": 43904,
+      "health_url": "http://127.0.0.1:43904/api/health",
+      "launch": "D:\\Aphrodite\\launch_aphrodite.bat",
+      "launch_flags": ["--quiet"],
+      "files": [
+        { "path": "D:\\Aphrodite\\server.py" },
+        { "path": "D:\\Aphrodite\\index.html" },
+        { "path": "D:\\Aphrodite\\launch_aphrodite.bat" }
+      ]
+    },
+    {
+      "name": "riley",
+      "port": 43907,
+      "health_url": "http://127.0.0.1:43907/api/info",
+      "launch": "D:\\riley\\launch_riley.bat",
+      "launch_flags": [],
+      "files": [
+        { "path": "D:\\riley\\riley_server.py" },
+        { "path": "D:\\riley\\index.html" },
+        { "path": "D:\\riley\\launch_riley.bat" }
+      ]
+    }
+  ]
+}
