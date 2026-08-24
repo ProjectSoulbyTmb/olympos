@@ -37,3 +37,6 @@ Thumbs.db
 
 tools/
 jdktmp/
+
+# --- hades local seal state ---
+hades/state/
