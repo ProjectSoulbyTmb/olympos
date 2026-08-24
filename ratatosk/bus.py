@@ -254,6 +254,7 @@ class Post:
         fname = (f"{head}{seq:012d}-{frm}-{_safe(kind)}-"
                  f"{uuid.uuid4().hex[:8]}.json")
         atomic_write_json(os.path.join(inbox, fname), letter)
+        self._bump_metrics(frm, "sent")
         return letter["id"]
 
     def request(self, to, kind, payload, frm, timeout_s=10.0,
@@ -303,10 +304,47 @@ class Post:
             kind = letter.get("kind")
             if not to or not kind:
                 return None
-            return self.send(to, str(_safe(kind)) + ".reply", payload,
-                             frm=frm, corr=letter.get("corr"))
+            out = self.send(to, str(_safe(kind)) + ".reply", payload,
+                            frm=frm, corr=letter.get("corr"))
+            self._bump_metrics(frm, "replied")
+            return out
         except Exception:                # noqa: BLE001
             return None
+
+    # -- mailbox metrics (best-effort, never fatal) --
+
+    DEFAULT_METRICS = {"sent": 0, "received": 0, "replied": 0,
+                       "quarantined": 0}
+
+    def _load_metrics(self, name):
+        try:
+            m = _read_json(self._dir(_safe(name), "metrics.json"))
+        except (OSError, ValueError):
+            m = {}
+        out = dict(self.DEFAULT_METRICS)
+        if isinstance(m, dict):
+            for k in out:
+                v = m.get(k)
+                if isinstance(v, int) and not isinstance(v, bool):
+                    out[k] = v
+        return out
+
+    def _bump_metrics(self, name, field, n=1):
+        """Read-modify-write one counter under a best-effort lock;
+        any failure is swallowed - metrics must never break mail."""
+        if field not in self.DEFAULT_METRICS:
+            return
+        try:
+            with _lock(self._dir("locks",
+                                 f"metrics-{_safe(name)}.lock")) as ok:
+                if not ok:
+                    return
+                m = self._load_metrics(name)
+                m[field] += n
+                atomic_write_json(
+                    self._dir(_safe(name), "metrics.json"), m)
+        except Exception:                # noqa: BLE001
+            pass
 
     def _inbox_letters(self, name):
         """Yield (fname, letter-or-None) for one inbox in delivery
@@ -401,6 +439,7 @@ class Post:
                             seen, "corrupt-" + fname))
                     except OSError:
                         pass
+                    self._bump_metrics(name, "quarantined")
                 continue
             letters.append(letter)
             if mark:
@@ -408,6 +447,7 @@ class Post:
                     os.replace(src, os.path.join(seen, fname))
                 except OSError:
                     pass
+                self._bump_metrics(name, "received")
         return letters
 
     # -- broadcast topics --
@@ -664,7 +704,8 @@ class Post:
             organs[name] = {"unread": self.unread(name),
                             "heartbeat_age_s": hb_age,
                             "stale": hb_age is None or hb_age > 600,
-                            "next_letter": last}
+                            "next_letter": last,
+                            "metrics": self._load_metrics(name)}
         topics = {}
         for t in self.topics():
             size = 0

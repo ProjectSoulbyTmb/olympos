@@ -513,6 +513,105 @@ def legacy_topic_migration():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ------------------------------------------- metrics & vitals CLI
+
+@check
+def mailbox_metrics_counted():
+    post, tmp = sandbox()
+    try:
+        post.register("odin", role="requester")
+        post.send("mimir", "wisdom", {"rune": "ansuz"}, frm="odin")
+        post.send("mimir", "wisdom", {"rune": "thurisaz"}, frm="odin")
+        corrupt = os.path.join(post.root, "mimir", "inbox",
+                               "000000000001-x-y-zz.json")
+        with open(corrupt, "w", encoding="utf-8") as fh:
+            fh.write("{bad json")
+        post.read("mimir")               # 2 good + 1 quarantined
+        post.respond({"from": "mimir", "kind": "question",
+                      "corr": "abc"}, {"a": 1}, frm="odin")
+        st = post.status()["organs"]["mimir"]["metrics"]
+        assert st["received"] == 2 and st["quarantined"] == 1, st
+        sender = post.status()["organs"]["odin"]["metrics"]
+        assert sender["sent"] == 3 and sender["replied"] == 1, sender
+        on_disk = json.load(open(os.path.join(post.root, "mimir",
+                                              "metrics.json"),
+                                 encoding="utf-8"))
+        assert on_disk["received"] == 2, on_disk
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check
+def metrics_never_raise_on_corrupt_state():
+    post, tmp = sandbox()
+    try:
+        mdir = os.path.join(post.root, "huginn")
+        os.makedirs(os.path.join(mdir, "inbox"), exist_ok=True)
+        with open(os.path.join(mdir, "metrics.json"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("garbage{")
+        post.send("huginn", "scout", {}, frm="muninn")
+        letters = post.read("huginn")     # bump hits corrupt file
+        assert len(letters) == 1
+        m = post.status()["organs"]["huginn"]["metrics"]
+        assert m["sent"] >= 0 and m["received"] >= 0, \
+            "corrupt state degrades to defaults, never raises"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check
+def vitals_cli_exit_codes():
+    outer = tempfile.mkdtemp(prefix="ratatosk-vitals-")
+    env = dict(os.environ,
+               RATATOSK_ROOT=os.path.join(outer, "post"),
+               PYTHONPATH=ROOT_PARENT)
+    py = sys.executable
+
+    def run(cli_args):
+        return subprocess.run([py, "-m", "ratatosk", *cli_args],
+                              capture_output=True, text=True,
+                              cwd=ROOT_PARENT, env=env, timeout=120)
+    try:
+        run(["send", "--to", "fenrir", "--kind", "howl",
+             "--payload", "{}", "--frm", "tyr"])
+        # fenrir has no heartbeat -> strict must fail
+        r = run(["vitals", "--strict"])
+        assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
+        assert "fenrir" in r.stdout and "STALE" in r.stdout, r.stdout
+        # after a heartbeat, strict passes
+        r = subprocess.run(
+            [py, "-c",
+             "import os; from ratatosk import Post; "
+             f"Post(os.environ['RATATOSK_ROOT']).beat('fenrir')"],
+            capture_output=True, text=True, cwd=ROOT_PARENT, env=env,
+            timeout=120)
+        assert r.returncode == 0, r.stderr
+        r = run(["vitals", "--strict"])
+        assert r.returncode == 0, (r.returncode, r.stderr)
+        # a manually aged heartbeat trips --stale-s
+        hb_path = os.path.join(outer, "post", "fenrir",
+                               "heartbeat.json")
+        hb = json.load(open(hb_path, encoding="utf-8"))
+        hb["epoch"] = hb["epoch"] - 10000
+        json.dump(hb, open(hb_path, "w", encoding="utf-8"))
+        r = run(["vitals", "--strict", "--stale-s", "600"])
+        assert r.returncode == 1, (r.returncode, r.stdout)
+        # topic line counts appear
+        subprocess.run([py, "-c",
+                        "import os; from ratatosk import Post; "
+                        "p = Post(os.environ['RATATOSK_ROOT']); "
+                        "[p.broadcast('skoll', 'chase', {'i': i}) "
+                        "for i in range(2)]"],
+                       capture_output=True, cwd=ROOT_PARENT, env=env,
+                       timeout=120)
+        r = run(["vitals"])
+        assert r.returncode == 0 and "topic skoll: 2 lines" in r.stdout, \
+            r.stdout
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
+
+
 def main():
     print("=" * 64)
     print("RATATOSK VERIFY - filesystem communication network")
