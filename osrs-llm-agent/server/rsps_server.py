@@ -191,7 +191,9 @@ class GameServer:
                              daemon=True).start()
 
     def _handle(self, conn):
-        if len(self.sessions) >= MAX_SESSIONS:
+        with self._lock:
+            full = len(self.sessions) >= MAX_SESSIONS
+        if full:
             conn.sendall(b'{"ok": false, "error": "server full"}\n')
             conn.close()
             return
@@ -224,6 +226,8 @@ class GameServer:
                     resp = {"ok": False, "error": f"bad request: {e}"}
                     conn.sendall((json.dumps(resp) + "\n").encode())
                     continue
+                # Hyperion-style cycle watchdog: slow handlers are visible.
+                t0 = time.perf_counter()
                 cmd = req.get("cmd")
                 if cmd == "login":
                     name = str(req.get("name") or
