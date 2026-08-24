@@ -16,6 +16,7 @@ Nothing prints. Everything lands in the audit trail.
 """
 
 import contextlib
+import concurrent.futures
 import glob
 import json
 import os
@@ -575,27 +576,34 @@ class Kernel:
         return purged
 
     def _build(self):
-        """Engine 5: feed the live system - prove the organism builds."""
+        """Engine 5: feed the live system - prove the organism builds.
+
+        Gates run concurrently (each bounded by its timeout_s); the
+        report keeps configured order so build.json stays diff-stable
+        and verdicts are computed over every gate, not a prefix."""
         if not content.BUILD_ENABLED or not content.BUILD_GATES:
             return None
         if _now() - self._last_build_epoch < content.BUILD_MIN_INTERVAL_S:
             return None
-        gates = []
-        all_ok = True
-        for gate in content.BUILD_GATES:
+
+        def run_gate(gate):
             spec = {"do": "run", "argv": gate["argv"],
                     "timeout_s": gate.get("timeout_s",
                                           content.MAX_RUN_TIMEOUT_S)}
-            started = _now()
             res = actions.execute(spec, post=self.post)
-            gates.append({"name": gate.get("name",
-                                           _slug(gate["argv"][-1])),
-                          "ok": bool(res.get("ok")),
-                          "exit_code": res.get("exit_code"),
-                          "duration_s": res.get("duration_s"),
-                          "tail": (res.get("stdout", "")
-                                   + res.get("stderr", ""))[-1500:]})
-            all_ok = all_ok and bool(res.get("ok"))
+            return {"name": gate.get("name",
+                                     _slug(gate["argv"][-1])),
+                    "ok": bool(res.get("ok")),
+                    "exit_code": res.get("exit_code"),
+                    "duration_s": res.get("duration_s"),
+                    "tail": (res.get("stdout", "")
+                             + res.get("stderr", ""))[-1500:]}
+
+        workers = max(1, min(getattr(content, "BUILD_MAX_WORKERS", 4),
+                             len(content.BUILD_GATES)))
+        with concurrent.futures.ThreadPoolExecutor(workers) as pool:
+            gates = list(pool.map(run_gate, content.BUILD_GATES))
+        all_ok = all(g["ok"] for g in gates)
         report = {"v": content.VERSION, "epoch": round(_now(), 3),
                   "ts": _iso(), "ok": all_ok, "gates": gates}
         try:

@@ -503,6 +503,47 @@ def recurring_schedules_fire_and_stamp():
         content.SCHEDULES = saved_scheds
 
 
+@check
+def build_runs_gates_in_parallel_order_stable():
+    saved_enabled = content.BUILD_ENABLED
+    try:
+        with sandbox(tempfile.mkdtemp(prefix="hypnos-v-")) as k:
+            content.BUILD_ENABLED = True
+            content.BUILD_MIN_INTERVAL_S = 0
+            content.BUILD_GATES = [
+                {"name": "g-ok-1", "argv": [sys.executable, "-c",
+                                            "print('1')"],
+                 "timeout_s": 60},
+                {"name": "g-bad", "argv": [sys.executable, "-c",
+                                           "raise SystemExit(3)"],
+                 "timeout_s": 60},
+                {"name": "g-ok-2", "argv": [sys.executable, "-c",
+                                            "print('3')"],
+                 "timeout_s": 60},
+                {"name": "g-ok-4", "argv": [sys.executable, "-c",
+                                            "print('4')"],
+                 "timeout_s": 60},
+            ]
+            submit(k.post, {"actions": [{"do": "mkdir", "path": "p"}]})
+            s = k.tick()
+            assert s["built"], s
+            report = json.load(open(
+                os.path.join(content.DATA_DIR, "build.json"),
+                encoding="utf-8"))
+            # configured order preserved regardless of finish order
+            assert [g["name"] for g in report["gates"]] == \
+                ["g-ok-1", "g-bad", "g-ok-2", "g-ok-4"], report
+            # verdict computed over every gate, not a prefix
+            assert report["ok"] is False and \
+                report["gates"][1]["ok"] is False and \
+                all(g["ok"] for g in report["gates"] if g["name"]
+                    != "g-bad"), report
+            assert all(g["duration_s"] is not None
+                       for g in report["gates"]), report
+    finally:
+        content.BUILD_ENABLED = saved_enabled
+
+
 # ------------------------------------------------------------- gate runner
 
 def main():
