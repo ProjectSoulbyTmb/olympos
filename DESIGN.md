@@ -111,6 +111,19 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
   procedural sprites/animations/hit-splats, panel tabs (stats/inv/
   quests/magic/prayer/bank/shop), dialogue window, chat box, area
   ambience with catacombs drone.
+- 2026-08-23: social + VTuber pass (verify gate 26 -> 29). Server:
+  player-to-player trading (invite -> staged offers -> double
+  confirm -> atomic swap validated under the lock; disconnect-safe)
+  and a status/discovery command. Client: VTuber-style procedural
+  avatar rig learned from VUP/VTube Studio/VSeeFace - blink cycle,
+  breathing, idle sway, mouth flap while chatting, expression states
+  (level-up celebration sparkles, hit flinch) and chat emotes
+  (/wave /dance /bow...) broadcast through the channel. Venus widget
+  gains Luppet-style mouse head-tracking (head+spine bones follow the
+  cursor) and VUP-style emote hotkeys (1-5 moods, Z/X/C gestures);
+  her existing VRM stack already covers visemes/emotions/overlay
+  transparency. Packaging: build_client.ps1 builds standalone
+  OsrsPlay.exe; runner menu grows "Play now".
 
 - 2026-08-23: Heart gained autonomic energy states (awake/drowsy/asleep
   driven by command activity, sleepBpm slowdown) and pluggable critical

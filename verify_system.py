@@ -708,10 +708,39 @@ def t_playable_client_ui():
     need = ["world_menu_at", "minimap_click", "draw_dialogue",
             "draw_chat", "_tab_bank", "_tab_shop", "_tab_magic",
             "_tab_prayer", "selected_spell", "Splat", "ambience",
-            "CATACOMBS_RECT", "catacombs"]
+            "CATACOMBS_RECT", "catacombs",
+            # VTuber-style avatar rig (VTube Studio patterns)
+            "class Avatar", "next_blink", "talk_until",
+            "do_emote", "celebrate", "_send_chat", "EMOTES"]
     missing = [n for n in need if n not in src]
     assert not missing, f"client missing: {missing}"
-    return "menus, minimap, dialogue, chat, tabs, splats present"
+    return ("menus, minimap, dialogue, chat, tabs, splats, "
+            "avatar rig + emotes")
+
+
+def t_venus_vtuber_layer():
+    widget = open(os.path.join(HERE, "assistant", "lib", "widget.html"),
+                  encoding="utf-8").read()
+    for marker in ("three-vrm.min.js", "model.vrm", "expressionManager",
+                   "speak.wav", "getNormalizedBoneNode('head')",
+                   "emote hotkeys", "pointer-following gaze"):
+        assert marker in widget, f"widget missing: {marker}"
+    desktop = open(os.path.join(HERE, "assistant", "venus-desktop.js"),
+                   encoding="utf-8").read()
+    assert "transparent: true" in desktop, "no stream-overlay mode"
+    return "VRM rig, mouse head-tracking, visemes, emote keys, overlay"
+
+
+def t_packaging_and_runner():
+    build = open(os.path.join(HERE, "build_client.ps1"),
+                 encoding="utf-8").read()
+    assert "play_rsps.py" in build and "OsrsPlay" in build
+    src = open(os.path.join(HERE, "runner.py"), encoding="utf-8").read()
+    assert '"Play now (graphical client)"' in src and "def play_client" in \
+        src
+    import ast
+    ast.parse(src)
+    return "build_client.ps1 + runner 'Play now' flow"
 
 
 def t_trading_and_status():
@@ -794,6 +823,8 @@ for name, fn in [
     ("SOCKET: multiplayer channel + resume", t_multiplayer_channel),
     ("SOCKET: trading + status", t_trading_and_status),
     ("APP: client UI systems", t_playable_client_ui),
+    ("VENUS: VTuber avatar layer", t_venus_vtuber_layer),
+    ("APP: packaging + runner play flow", t_packaging_and_runner),
 ]:
     check(name, fn)
 

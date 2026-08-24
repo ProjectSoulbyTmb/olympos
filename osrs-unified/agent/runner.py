@@ -90,6 +90,8 @@ def run_snippet(code, game, forgiving=False,
             def guard():
                 while True:
                     time.sleep(1)
+                    if not armed["v"]:
+                        return
                     tick_now = progress()
                     if tick_now != last_tick["v"]:
                         last_tick["v"] = tick_now
@@ -100,17 +102,24 @@ def run_snippet(code, game, forgiving=False,
                             "safeguard: strategy stopped ("
                             f"{no_progress}s no progress / "
                             f"{hard_timeout}s hard cap)")
+                        armed["v"] = False
                         _inject_async_exception(worker, StrategyTimeout)
                         return
 
             start = time.time()
             last_tick["v"] = progress()
+            armed = {"v": True}
             watcher = threading.Thread(target=guard, daemon=True)
             watcher.start()
             try:
                 fn(game)
             finally:
+                # Disarm BEFORE anything else so a guard that woke up
+                # mid-return cannot inject into whatever runs next; and
+                # clear any async exception already queued on this thread.
+                armed["v"] = False
                 deadline["t"] = float("inf")
+                _inject_async_exception(worker, None)
         return True, buffer.getvalue(), ""
     except StrategyTimeout:
         return True, buffer.getvalue(), stop_reason["v"]
