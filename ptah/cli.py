@@ -55,13 +55,29 @@ def build_agent(llm, workspace_root, policy_name=None, max_iters=None,
     skills = load_skills(content.BUILTIN_SKILLS_DIR,
                          os.path.join(workspace_root, ".ptah", "skills"),
                          *extra_skill_dirs)
-    return Agent(llm=llm, registry=registry,
-                 policy=ConfirmationPolicy(policy_name or
+    # MCP servers (OpenHands-style dynamic tool integration)
+    mcp_cfg = os.path.join(workspace_root, ".ptah", "mcp.json")
+    if os.path.isfile(mcp_cfg):
+        try:
+            from ptah import mcp as mcp_mod
+            mcp_mod.register_into(registry, mcp_cfg)
+        except Exception:
+            pass                                  # MCP never blocks startup
+    agent = Agent(llm=llm, registry=registry,
+                  policy=ConfirmationPolicy(policy_name or
                                            content.DEFAULT_POLICY),
                  skills=list(skills.values()) if isinstance(skills, dict)
                  else list(skills),
                  max_iterations=max_iters,
-                 repo_root=_repo_root())
+                 repo_root=_repo_root(),
+                 hooks_config=_load_hooks(workspace_root))
+    return agent
+
+
+def _load_hooks(workspace_root):
+    from ptah.hooks import load_hook_config
+    return load_hook_config(os.path.join(workspace_root, ".ptah",
+                                         "hooks.json"))
 
 
 def _repo_root():
@@ -208,6 +224,42 @@ def cmd_selfcheck(args):
     return 0 if ok else 1
 
 
+def cmd_metrics(args):
+    """Token/cost rollup for one conversation (or the latest)."""
+    import json as _json
+    from ptah.conversation import Store
+    store = Store()
+    cid = args.conversation
+    if not cid:
+        metas = store.list()
+        if not metas:
+            print("no conversations")
+            return 1
+        cid = metas[0]["id"]
+    conv = store.get(cid)
+    if conv is None:
+        print(f"no such conversation: {cid}")
+        return 1
+    tokens_in = tokens_out = 0
+    actions = answers = 0
+    for event in conv.events:
+        if event.TYPE == "agent_thought":
+            usage = getattr(event, "usage", None) or {}
+            tokens_in += usage.get("input", 0)
+            tokens_out += usage.get("output", 0)
+        elif event.TYPE == "action":
+            actions += 1
+        elif event.TYPE == "agent_message":
+            answers += 1
+    print(_json.dumps({
+        "conversation": conv.id, "status": conv.status,
+        "events": len(conv.events), "llm_calls": sum(
+            1 for e in conv.events if e.TYPE == "agent_thought"),
+        "tokens_in": tokens_in, "tokens_out": tokens_out,
+        "actions": actions, "answers": answers}, indent=2))
+    return 0
+
+
 def cmd_version(_args):
     print(f"ptah {content.VERSION}")
     return 0
@@ -263,6 +315,11 @@ def build_parser():
     p_sc.add_argument("--json", action="store_true")
     p_sc.add_argument("--keep-days", type=int, default=14)
     p_sc.set_defaults(fn=cmd_selfcheck)
+
+    p_m = sub.add_parser("metrics", help="token/usage rollup for a conversation")
+    p_m.add_argument("conversation", nargs="?", default="",
+                     help="conversation id (default: latest)")
+    p_m.set_defaults(fn=cmd_metrics)
 
     p_v = sub.add_parser("version", help="print version")
     p_v.set_defaults(fn=cmd_version)
