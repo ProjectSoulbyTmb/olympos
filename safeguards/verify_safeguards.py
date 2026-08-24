@@ -177,10 +177,138 @@ def discovery_finds_real_suites():
     g = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(g)
     suites = g.discover()
-    expected = {"ratatosk", "vulcan", "zeus", "hades", "atlas"}
+    expected = {"ratatosk", "vulcan", "zeus", "hades", "atlas",
+                "daedalus", "hermod"}
     missing = expected - set(suites)
     assert not missing, f"discovery missed: {sorted(missing)}"
     assert "safeguards" not in suites, "self-exclusion failed"
+
+
+# ------------------------------------------------------------- patch lane
+
+def _seed_patch_repo():
+    """Tiny deterministic repo: no history copy, no network, no
+    contention with other lanes. Copies the three safeguard modules
+    in so the fresh interpreter under test has its own copies."""
+    import subprocess as sp
+    outer = tempfile.mkdtemp(prefix="patch-lane-")
+    repo = os.path.join(outer, "repo")
+    sp.run(["git", "init", "-q", "-b", "main", repo],
+           capture_output=True)
+    os.makedirs(os.path.join(repo, "safeguards"), exist_ok=True)
+    for m in ("patch.py", "check.py", "safe_commit.py"):
+        shutil.copy(os.path.join(HERE, m),
+                    os.path.join(repo, "safeguards", m))
+    with open(os.path.join(repo, "README.md"), "w",
+              encoding="utf-8", newline="\n") as fh:
+        fh.write("seed\n")
+    sp.run(["git", "add", "-A"], cwd=repo, capture_output=True)
+    sp.run(["git", "config", "user.name", "t"], cwd=repo,
+           capture_output=True)
+    sp.run(["git", "config", "user.email", "t@t"], cwd=repo,
+           capture_output=True)
+    sp.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+            "commit", "-qm", "seed"], cwd=repo, capture_output=True)
+    return repo, outer
+
+
+def _run_patch_in_repo(repo, diff_text, message):
+    import subprocess as sp
+    dfile = os.path.join(repo, "_lane_diff.txt")
+    with open(dfile, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(diff_text)
+    driver = (
+        "import json,sys\n"
+        "sys.path.insert(0,'')\n"
+        "from safeguards.patch import apply_patch\n"
+        "diff=open('_lane_diff.txt',encoding='utf-8').read()\n"
+        "print(json.dumps(apply_patch(diff, sys.argv[1])))\n")
+    env = dict(os.environ, PYTHONPATH=repo)
+    r = sp.run([sys.executable, "-c", driver, message],
+               cwd=repo, capture_output=True, text=True, env=env,
+               timeout=120)
+    out = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else "{}"
+    try:
+        return json.loads(out)
+    except ValueError:
+        return {"ok": False, "error": (r.stderr or out)[:200]}
+
+
+@check
+def patch_lane_applies_commits_and_keeps_junk_staged():
+    repo, outer = _seed_patch_repo()
+    import subprocess as sp
+    try:
+        junk = os.path.join(repo, "lane_b_junk.txt")
+        with open(junk, "w", encoding="utf-8") as fh:
+            fh.write("another lane's staged junk\n")
+        sp.run(["git", "add", "lane_b_junk.txt"], cwd=repo,
+               capture_output=True)
+        readme = os.path.join(repo, "README.md")
+        body_lines = open(readme, encoding="utf-8").read().splitlines()
+        n = len(body_lines)
+        last = body_lines[-1] if body_lines else ""
+        # canonical git-style append: last line as trailing context
+        diff = (f"--- a/README.md\n+++ b/README.md\n"
+                f"@@ -{n} +{n},2 @@\n {last}\n"
+                f"+patch-lane was here\n")
+        r = _run_patch_in_repo(repo, diff, "patch lane: append note")
+        assert r["ok"] and r["committed"], r
+        body = open(readme, encoding="utf-8").read()
+        assert "patch-lane was here" in body
+        st = sp.run(["git", "status", "--short"], cwd=repo,
+                    capture_output=True, text=True).stdout
+        assert "lane_b_junk" in st, "junk must survive untouched"
+        assert not any(l.startswith(" M README.md")
+                       for l in st.splitlines()), \
+            "committed file still dirty"
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
+def patch_lane_rolls_back_on_gate_failure():
+    repo, outer = _seed_patch_repo()
+    import subprocess as sp
+    try:
+        target = os.path.join(repo, "notes.py")
+        with open(target, encoding="utf-8", mode="w") as fh:
+            fh.write("VALUE = 1\n")
+        sp.run(["git", "add", "notes.py"], cwd=repo,
+               capture_output=True)
+        sp.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+                "commit", "-qm", "seed notes"], cwd=repo,
+               capture_output=True)
+        head_before = sp.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                             capture_output=True,
+                             text=True).stdout.strip()
+        bad_diff = ("--- a/notes.py\n+++ b/notes.py\n"
+                    "@@ -1 +1,2 @@\n VALUE = 1\n"
+                    "+def broken(:\n")
+        r = _run_patch_in_repo(repo, bad_diff, "should fail gates")
+        assert not r["ok"] and r.get("rolled_back"), r
+        head_after = sp.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                            capture_output=True,
+                            text=True).stdout.strip()
+        assert head_after == head_before, "rollback moved HEAD"
+        body = open(target, encoding="utf-8").read()
+        assert "broken" not in body, "rolled-back file still patched"
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
+
+
+@check
+def malformed_patches_are_refused_cleanly():
+    repo, outer = _seed_patch_repo()
+    try:
+        for diff in ("", "not a diff at all"):
+            r = _run_patch_in_repo(repo, diff, "m")
+            assert not r["ok"] and not r.get("rolled_back"), r
+        garbage = "--- a/nope.txt\n+++ b/nope.txt\n@@ -1 +1 @@\n-x\n"
+        r = _run_patch_in_repo(repo, garbage, "m")
+        assert not r["ok"] and "apply" in r["error"], r
+    finally:
+        shutil.rmtree(outer, ignore_errors=True)
 
 
 def main():

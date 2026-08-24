@@ -49,6 +49,7 @@ class FeedRoom:
     def __init__(self):
         self._lock = threading.Lock()
         self._head = {}            # source -> set of entry shas (lazy)
+        self._last_skipped = 0
         for d in (content.INBOX_DIR, content.STORE_DIR,
                   content.DONE_DIR, content.FAILED_DIR):
             os.makedirs(d, exist_ok=True)
@@ -88,12 +89,13 @@ class FeedRoom:
             raise ValueError("bad entries array")
         seen = self._seen(source)
         fresh = []
+        skipped = 0
         for e in entries:
             if not isinstance(e, dict):
                 raise ValueError("entries must be objects")
             sha = entry_sha(source, e)
             if sha in seen:
-                self._last_skipped += 1
+                skipped += 1
                 continue
             seen.add(sha)
             rec = dict(e)
@@ -106,11 +108,8 @@ class FeedRoom:
             self._shout(source, len(fresh), [r["_sha"] for r in fresh])
         shutil.move(src, self._archived_name(content.DONE_DIR, fname))
         self._prune(source)
-        self._last_skipped = len(entries) - len(fresh) \
-            if entries else 0
+        self._last_skipped = skipped
         return len(fresh)
-
-    _last_skipped = 0
 
     def _archived_name(self, side, fname):
         stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -118,11 +117,12 @@ class FeedRoom:
 
     def _park(self, src, fname, why):
         try:
-            shutil.move(src, self._archived_name(
-                content.FAILED_DIR, "corrupt-" + fname))
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            shutil.move(src, os.path.join(
+                content.FAILED_DIR, f"corrupt-{stamp}-{fname}"))
             with open(os.path.join(
                     content.FAILED_DIR,
-                    "why-" + fname + ".txt"), "w",
+                    f"why-{stamp}-{fname}.txt"), "w",
                     encoding="utf-8") as fh:
                 fh.write(why)
         except OSError:
@@ -178,8 +178,7 @@ class FeedRoom:
     # ------------------------------------------------------------- query --
 
     def latest(self, source=None, n=20):
-        sources = ([source] if source
-                   else self.sources())
+        sources = ([source] if source else self.sources())
         out = []
         for s in sources:
             try:
