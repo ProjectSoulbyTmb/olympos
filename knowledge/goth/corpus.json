@@ -77,6 +77,45 @@
       "Winklepickers": "Sharp-pointed vintage boots/shoes, trad goth staple.",
       "Spooky kid": "Derisive/affectionate term for 90s mall-era newcomers.",
       "Perky goth": "Self-aware term for goths with sunny temperaments ('goth is about the music and the drama, not misery')."
+    },
+    "women_of_goth": {
+      "disclaimer": "Cultural study of women's roles in goth subculture - musicians, historians, makers, documentarians. Not appearance curation.",
+      "frontwomen_beyond_icons": [
+        {"name": "Anja Huwe", "role": "Voice of Xmal Deutschland - Hamburg darkwave band signed to 4AD; one of the few female-fronted acts canonized in the first wave"},
+        {"name": "Tina Root", "role": "Switchblade Symphony vocalist - San Francisco's treacle-and-tinsel darkwave of the 1990s"},
+        {"name": "Monica Richards", "role": "Faith and the Muse frontwoman; also of Strange Boutique; poet-painter of the DC gothic tradition"},
+        {"name": "Sara Taylor", "role": "The Birthday Massacre vocalist - Toronto synth-goth bridging 2000s internet era"},
+        {"name": "Larissa Iceglass", "role": "Lebanon Hanover - Greek-born half of the cold-wave duo defining the 2010s revival"},
+        {"name": "Gitane Demone", "role": "Christian Death keyboardist/vocalist; deathrock royalty across Rozz Williams eras"},
+        {"name": "Diamanda Gal\u00e1s", "role": "Avant-garde extremity - voice as plague-liturgy; adopted by the scene though genre-defiant"}
+      ],
+      "print_and_image": [
+        {"name": "Propaganda magazine (1982-2002)", "role": "The American goth bible, founded by Fred H. Berger; codified the aesthetic via fashion editorial, fetish-history features, and club reportage from NY/LA"},
+        {"name": "Tia Giles", "role": "The sole female 'Propaganda supermodel' - face of the magazine's high-fashion gothic editorials and videozines"},
+        {"name": "Gothic Beauty (est. 2000)", "role": "Long-running US magazine centering women's fashion, beauty craft and scene interviews"},
+        {"name": "Newgrave", "role": "90s successor zine generation inspired by Propaganda"}
+      ],
+      "historians_and_authors": [
+        {"name": "Andi Harriman", "role": "Author of 'Some Wear Leather, Some Wear Lace' (worldwide 80s post-punk/goth compendium); DJ and scholar lecturing at Morbid Anatomy, NYU and Wave-Gotik-Treffen"},
+        {"name": "Liisa Ladouceur", "role": "Author of the 'Encyclopedia Gothica'; Canadian music journalist"},
+        {"name": "Nancy Kilpatrick", "role": "Dark-fantasy author who chronicled the goth scene in print"},
+        {"name": "Catherine Spooner", "role": "Academic (Lancaster) whose 'Fashioning Gothic Bodies' and essays trace goth style history"},
+        {"name": "Dawn Hazle / Emily Stringer and peers", "role": "Newer academic wave studying goth gender, aging and community online"}
+      ],
+      "couture_and_craft": [
+        {"name": "Jema Hewitt ('Emilly Ladybird')", "role": "Designer-maker behind Kindred Spirits Bridal during the UK corset renaissance; steampunk jewellery author; DMU fashion lecturer"},
+        {"name": "Karolina Laskowska", "role": "London couturi\u00e8re of ornate gothic lingerie/corsetry; founded The Underpinnings Museum - world's first lingerie-history museum"},
+        {"name": "Courtney (Opus Elenae)", "role": "Slow-fashion goth costumer and YouTuber bridging historical technique and modern dark wardrobes"}
+      ],
+      "media_and_travel": [
+        {"name": "La Carmina", "role": "Vancouver/Tokyo alternative-culture journalist and TV host documenting goth subcultures worldwide since 2007 (Simon & Schuster author)"}
+      ],
+      "sociology_notes": [
+        "Hodkinson (2002) found goth unusually gender-balanced in participation and self-media production compared to punk/metal scenes.",
+        "Wilkins (Gender & Society) documented goth spaces enabling assertive female sexuality while noting persistent romance-norm limits.",
+        "Scene magazines marketed hyperfeminine ideals even as practice embraced androgyny - tension studied by Manchester Gothic Studies (2018).",
+        "Women-led organizing shaped clubs and festivals: from Batcave-era patronage culture to Wave-Gotik-Treffen's broad female attendance."
+      ]
     }
   },
   "facts_nightly_pool": [

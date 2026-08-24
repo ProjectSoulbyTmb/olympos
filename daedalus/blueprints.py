@@ -320,6 +320,7 @@ ALIASES = {
     "icons": "icons", "muses": "icons",
     "music": "music_map", "bands": "music_map",
     "look": "fashion_guide", "fashion": "fashion_guide",
+    "women": "women_of_goth", "muses": "icons",
     "aesthetics": "mature_aesthetics_academic",
     "glossary": "glossary",
 }
@@ -418,6 +419,10 @@ try:
 
     hist = ask({"cmd": "query", "topic": "history"})
     assert hist.get("ok") is True and len(hist["data"]) >= 5, hist
+
+    women = ask({"cmd": "query", "topic": "women"})
+    assert women.get("ok") is True, women
+    assert "frontwomen_beyond_icons" in women["data"], women
 
     bad = ask({"cmd": "query", "topic": "nope"})
     assert bad.get("ok") is False, bad
