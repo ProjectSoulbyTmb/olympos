@@ -1,2 +1,2 @@
-# Yggdrasil core infrastructure is standard-library only.
+# Olympos core infrastructure is standard-library only.
 # Add pinned third-party deps here if a realm gains any.

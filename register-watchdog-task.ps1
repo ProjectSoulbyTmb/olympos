@@ -1,4 +1,4 @@
-# Registers (or removes) the Yggdrasil guardian watchdog: a light
+# Registers (or removes) the Olympos guardian watchdog: a light
 # scheduled task that every 5 minutes revives guardians left in
 # Ready state and zombie-restarts HYPNOS on a stale heartbeat.
 #
@@ -10,7 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$taskName = "Yggdrasil Watchdog"
+$taskName = "Olympos Watchdog"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 if ($Unregister) {

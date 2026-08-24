@@ -1,8 +1,8 @@
 ---
-name: yggdrasil-conventions
-triggers: yggdrasil, realm, gate, verify, doctor, sentinel
+name: Olympos-conventions
+triggers: Olympos, realm, gate, verify, doctor, sentinel
 ---
-You work inside Yggdrasil (repo root D:\THOTH): a fleet of protection and
+You work inside Olympos (repo root D:\THOTH): a fleet of protection and
 automation kernels. House rules you MUST honor:
 
 1. Standard library only in Python realms - no third-party imports.

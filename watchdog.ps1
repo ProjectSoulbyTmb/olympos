@@ -1,11 +1,11 @@
-# Yggdrasil guardian watchdog - the fix for "Running but dead".
+# Olympos guardian watchdog - the fix for "Running but dead".
 #
 # Task Scheduler restarts a task on FAILURE, but a daemon that exits
 # cleanly (or gets stopped mid-reorganization) leaves the task in
 # Ready and nothing revives it - HYPNOS went dark exactly that way.
 # This watchdog closes the gap on two levels:
 #
-#   1. task state: any Yggdrasil guardian not Running gets started;
+#   1. task state: any Olympos guardian not Running gets started;
 #   2. liveness: HYPNOS reporting Running with a stale heartbeat is
 #      a zombie - stop it, then start it fresh.
 #
@@ -38,9 +38,9 @@ try {
 } catch { }
 finally { Pop-Location }
 
-foreach ($name in @("Yggdrasil ZEUS Guardian",
-                    "Yggdrasil HYPNOS Dreamworker",
-                    "Yggdrasil GAIA Pulse")) {
+foreach ($name in @("Olympos ZEUS Guardian",
+                    "Olympos HYPNOS Dreamworker",
+                    "Olympos GAIA Pulse")) {
     try {
         $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
         $running = ($task.State -eq "Running")
@@ -59,7 +59,7 @@ foreach ($name in @("Yggdrasil ZEUS Guardian",
     }
     catch {
         # task not registered at all - nothing this run can do beyond
-        # noting it; register-soul-tasks.ps1 is the installer of record
+        # noting it; register-olympos-tasks.ps1 is the installer of record
         Write-Log "missing" "$name not registered"
     }
 }

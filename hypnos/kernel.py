@@ -9,7 +9,7 @@ Tick order, every phase behind its own circuit breaker:
              a killed process leaves its unfinished work behind and the
              next tick picks it up automatically
   4. MAINT   purge seen folders, prune archives, rotate the audit
-  5. BUILD   feed the live system: run the Yggdrasil verify gates and
+  5. BUILD   feed the live system: run the Olympos verify gates and
              publish the outcome on topic 'hypnos' + data/build.json
 
 Nothing prints. Everything lands in the audit trail.

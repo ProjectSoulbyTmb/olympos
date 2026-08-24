@@ -1,4 +1,4 @@
-# Yggdrasil - Working Model & Integration Design
+# Olympos - Working Model & Integration Design
 
 Model of record for how every organ runs, talks, verifies, and ships.
 Builds on `DESIGN.md` (what exists) and `STRATEGY.md` (where we're
@@ -8,7 +8,7 @@ see section 9).
 
 ## 0. The goal this design serves
 
-> You describe a game or an app; Yggdrasil designs it, writes the
+> You describe a game or an app; Olympos designs it, writes the
 > code, verifies it, and iterates autonomously - entirely on your
 > machine, fully open source. The Vulcan sandbox is the proving ground
 > where build-and-verify loops harden before they target arbitrary
@@ -98,7 +98,7 @@ hades/                      fingerprints, seals, watermark ledgers
 
 | Cadence | Owner | Tick | SLO |
 |---|---|---|---|
-| Realm sim tick | yggdrasil engine | 0.6 s logical | Clockwork-seeded, replayable |
+| Realm sim tick | Olympos engine | 0.6 s logical | Clockwork-seeded, replayable |
 | Patrol tick | ZEUS kernel | fast loop | audit-only, never destructive |
 | Supervisor beat | norn.pulse | base beat N | organs run on `every_beats`; quarantine after `slo_max_late` consecutive misses; revive after cool-down |
 | Watchdog cycle | sentinel | manual / `--watch N` / Scheduled Task | remediate -> all gates -> ledger |
@@ -271,7 +271,7 @@ That last row is not hypothetical - see §9.
 ## 9. Reconciliation - COMPLETED (2026-08-24)
 
 Resolved by lineage reset: `main` was rebuilt directly as the purged
-Yggdrasil tree (`8455df4` -> `e7e48ed`, now origin/main) with zero
+Olympos tree (`8455df4` -> `e7e48ed`, now origin/main) with zero
 retired-scope residue, verified by content scan. All game-derived
 realms, scripts, seeds and registry rows are gone; ratatosk, norn,
 vulcan, hades, gaia, zeus and thoth machinery carried over.

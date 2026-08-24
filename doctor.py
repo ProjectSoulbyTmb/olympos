@@ -1,4 +1,4 @@
-﻿"""Yggdrasil doctor - automatic stabilization foundation.
+"""Olympos doctor - automatic stabilization foundation.
 
 One command that keeps continuous development safe:
 
@@ -328,7 +328,7 @@ def main():
     ci = "--ci" in sys.argv
     fix_deps = "--fix-deps" in sys.argv
     print("=" * 64)
-    print(f"YGGDRASIL DOCTOR - {'CI subset' if ci else 'full'} mode")
+    print(f"Olympos DOCTOR - {'CI subset' if ci else 'full'} mode")
     print("=" * 64)
     doc = Doctor(ci=ci, fix_deps=fix_deps)
     summary = doc.run()

@@ -1,4 +1,4 @@
-"""PTAH - the Yggdrasil software-engineering agent kernel.
+"""PTAH - the Olympos software-engineering agent kernel.
 
 Public surface:
 

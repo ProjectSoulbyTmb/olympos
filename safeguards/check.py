@@ -5,7 +5,7 @@ Every check here exists because a specific incident slipped through:
 - py syntax compile ....... a mis-indented grant block broke an entire
                             server file and nine downstream suites
 - duplicate top-level defs  two parallel agent sessions each defined
-                            t_rig_yggdrasil_schema; the later def
+                            t_rig_Olympos_schema; the later def
                             silently shadowed the former
 - JSON validity ............ hand-edited registries/manifests with a
                             trailing comma took down loaders

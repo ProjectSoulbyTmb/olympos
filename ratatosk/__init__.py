@@ -1,4 +1,4 @@
-"""RATATOSK - the filesystem communication network of Yggdrasil.
+"""RATATOSK - the filesystem communication network of Olympos.
 
 The squirrel that runs up and down the world tree carrying messages
 between realms. Every organ of this workspace (sentinel, zeus, hades,

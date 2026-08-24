@@ -23,7 +23,7 @@ ELEVATED = "ELEVATED"
 DESTRUCTIVE = "DESTRUCTIVE"
 DENIED = "DENIED"
 
-GRANT_CLASS = {                  # Yggdrasil grant ladder mapping
+GRANT_CLASS = {                  # Olympos grant ladder mapping
     SAFE: "L0",
     ELEVATED: "L1",
     DESTRUCTIVE: "L2",

@@ -1,4 +1,4 @@
-# flow.ps1 - multi-agent git flow helper for the Soul Platform fleet.
+# flow.ps1 - multi-agent git flow helper for the Project Olympos fleet.
 #
 # Each automator owns one git worktree under .worktrees\<name> and one
 # branch auto\<name>. Shipping = commit in your worktree, push your

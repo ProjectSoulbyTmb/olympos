@@ -1,6 +1,6 @@
 ---
 name: athena-codex
-description: Knowledge codex for ATHENA planning and design work in the Yggdrasil/soul-platform workspace. Supplies the model-of-record reading order, verified disk-truth state, wire contracts, rights ladder, build-loop stages, and knowledge-vault feeding rules. Trigger when architecting, planning, designing, writing ADRs or roadmaps, or auditing fleet drift in this repository.
+description: Knowledge codex for ATHENA planning and design work in the Olympos/olympos workspace. Supplies the model-of-record reading order, verified disk-truth state, wire contracts, rights ladder, build-loop stages, and knowledge-vault feeding rules. Trigger when architecting, planning, designing, writing ADRs or roadmaps, or auditing fleet drift in this repository.
 ---
 
 # ATHENA Codex — fleet knowledge, distilled and verified
