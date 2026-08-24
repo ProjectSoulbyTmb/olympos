@@ -36,6 +36,20 @@ VULCAN_PROFILES = {
 }
 VULCAN_DEFAULT_PROFILE = "operator"
 
+# Zeus realm: protection verbs are high-stakes (bolts, policy), so the
+# read-only surface stays wide but mutation stays operator-only.
+ZEUS_INFO = frozenset({
+    "ping", "status", "diagnose", "events", "repairs", "procs",
+    "quarantine_list", "policy_get", "baseline_verify"})
+ZEUS_MUTATING = frozenset({
+    "patrol", "baseline_build", "watch_pid", "unwatch_pid",
+    "bolt_kill", "quarantine_restore", "policy_set"})
+ZEUS_PROFILES = {
+    "operator": None,   # None == every verb in ZeusSDK._VALID
+    "watcher": ZEUS_INFO,
+}
+ZEUS_DEFAULT_PROFILE = "operator"
+
 
 def profile_names():
     return sorted(PROFILES)

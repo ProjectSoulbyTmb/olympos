@@ -55,3 +55,5 @@ jobs:
         run: python ratatosk/verify_ratatosk.py
       - name: Hades provenance gate
         run: python hades/verify_hades.py
+      - name: NORN integration gate
+        run: python norn/verify_norn.py

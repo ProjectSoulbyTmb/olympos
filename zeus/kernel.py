@@ -27,6 +27,11 @@ try:                                # the post office is optional glue
 except ImportError:                 # pragma: no cover
     ratatosk = None
 
+try:                                # NORN pulse: SLO-paced patrols
+    from norn.pulse import Pulse
+except ImportError:                 # pragma: no cover
+    Pulse = None
+
 
 class Breaker:
     """Circuit breaker around one subsystem patrol."""
@@ -115,6 +120,17 @@ class Kernel:
         self.started_at = time.time()
         self.last_report = {}
         os.makedirs(content.DATA_DIR, exist_ok=True)
+        # NORN pulse: the patrol cycle is an organ with a latency SLO;
+        # breach streaks quarantine it briefly instead of letting a
+        # wedged probe spin. Vitals ride the status verb.
+        self.pulse = None
+        if Pulse is not None:
+            self.pulse = Pulse(name="zeus",
+                               beat_s=content.PATROL_SECONDS_REAL)
+            self.pulse.add_organ(
+                "patrol", self._patrol_body,
+                slo_max_ms=content.PATROL_SECONDS_REAL * 750.0,
+                slo_max_late=4, revive_after=2)
 
     # ---------- audit ----------
 
@@ -171,7 +187,13 @@ class Kernel:
     # ---------- patrol ----------
 
     def tick(self):
-        """One full protection cycle; returns the report."""
+        """One full protection cycle (pulse-paced); returns the report."""
+        if self.pulse is None:
+            return self._patrol_body()
+        self.pulse.beat()
+        return self.last_report
+
+    def _patrol_body(self):
         self.tick_count += 1
         report = {"tick": self.tick_count, "at": time.time(),
                   "findings": []}
@@ -248,7 +270,7 @@ class Kernel:
     # ---------- reporting ----------
 
     def status(self):
-        return {
+        rep = {
             "zeus": True,
             "version": content.VERSION,
             "uptime_s": round(time.time() - self.started_at, 1),
@@ -261,6 +283,9 @@ class Kernel:
                          for k, v in self.breakers.items()},
             "last_findings": len(self.last_report.get("findings", [])),
         }
+        if self.pulse is not None:
+            rep["pulse"] = self.pulse.vitals()
+        return rep
 
     def diagnose(self):
         rep = self.status()

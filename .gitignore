@@ -29,6 +29,7 @@ train_console.txt
 ui-errors.log
 data/sentinel/
 data/post/
+data/witness/
 zeus/data/
 
 # --- OS ---
@@ -40,3 +41,4 @@ jdktmp/
 
 # --- hades local seal state ---
 hades/state/
+hypnos/data/

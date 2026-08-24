@@ -23,6 +23,20 @@ import socket
 import threading
 import time
 
+_HERE2 = os.path.dirname(HERE)          # workspace root: norn/ lives there
+if _HERE2 not in sys.path:
+    sys.path.insert(0, _HERE2)
+
+try:                                    # NORN capability rights
+    import norn.rights as rights
+except ImportError:                     # pragma: no cover - degrade open
+    rights = None
+
+try:                                    # NORN witness journal
+    from norn.witness import Witness
+except ImportError:                     # pragma: no cover
+    Witness = None
+
 from sdk import ZeusClient, ZeusSDK, wire_client  # noqa: F401
 from kernel import Kernel
 
@@ -37,6 +51,7 @@ class ZeusServer:
         self.kernel = kernel if kernel is not None else Kernel()
         self.sdk = ZeusSDK(self.kernel)
         self.sessions = {}
+        self.profiles = {}        # cid -> rights profile name
         self._lock = threading.Lock()
         self._next_conn = 0
         self._sock = None
@@ -44,6 +59,14 @@ class ZeusServer:
         self._patrol_thread = None
         self.running = False
         self.auto_patrol = auto_patrol
+        self.witness = None
+        if Witness is not None:
+            try:
+                wdir = os.environ.get("NORN_WITNESS_DIR") or os.path.join(
+                    os.path.dirname(HERE), "data", "witness")
+                self.witness = Witness(wdir, actor="zeus")
+            except Exception:     # noqa: BLE001 - journaling is optional
+                self.witness = None
 
     @property
     def connection_count(self):
@@ -107,9 +130,16 @@ class ZeusServer:
             conn.close()
 
     def _client_loop(self, conn, cid):
+        profile = (rights.ZEUS_DEFAULT_PROFILE
+                   if rights is not None else "operator")
+        with self._lock:
+            self.profiles[cid] = profile
         conn.sendall(json.dumps(
             {"error": None, "result": {
                 "hello": "zeus", "version": content.VERSION,
+                "profile": profile,
+                "profiles": sorted(rights.ZEUS_PROFILES)
+                if rights is not None else ["operator"],
                 "watches": len(self.kernel.sentinel.manifest),
                 "ticks": self.kernel.tick_count}}
         ).encode("utf-8") + b"\n")
@@ -127,9 +157,27 @@ class ZeusServer:
                 if not isinstance(msg, dict) or "cmd" not in msg:
                     self._send(conn, error="missing cmd")
                     continue
-                resp = self.handle(msg.get("cmd"), msg.get("args") or {})
+                cmd = str(msg.get("cmd"))
+                if rights is not None and cmd == "assume":
+                    newp = str((msg.get("args") or {}).get("profile", ""))
+                    with self._lock:
+                        cur = self.profiles.get(cid, profile)
+                        allowed = rights.can_narrow(
+                            rights.ZEUS_PROFILES.get(cur),
+                            rights.ZEUS_PROFILES.get(newp))
+                        if allowed:
+                            self.profiles[cid] = newp
+                    if allowed:
+                        self._send(conn, result={"assumed": newp})
+                    else:
+                        self._send(
+                            conn,
+                            error=f"right_denied: cannot escalate "
+                                  f"{cur} -> {newp}")
+                    continue
+                resp = self.handle(cmd, msg.get("args") or {}, cid=cid)
                 self._send(conn, **resp)
-                if msg.get("cmd") == "close":
+                if cmd == "close":
                     break
         except (ConnectionResetError, OSError):
             pass
@@ -140,26 +188,42 @@ class ZeusServer:
                 pass
             with self._lock:
                 self.sessions.pop(cid, None)
+                self.profiles.pop(cid, None)
 
-    def handle(self, cmd, args):
+    def handle(self, cmd, args, cid=None):
         cmd = str(cmd)
         if cmd == "close":
             return {"error": None, "result": {"bye": True}}
         method = getattr(self.sdk, cmd, None)
         if cmd not in ZeusSDK._VALID or not callable(method):
             return {"error": f"unknown command: {cmd}", "result": None}
+        if rights is not None and cid is not None:
+            with self._lock:
+                pname = self.profiles.get(
+                    cid, rights.ZEUS_DEFAULT_PROFILE)
+            allowed = rights.ZEUS_PROFILES.get(pname)
+            if allowed is not None and cmd not in allowed:
+                return {"error": f"right_denied: profile '{pname}' "
+                                 f"may not '{cmd}'", "result": None}
         args = args if isinstance(args, dict) else {}
         try:
-            with self._lock:
-                result = method(**args)
-            return {"error": None, "result": result}
+            result = method(**args)
+            error = None
         except KeyError as exc:
-            return {"error": str(exc.args[0] if exc.args else exc),
-                    "result": None}
+            result, error = None, str(exc.args[0] if exc.args else exc)
         except (ValueError, TypeError) as exc:
-            return {"error": str(exc), "result": None}
-        except Exception as exc:                 # noqa: BLE001 - wire edge
-            return {"error": f"internal error: {exc!r}", "result": None}
+            result, error = None, str(exc)
+        except Exception as exc:             # noqa: BLE001 - wire face
+            result, error = None, f"internal error: {exc!r}"
+        if self.witness is not None and rights is not None \
+                and cmd in rights.ZEUS_MUTATING:
+            try:
+                self.witness.record(cmd, list(args.values()),
+                                    ok=error is None, error=error,
+                                    tick=self.kernel.tick_count)
+            except Exception:                # noqa: BLE001 - optional
+                pass
+        return {"error": error, "result": result}
 
     @staticmethod
     def _send(conn, error=None, result=None):

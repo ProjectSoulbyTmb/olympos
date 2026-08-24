@@ -30,6 +30,7 @@ class Organ:
     def snapshot(self):
         total = self.runs or 1
         return {"state": self.state,
+                "runs": self.runs,
                 "late_ratio": round(self.late_runs / total, 3),
                 "last_ms": round(self.last_ms, 2),
                 "consecutive_late": self.consecutive_late,

@@ -142,10 +142,39 @@ def cmd_audit(args):
 
 def cmd_watch(args):
     h = _hades(args)
+    try:                    # NORN pulse: SLO-paced scans, late-beat aware
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if _root not in sys.path:
+            sys.path.insert(0, _root)
+        from norn.pulse import Pulse
+    except ImportError:
+        Pulse = None
+    rep_cell = {}
+    pulse = None
+    if Pulse is not None:
+        def scan():
+            rep_cell["r"] = h.verify()
+        pulse = Pulse(name="hades", beat_s=float(args.interval))
+        pulse.add_organ("verify_scan", scan,
+                        slo_max_ms=args.interval * 600.0,
+                        slo_max_late=3, revive_after=2)
     print("sentinel awake - ctrl-c to stand down")
     try:
         while True:
-            rep = h.verify()
+            if pulse is None:
+                rep = h.verify()
+            else:
+                pulse.beat()
+                snap = pulse.organs["verify_scan"].snapshot()
+                if snap["state"] == "quarantined":
+                    print("%s  scan QUARANTINED (%s)" % (
+                        time.strftime("%H:%M:%S"), snap["reason"]))
+                    time.sleep(args.interval)
+                    continue
+                rep = rep_cell.get("r")
+                if rep is None:
+                    time.sleep(args.interval)
+                    continue
             hard = [v for v in rep["violations"] if v["kind"] != "UNREGISTERED"]
             print("%s  files=%d  hard=%d  unreg=%d" % (
                 time.strftime("%H:%M:%S"), rep["files"], len(hard),

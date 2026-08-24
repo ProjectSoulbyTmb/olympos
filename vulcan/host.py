@@ -63,6 +63,14 @@ class BuildingServer:
             slo_max_late=5, revive_after=2)
         self.world.pulse.add_organ(
             "post_office", self._post_office_beat, every_beats=10)
+        self.witness = None
+        try:    # NORN witness: attest every mutating SDK verb
+            from norn.witness import Witness
+            wdir = os.environ.get("NORN_WITNESS_DIR") or os.path.join(
+                _ROOT, "data", "witness")
+            self.witness = Witness(wdir, actor="vulcan")
+        except Exception:
+            self.witness = None
 
     def _locked_tick(self):
         with self._lock:
@@ -231,20 +239,28 @@ class BuildingServer:
         try:
             with self._lock:
                 result = method(**args)
-            if cmd in ("stats", "ping"):
-                try:            # liveness for the Heimdall vitals panel
-                    from ratatosk import beat
-                    beat("vulcan", note=f"{cmd} ok")
-                except Exception:
-                    pass
-            return {"error": None, "result": result}
+            error = None
         except KeyError as exc:
-            return {"error": str(exc.args[0] if exc.args else exc),
-                    "result": None}
+            result, error = None, str(exc.args[0] if exc.args else exc)
         except (ValueError, TypeError) as exc:
-            return {"error": str(exc), "result": None}
-        except Exception as exc:
-            return {"error": f"internal error: {exc!r}", "result": None}
+            result, error = None, str(exc)
+        except Exception as exc:             # noqa: BLE001 - wire face
+            result, error = None, f"internal error: {exc!r}"
+        if error is None and cmd in ("stats", "ping"):
+            try:            # liveness for the Heimdall vitals panel
+                from ratatosk import beat
+                beat("vulcan", note=f"{cmd} ok")
+            except Exception:
+                pass
+        if self.witness is not None \
+                and cmd not in rights.VULCAN_INFO:
+            try:            # every mutation lands in the attestation
+                self.witness.record(cmd, list(args.values()),
+                                    ok=error is None, error=error,
+                                    tick=self.world.tick_count)
+            except Exception:
+                pass
+        return {"error": error, "result": result}
 
     def _send(self, conn, error=None, result=None):
         try:
