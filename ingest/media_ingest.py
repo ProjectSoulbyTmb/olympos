@@ -64,6 +64,8 @@ REFERERS = {
     "cdnc.imagefap.com": "https://www.imagefap.com/",
     "babesource.com": "https://babesource.com/",
     "media.babesource.com": "https://babesource.com/",
+    "www.eporner.com": "https://www.eporner.com/",
+    "ej.eporner.com": "https://www.eporner.com/",
 }
 
 HOST_DELAYS = {
@@ -77,6 +79,8 @@ HOST_DELAYS = {
     "cdnc.imagefap.com": 0.5,
     "babesource.com": 1.2,
     "media.babesource.com": 0.6,
+    "www.eporner.com": 1.5,
+    "ej.eporner.com": 0.6,
 }
 
 FEMALE_BLACKLIST = re.compile(
