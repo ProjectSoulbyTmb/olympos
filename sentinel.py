@@ -41,10 +41,23 @@ def log(msg):
 
 def ledger(kind, name, detail):
     os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
-    entry = {"ts": stamp(), "kind": kind, "name": name,
-             "detail": str(detail)[:400]}
+    # v2: every line is a buskit envelope on the 'incidents' topic
+    # (INTEGRATION.md 4.1 / acceptance A8). Legacy v1 quadruple lines
+    # already on disk stay readable; verify_system lints both.
+    try:
+        from buskit import envelope
+        entry = envelope.make(
+            "incident", "sentinel",
+            {"gate_kind": str(kind), "name": str(name),
+             "detail": str(detail)[:400]},
+            topic="incidents", rights="watcher")
+        line = envelope.dump(entry)
+    except Exception:                    # noqa: BLE001 - never lose an incident
+        entry = {"ts": stamp(), "kind": kind, "name": name,
+                 "detail": str(detail)[:400]}
+        line = json.dumps(entry)
     with open(LEDGER, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(entry) + "\n")
+        fh.write(line + "\n")
 
 
 # ---------------------------------------------------------------- doctor
@@ -167,6 +180,7 @@ def gate_defs():
                             os.path.join("templates",
                                          "verify_template.py")],
          HERE, None),
+        ("system seam", [PY, "-u", "verify_system.py"], HERE, None),
     ]
     if shutil.which("node") and \
             os.path.exists(os.path.join(HERE, "assistant",

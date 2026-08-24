@@ -105,3 +105,5 @@ tag-driven releases).
   target and design-artifact shape; root `VERSION` becomes the single
   version source. All fourteen component suites green under
   `doctor.py --ci`.
+
+- 2026-08-24: System seam proven: root gate `verify_system.py` wires the integration guarantees into one suite - norn.replay records/replays a seeded provisioning session to an identical digest (A4), norn.witness journals every mutating verb incl. refusals (A5), ratatosk broadcast->since() delivers exactly-once with monotonic seqs under catalogue-legal kinds, and the sentinel incidents ledger lints under the buskit envelope contract (A8) with the writer migrated to strict v2 envelopes (legacy v1 lines tolerated forever). Wired into doctor, sentinel and CI.
