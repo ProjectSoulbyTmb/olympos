@@ -1,2 +1,7 @@
 # Olympos core infrastructure is standard-library only.
 # Add pinned third-party deps here if a realm gains any.
+#
+# tools/forge-avatar (optional, offline avatar pipeline):
+#   anny>=0.5      NAVER parametric body model (Apache-2.0, pulls PyTorch)
+#   trimesh        GLB export
+

@@ -1,0 +1,92 @@
+{
+  "name": "goth-corpus",
+  "version": 1,
+  "policy": "Cultural and aesthetic material only. No sexualized content of anyone; mature aesthetics are documented strictly as fashion history and academic commentary, applied only to adult-coded contexts. Nothing here is erotic content.",
+  "topics": {
+    "history": [
+      {"era": "late 1970s", "event": "Gothic rock emerges from UK post-punk: Siouxsie and the Banshees, Bauhaus, Joy Division, The Cure."},
+      {"era": "1980-1982", "event": "Leeds F Club and London's Batcave (opened 21 July 1982, 69 Dean Street, Soho) become the subculture's cradles; NME briefly calls the scene 'positive punk' before settling on 'goth' in 1983."},
+      {"era": "1983-1986", "event": "Batcave peak: house band Specimen, Alien Sex Fiend, cabaret nights, horror films; DIY fashion culture defines the look. Compilation 'Young Limbs and Numb Hymns' (1983)."},
+      {"era": "late 1980s", "event": "Second wave diversifies: darkwave, ethereal wave (Cocteau Twins' Elizabeth Fraser, Dead Can Dance's Lisa Gerrard), steampunk and Victorian goth offshoots."},
+      {"era": "1990s", "event": "Global spread via club culture and the internet; cybergoth hybridizes with rave/industrial; US deathrock revival seeds."},
+      {"era": "2000s", "event": "Mall goth era via Hot Topic; Gothic Lolita crosses from Japan through manga/anime; scholarly study begins (Hodkinson's 'Goth: Identity, Style and Subculture', 2002)."},
+      {"era": "2010s+", "event": "Tumblr-born pastel goth; Afrogoth community challenges colorism; goth becomes a durable global aesthetic umbrella."}
+    ],
+    "substyles": [
+      {"name": "Trad Goth", "look": "All-black, backcombed towering hair, angular eyeliner, fishnets, winklepickers, creepers", "music": "Bauhaus, Siouxsie and the Banshees, Sisters of Mercy", "origin": "early 1980s Batcave"},
+      {"name": "Romantic Goth", "look": "Velvet, Victorian/Edwardian lace, corsets, deep reds and midnight purples", "music": "darkwave, ethereal wave, classical crossover", "origin": "mid 1980s"},
+      {"name": "Cyber Goth", "look": "Neon dreads, goggles, gas masks, platform boots, industrial/rave fusion", "music": "industrial dance, EBM, aggrotech", "origin": "late 1990s"},
+      {"name": "Pastel Goth", "look": "Creepy-cute kawaii: lavender/pink/mint hair, soft skulls and bats", "music": "witch house, chillwave-adjacent", "origin": "2010s Tumblr"},
+      {"name": "Deathrock", "look": "US-flavored trad: shredded fabric, skeleton motifs, punk remnants", "music": "Christian Death, Rudimentary Peni", "origin": "early 1980s LA"},
+      {"name": "Victorian Goth", "look": "Mourning dress revival, high collars, pocket watches, parasols", "music": "neoclassical darkwave, gothic literature readings", "origin": "late 1980s"},
+      {"name": "Steampunk Goth", "look": "Brass goggles, gears, waistcoats over black", "music": "dark cabaret", "origin": "late 1980s/2000s revival"},
+      {"name": "Gothic Lolita", "look": "Japanese doll-inspired: bell skirts, headdresses, lace in black/white", "music": "visual kei adjacency", "origin": "1990s-2000s Japan"},
+      {"name": "Darkwave", "look": "Ethereal flowing black, long hair, lacy fishnets", "music": "Clan of Xymox, Lebanon Hanover", "origin": "late 1980s"},
+      {"name": "Glam Goth", "look": "New Romantic dandy silhouettes, padded shoulders, frills, big hair", "music": "New Wave, glam rock roots", "origin": "1980s lineage"},
+      {"name": "Corporate Goth", "look": "Minimalist office-compatible black tailoring, subdued makeup", "music": "same scene, quieter volume", "origin": "2000s"},
+      {"name": "Mall Goth", "look": "Hot Topic era: band tees, baggy pants, chains, platform sneakers", "music": "nu-metal/goth-pop crossovers", "origin": "2000s"},
+      {"name": "Afrogoth", "look": "Traditional goth palette worn with Black cultural signifiers; resists pale-skin stereotype", "music": "full canon plus Black alternative artists", "origin": "2010s+ community movement"},
+      {"name": "Hippy Goth / Feywild", "look": "Flowing layers, natural motifs in black and moss tones (Kate Bush, Stevie Nicks lineage)", "music": "psychedelic folk-darkwave", "origin": "late 1980s"},
+      {"name": "Emo / Scene adjacent", "look": "Side-swept hair, skinny jeans, eyeliner - cousin scenes often conflated with goth", "music": "emo, screamo, crunkcore", "origin": "2000s (distinct from goth)"},
+      {"name": "Health Goth", "look": "Techwear, mesh, sportswear irony in monochrome", "music": "trap-adjacent internet microgenres", "origin": "2010s internet"}
+    ],
+    "icons": [
+      {"name": "Siouxsie Sioux", "role": "'Godmother of Goth' (she resisted the label); Siouxsie and the Banshees frontwoman whose Egyptian-lined eyes, teased black hair and bondage-influenced couture became the blueprint", "note": "NME observed half the girls at Leeds gigs copied her 'hair to ankle'"},
+      {"name": "Elizabeth Fraser", "role": "Cocteau Twins vocalist; ethereal-wave muse behind the softer Ethergoth feminine style"},
+      {"name": "Lisa Gerrard", "role": "Dead Can Dance; operatic darkwave iconography"},
+      {"name": "Patricia Morrison", "role": "Sisters of Mercy / Damned bassist; razor-lined silhouette archetype"},
+      {"name": "Vampira", "role": "1950s TV horror hostess; proto-goth pin-up silhouette"},
+      {"name": "Morticia Addams", "role": "The Addams Family matriarch; slinky gown archetype absorbed by the scene"},
+      {"name": "Bettie Page", "role": "1950s pin-up whose bangs and retro glamour inform psychobilly/goth styling"}
+    ],
+    "music_map": {
+      "foundational": ["Bauhaus", "Siouxsie and the Banshees", "The Cure", "Joy Division", "The Sisters of Mercy", "The Damned"],
+      "batcave_era": ["Specimen", "Alien Sex Fiend", "Sex Gang Children", "UK Decay", "Southern Death Cult"],
+      "deathrock_us": ["Christian Death", "45 Grave", "Rudimentary Peni"],
+      "darkwave_ethereal": ["Cocteau Twins", "Dead Can Dance", "Clan of Xymox", "This Mortal Coil", "Lisa Gerrard"],
+      "second_third_wave": ["The Mission", "Fields of the Nephilim", "Theatre of Tragedy", "Type O Negative"],
+      "modern_club": ["Lebanon Hanover", "She Past Away", "Twin Tribes", "Drab Majesty", "Boy Harsher"]
+    },
+    "fashion_guide": {
+      "makeup": "Pallor base, cool-toned contour, extended inner-eye line joining brow to nose bridge (trad), sharp painted lips or deep oxbloods; modern looks range from graphic white liner (cyber) to candy tones (pastel).",
+      "staples": "Black layered clothing, fishnets, corsetry, lace, velvet, leather; silver jewelry, ankh/bat/cross motifs, chokers; boots from winklepickers to platforms.",
+      "diy_ethos": "Batcave origin story: clothes were hand-painted, customized, repurposed - women's tights as sleeves, vintage suits, found jewelry. Authenticity never depended on budget.",
+      "historical_roots": "Elizabethan and Victorian mourning wear, Gothic literature (Poe, Stoker, Shelley), horror cinema (Hammer films, Universal monsters), symbolist art."
+    },
+    "mature_aesthetics_academic": {
+      "disclaimer": "Summaries of peer-reviewed cultural-studies literature. Fashion history and sociology only - not erotic material.",
+      "four_pillars": {
+        "victoriana": "Victorian mourning dress and corsetry embody fear of death plus nostalgia for the past (Journal of Fashion Business analysis of 1980s goth style).",
+        "vampirism": "Vampire costume and diabolical imagery as decadence performance, drawn from B-movies, Christian/Egyptian/Celtic mythologies.",
+        "androgyny": "Gender-blurring silhouettes across all genders - a defining subcultural value since the Batcave.",
+        "fetish_fashion_history": "Corsetry, latex, leather and bondage-derived hardware adopted as aggressive self-expression and theatrical style. Weinstock's 'Gothic Fetishism' (Duke UP, Goth: Undead Subculture) reads it as aesthetic/horror-inflected display rather than invitation. Siouxsie Sioux's BDSM-influenced stagecouture is analyzed academically as 'alternative femininity' - emancipatory visibility within a male-dominated industry."
+      },
+      "gender_studies": [
+        "Wilkins, 'So Full of Myself as a Chick': Goth Women, Sexual Independence, and Gender Egalitarianism (Gender & Society) - goth women used scene-celebrated boldness to resist passive-femininity norms.",
+        "Schilt, 'Queens of the Damned' - women's participation across two gothic subcultures.",
+        "Manchester Gothic Studies (2018) - 21st-century goth magazines often market hyperfeminine neo-traditional beauty ideals.",
+        "Hodkinson (2002) - goth noted among subcultures with notably strong female participation and media self-production."
+      ],
+      "literature_excerpts_topics": ["Edgar Allan Poe - decadence and mourning aesthetics", "Bram Stoker's Dracula - vampiric seduction of the modern imagination", "Mary Shelley's Frankenstein - the beautiful-grotesque", "Anne Rice and Poppy Z. Brite - gothic fiction beloved by the scene"]
+    },
+    "glossary": {
+      "Batcave": "London club-night (1982-86) considered goth's birthplace; attendees called Batcavers.",
+      "Ethergoth": "Retroactive name for mid-80s romantic/feminine goth style (Siouxsie, Fraser, Gerrard influence).",
+      "Deathrock": "US parallel strand of goth with heavier punk residue.",
+      "Darkwave": "Goth-adjacent genre fusing goth rock with synthpop/new wave.",
+      "Winklepickers": "Sharp-pointed vintage boots/shoes, trad goth staple.",
+      "Spooky kid": "Derisive/affectionate term for 90s mall-era newcomers.",
+      "Perky goth": "Self-aware term for goths with sunny temperaments ('goth is about the music and the drama, not misery')."
+    }
+  },
+  "facts_nightly_pool": [
+    "The Batcave entrance featured a real coffin you walked through.",
+    "NME coined then dropped 'positive punk' before John Peel announced the term 'goth' on BBC radio, June 14 1983.",
+    "Siouxsie Sioux rejected the 'Godmother of Goth' title - she considered the Banshees too witty for 'the doom, the black'.",
+    "Alexander McQueen's MA collection 'Jack the Ripper Stalks His Victims' lined jackets with human hair - haute couture's debt to goth.",
+    "Anny, NAVER's open parametric human body model, is built on MakeHuman community assets - the same open-source spirit the Batcave DIY ethos championed.",
+    "Robert Smith, Nick Cave and Siouxsie were all Batcave regulars watching house band Specimen.",
+    "Pastel goth was born on Tumblr around 2010 - the first goth style the internet created rather than the club.",
+    "The 1983 Batcave compilation 'Young Limb and Numb Hymns' carried UK goth to North America."
+  ]
+}
