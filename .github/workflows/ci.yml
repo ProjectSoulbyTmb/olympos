@@ -57,3 +57,5 @@ jobs:
         run: python hades/verify_hades.py
       - name: NORN integration gate
         run: python norn/verify_norn.py
+      - name: Hypnos task-organ gate
+        run: python hypnos/verify_hypnos.py
