@@ -365,6 +365,20 @@
         "onboarding",
         "gates"
       ]
+    },
+    {
+      "id": "L030",
+      "title": "Ingest against markup drift: probe many carriers, pin each with a fixture",
+      "category": "data-integrity",
+      "source": "godot-knowledge-db builder 2026-08-24 - all 58 crawled articles had blank published dates because the site replaced <time> with a data-post-date span",
+      "lesson": "Any tool that derives structured data from upstream HTML (or any external format you do not control) must not bind to a single carrier element. Probe the conventional carriers in priority order (data attributes, itemprop, <time>, og/meta tags, then visible text) so one site redesign degrades gracefully instead of silently blanking a column; and pin every carrier with a hermetic synthetic-HTML fixture in the verify suite, because live-site crawls cannot run in CI. Silent empty columns are worse than loud failures - validate at ingest (reject rows missing required derived fields) and assert non-emptiness in the gate.",
+      "tags": [
+        "crawlers",
+        "ingest",
+        "html-parsing",
+        "fixtures",
+        "silent-failure"
+      ]
     }
   ]
 }

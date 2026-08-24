@@ -18,6 +18,7 @@ platform (see `INTEGRATION.md`).
 | **NORN** | `norn/` | Accountability machinery: Clockwork determinism seam, replay seeds, capability-rights profiles, witness journals, pulse SLOs |
 | **Hypnos** | `hypnos/` | Silent task organ: letter/drop-in claim-run-retry-resume with audited actions and crash recovery |
 | Toolkit | `image-toolkit/` | Shared image-processing toolkit (Node) |
+| Knowledge tool | `godot-knowledge-db/` | SQLite knowledge base crawled from godotengine.org (pages/articles/releases/sponsors) with FTS5 search CLI; hermetic verify gate, manual network build |
 
 Infrastructure: `doctor.py` (stabilization gate), `sentinel.py`
 (continuous watchdog + incident ledger), `buskit/` + `verify_buskit.py`

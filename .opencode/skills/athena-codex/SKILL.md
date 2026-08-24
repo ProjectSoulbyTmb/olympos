@@ -44,6 +44,12 @@ squash PRs; direct pushes to main are hook-blocked.
 `buskit/`, `hypnos/`, `tools/` verified via their verify suites;
 anything new gets inspected before being cited in a design.
 
+New tool (audit 2026-08-24): `godot-knowledge-db/` - SQLite knowledge
+base crawled from godotengine.org (pages/articles/releases/sponsors +
+FTS5 index), query CLI, hermetic verify gate (`verify_godot_knowledge_db.py`,
+auto-discovered; never crawls in CI). The `.db` artifact is a local
+build product (gitignored); rebuild is a manual operator run.
+
 Disk watchlist (audit 2026-08-24): `heart/` is a self-managed nested
 repo (ex-DeskMate), v0.2.0 desk companion on port 4767, zero runtime
 deps — designed under `docs/adr/0001`, registry row pending H0

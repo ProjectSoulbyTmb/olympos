@@ -58,3 +58,6 @@ poseidon/data/
 # --- nested repos / apps that manage their own git ---
 heart/
 deskmate/
+
+# --- godot-knowledge-db local build artifact ---
+godot-knowledge-db/*.db*
