@@ -352,6 +352,19 @@ try:
 except ImportError:  # pragma: no cover - optional target
     pass
 
+try:
+    from daedalus.blueprint_deskmate import FILES as _DESK_FILES, \
+        FAULTS as _DESK_FAULTS
+    BLUEPRINTS["deskmate"] = {
+        "description": "local project-design desk for VENUS "
+                       "(card template/validate/scaffold)",
+        "files": _DESK_FILES,
+        "gate": [sys.executable, "verify_deskmate.py"],
+        "faults": dict(_DESK_FAULTS),
+    }
+except ImportError:  # pragma: no cover - optional target
+    pass
+
 
 def blueprint_names():
     return sorted(BLUEPRINTS)
