@@ -21,6 +21,7 @@ Fail-safe properties:
 """
 
 import json
+import os
 
 from ptah import condenser, content, events
 from ptah.security import ConfirmationPolicy, RiskAnalyzer
@@ -29,6 +30,26 @@ from ptah.tools import ToolContext
 
 class ProtocolError(ValueError):
     pass
+
+
+# ------------------------------------------------------- secret hygiene
+def collect_secret_values():
+    """Values of env vars named PTAH_SECRET_* are never allowed into
+    observations, thoughts or logs."""
+    values = []
+    for key, value in os.environ.items():
+        if key.startswith("PTAH_SECRET_") and value:
+            values.append(value)
+    return values
+
+
+def redact(text, secrets=None):
+    if not text:
+        return text
+    for secret in secrets or ():
+        if secret and secret in text:
+            text = text.replace(secret, "***REDACTED***")
+    return text
 
 
 def extract_json(text):
@@ -106,7 +127,7 @@ class RunResult:
 class Agent:
     def __init__(self, llm, registry, analyzer=None, policy=None,
                  skills=None, max_iterations=None, token_budget=None,
-                 repo_root=None, memory_path=None):
+                 repo_root=None, hooks_config=None):
         self.llm = llm
         self.registry = registry
         self.analyzer = analyzer or RiskAnalyzer()
@@ -115,6 +136,8 @@ class Agent:
         self.max_iterations = max_iterations or content.DEFAULT_MAX_ITERATIONS
         self.token_budget = token_budget or content.CONDENSER_TOKEN_BUDGET
         self.repo_root = repo_root
+        self.hooks_config = hooks_config or {}
+        self.secrets = collect_secret_values()
 
     # ------------------------------------------------------------- prompt
     def build_system_prompt(self, workspace_root, skill_block=""):
@@ -171,11 +194,20 @@ class Agent:
         return messages
 
     # -------------------------------------------------------------- exec
+    def _run_hook(self, event, payload, cwd=None):
+        from ptah.hooks import run_hooks
+        if not self.hooks_config:
+            from ptah.hooks import HookOutcome
+            return HookOutcome()
+        return run_hooks(self.hooks_config, event, payload,
+                         cwd=cwd or (self.repo_root or None))
+
     def _execute(self, conversation, tool_name, args, ctx,
                  bypass_policy=False):
         verdict = self.analyzer.classify(tool_name, args)
+        safe_args = redact(json.dumps(args), self.secrets)
         conversation.append(events.ActionEvent(
-            tool=tool_name, args=args, risk=verdict.risk,
+            tool=tool_name, args=json.loads(safe_args), risk=verdict.risk,
             risk_reason=verdict.reason))
         if not verdict.allowed:
             conversation.append(events.DeniedActionEvent(
@@ -184,12 +216,28 @@ class Agent:
                 tool=tool_name, output="", exit_code=3,
                 error=f"denied by security: {verdict.reason}"))
             return None
+        hook = self._run_hook("PreToolUse",
+                              {"tool": tool_name, "args": args})
+        if hook.blocked:
+            reason = redact(hook.reason, self.secrets)
+            conversation.append(events.DeniedActionEvent(
+                tool=tool_name, args=args, reason=f"hook: {reason}"))
+            conversation.append(events.ObservationEvent(
+                tool=tool_name, output="", exit_code=3,
+                error=f"blocked by PreToolUse hook: {reason}"))
+            return None
         if not bypass_policy and self.policy.apply(verdict):
             conversation.append(events.ConfirmationRequiredEvent(
                 tool=tool_name, args=args, risk=verdict.risk,
                 reason=verdict.reason))
             return "waiting"
         tool = self.registry.get(tool_name)
+        if tool is None:
+            conversation.append(events.ObservationEvent(
+                tool=tool_name, output="", exit_code=2,
+                error=f"unknown tool: {tool_name}; "
+                      f"available: {', '.join(self.registry.names())}"))
+            return None
         try:
             obs = tool.run(args, ctx)
         except Exception as exc:                  # noqa: BLE001 - audited
@@ -197,9 +245,18 @@ class Agent:
         else:
             obs_text, err = obs.output, obs.error
             code = obs.exit_code
+        obs_text = redact(obs_text, self.secrets)
+        err = redact(err, self.secrets)
         conversation.append(events.ObservationEvent(
             tool=tool_name, output=_cap(obs_text), error=_cap(err, 2000),
             exit_code=code))
+        post = self._run_hook("PostToolUse",
+                              {"tool": tool_name, "args": args,
+                               "exit_code": code})
+        if post.context:
+            conversation.append(events.ObservationEvent(
+                tool=tool_name, output=_cap(post.context[:500]),
+                exit_code=0))
         return None
 
     # --------------------------------------------------------------- run
@@ -209,6 +266,15 @@ class Agent:
         conversation.set_status(conversation.RUNNING)
 
         if user_text:
+            # lifecycle hook: reject or enrich the mission before it lands
+            outcome = self._run_hook("UserPromptSubmit", {"text": user_text})
+            if outcome.blocked:
+                conversation.append(events.ErrorEvent(
+                    message=f"prompt rejected: {outcome.reason}"))
+                conversation.append(events.FinishedEvent(reason="error"))
+                return RunResult(conversation.ERROR, "prompt_blocked", 0)
+            if outcome.context:
+                user_text = f"{user_text}\n\n[context] {outcome.context}"
             conversation.append(events.UserMessage(text=user_text))
 
         # ---- resume path: one confirmed privileged action, gate re-arms
@@ -242,7 +308,8 @@ class Agent:
                 conversation.append(events.FinishedEvent(reason="error"))
                 return RunResult(conversation.ERROR, "error", iterations)
             conversation.append(events.AgentThought(
-                text=reply.text, usage=getattr(reply, "usage", {})))
+                text=redact(reply.text, self.secrets),
+                usage=getattr(reply, "usage", {})))
             try:
                 parsed = parse_reply(reply.text)
             except ProtocolError as exc:
@@ -261,6 +328,14 @@ class Agent:
                                  iterations)
 
             if parsed[0] == "answer":
+                stop = self._run_hook("Stop", {"answer": parsed[1]})
+                if stop.blocked and not getattr(self, "_stop_denied_once",
+                                                False):
+                    self._stop_denied_once = True
+                    conversation.append(events.UserMessage(
+                        text=f"[stop-hook] finish denied: {stop.reason}. "
+                             "Address this and try to finish again."))
+                    continue
                 conversation.append(events.AgentMessage(text=parsed[1]))
                 conversation.append(events.FinishedEvent(reason="answered"))
                 return RunResult(conversation.FINISHED, "answered",
@@ -284,6 +359,25 @@ class Agent:
 
         conversation.append(events.FinishedEvent(reason="max_iterations"))
         return RunResult(conversation.ERROR, "max_iterations", iterations)
+
+    # ------------------------------------------------- sidebar Q&A
+    def ask(self, conversation, question):
+        """Non-intrusive sidebar answer over the current history.
+
+        Nothing is appended to the event stream; no tools run. The
+        brain sees the condensed dialogue plus the question and must
+        reply in plain prose.
+        """
+        messages = self._messages_from_history(conversation.events)
+        messages.append({"role": "user",
+                         "content": "[sidebar question] " + question +
+                                    "\nAnswer briefly in prose; you have "
+                                    "no tools in this mode."})
+        system = ("You answer side questions about an ongoing agent "
+                  "session. Be concise and factual based on the "
+                  "conversation so far.")
+        reply = self.llm.complete(system, messages)
+        return reply.text
 
     def _memory_path(self):
         # memory destination lives on the ToolContext; default handled there

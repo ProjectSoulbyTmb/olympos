@@ -44,11 +44,13 @@ def make_handler(store, runner, token=None):
             pass
 
         # ------------------------------------------------------ helpers
-        def _json(self, payload, status=200):
+        def _json(self, payload, status=200, headers=None):
             blob = json.dumps(payload).encode("utf-8")
             self.send_response(status)
             self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(blob)))
+            for key, value in (headers or {}).items():
+                self.send_header(key, value)
             self.end_headers()
             self.wfile.write(blob)
 
@@ -106,6 +108,11 @@ def make_handler(store, runner, token=None):
                                    "version": content.VERSION})
             if not self._authed():
                 return self._json({"error": "unauthorized"}, 401)
+            if parts[:2] == ["v1", "models"]:
+                return self._json({
+                    "object": "list",
+                    "data": [{"id": "ptah-agent", "object": "model",
+                              "owned_by": content.REALM}]})
             if parts[:3] == ["api", "v1", "conversations"]:
                 if len(parts) == 3:
                     return self._json({"conversations": store.list()})
@@ -167,7 +174,64 @@ def make_handler(store, runner, token=None):
                     threading.Thread(target=work, daemon=True).start()
                     return self._json({"id": conv.id, "started": True},
                                       202)
-            raise ApiError(404, "unknown route")
+                raise ApiError(404, "unknown route")
+            if parts[:2] == ["v1", "chat"] and parts[2] == "completions":
+                return self._openai_completion()
+
+        def _openai_completion(self):
+            """OpenAI-compatible single-shot gateway (non-streaming).
+
+            Continuity: send the returned X-Ptah-Conversation-ID back as
+            a request header to keep talking to the same conversation.
+            """
+            body = self._body()
+            messages = body.get("messages") or []
+            user_text = ""
+            for msg in reversed(messages):
+                if isinstance(msg, dict) and msg.get("role") == "user":
+                    user_text = str(msg.get("content", ""))
+                    break
+            if not user_text:
+                raise ApiError(400, "messages must contain a user turn")
+            cid = self.headers.get("X-Ptah-Conversation-ID")
+            conv = store.get(cid) if cid else None
+            if cid and conv is None:
+                raise ApiError(404, f"no such conversation: {cid}")
+            if conv is None:
+                conv = store.create(workspace=".")
+            if conv.status == conv.RUNNING:
+                raise ApiError(409, "conversation already running")
+            result_holder = {}
+
+            def work():
+                result_holder["result"] = runner(conv, user_text, False)
+
+            worker = threading.Thread(target=work)
+            worker.start()
+            worker.join(min(float(body.get("timeout_s", 180)), 600.0))
+            if worker.is_alive():
+                raise ApiError(504, "agent run timed out")
+
+            from ptah import events as ev
+            answer = ""
+            for event in reversed(conv.events):
+                if event.TYPE == "agent_message":
+                    answer = event.text
+                    break
+                if event.TYPE == "confirmation_required":
+                    answer = ("[waiting for human confirmation] "
+                              + str(event.reason))
+                    break
+            payload = {
+                "id": f"chatcmpl-ptah-{conv.id}",
+                "object": "chat.completion",
+                "model": "ptah-agent",
+                "choices": [{"index": 0, "finish_reason": "stop",
+                             "message": {"role": "assistant",
+                                         "content": answer}}],
+            }
+            return self._json(payload, 200,
+                              {"X-Ptah-Conversation-ID": conv.id})
 
     return Handler
 

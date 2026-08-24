@@ -104,6 +104,31 @@ class Conversation:
                   encoding="utf-8") as fh:
             json.dump(self.meta, fh, indent=2)
 
+    def fork(self, title=None, tags=None):
+        """Deep-copy this conversation into a new independent one.
+
+        The source is never modified; the fork starts idle with the
+        full event history (OpenHands convo-fork semantics).
+        """
+        import shutil
+        fork = Conversation.new(root=os.path.dirname(self.dir),
+                                workspace_root=self.meta.get("workspace",
+                                                             ""))
+        src = os.path.join(self.dir, "events.jsonl")
+        dst = os.path.join(fork.dir, "events.jsonl")
+        if os.path.isfile(src):
+            shutil.copyfile(src, dst)
+            with open(dst, "r", encoding="utf-8") as fh:
+                fork.events = [events.deserialize(line)
+                               for line in fh if line.strip()]
+        fork.meta["parent"] = self.id
+        if title:
+            fork.meta["title"] = title
+        for key, value in (tags or {}).items():
+            fork.meta[key] = value
+        fork._save_meta()
+        return fork
+
     # ---------------------------------------------------------- reading
     @property
     def id(self):
