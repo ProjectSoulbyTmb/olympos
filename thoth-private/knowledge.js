@@ -185,7 +185,7 @@ export const knowledge = {
     },
     {
       id: 'thothCompanionDoctrine',
-      re: /\b(mate[- ]?engine|desktop\s+mate|vrm|companion\s+(?:doctrine|engine|budget))\b/i,
+      re: /\b(mate[- ]?engine|desktop\s+mate|vrm|companion\s+(?:doctrine|engine|(?:\w+\s+){0,2}budget)|texture\s+(?:size|budget))\b/i,
     },
     {
       id: 'thoth',
