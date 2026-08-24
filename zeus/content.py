@@ -98,6 +98,18 @@ PORT_SCAN_TOP_N = 200          # how many listening sockets to classify
 SUBSYSTEM_FAIL_LIMIT = 3       # consecutive failures trip the breaker
 SUBSYSTEM_REVIVE_TICKS = 6     # patrols before auto-revive attempt
 
+# ---------- wire authentication ----------
+
+# A capability token is minted at every guardian boot into DATA_DIR;
+# only same-user processes can read it, so localhost strangers stay
+# read-only watchers while real tooling authenticates transparently.
+TOKEN_PATH = os.path.join(DATA_DIR, "zeus.token")
+TOKEN_BYTES = 32               # 256-bit capability
+
+# Flood control: commands per rolling window per connection.
+RATE_WINDOW_S = 10.0
+RATE_MAX_COMMANDS = 240        # ~24/s sustained; bursts absorbed
+
 # ---------- bolt safety rails ----------
 
 NEVER_KILL_PIDS = {0, 4}       # system idle / kernel

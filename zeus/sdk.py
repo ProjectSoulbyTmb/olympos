@@ -28,7 +28,19 @@ class ZeusSDK:
         "ping", "status", "diagnose", "events", "repairs", "patrol",
         "baseline_build", "baseline_verify", "procs", "watch_pid",
         "unwatch_pid", "bolt_kill", "quarantine_list",
-        "quarantine_restore", "policy_get", "policy_set", "close",
+        "quarantine_restore", "policy_get", "policy_set", "audit_verify",
+        "close",
+    }
+
+    # key -> (type, minimum, maximum). Values outside the band are
+    # rejected at policy_set time instead of detonating mid-patrol.
+    _POLICY_BOUNDS = {
+        "CPU_SOFT_PCT": (1.0, 100.0),
+        "CPU_HARD_PCT": (1.0, 100.0),
+        "MEM_SOFT_MB": (64, 1_048_576),
+        "RUNAWAY_SAMPLES": (1, 1000),
+        "CHURN_BURST_THRESHOLD": (2, 100_000),
+        "INTEGRITY_EVERY_TICKS": (1, 10_000),
     }
 
     _EDITABLE_POLICY = {
@@ -137,28 +149,62 @@ class ZeusSDK:
         if not isinstance(value, type_tuple):
             wanted = "/".join(t.__name__ for t in type_tuple)
             raise ValueError(f"{key} wants {wanted}")
+        lo, hi = self._POLICY_BOUNDS[key]
+        if not (lo <= float(value) <= hi):
+            raise ValueError(f"{key} out of range [{lo}, {hi}]: {value!r}")
         setattr(content, key, type_tuple[0](value))
         return {key: getattr(content, key)}
+
+    def audit_verify(self):
+        """Tamper-evidence for the audit trail (rule 16)."""
+        ok, count, first_bad = self.kernel.audit_verify()
+        return {"ok": ok, "entries": count,
+                "first_bad_seq": first_bad}
 
     def close(self):
         return {"bye": True}
 
 
 class ZeusClient:
-    """Wire client with the same method surface as ZeusSDK."""
+    """Wire client with the same method surface as ZeusSDK.
 
-    def __init__(self, host=None, port=None, timeout=5.0):
+    Authentication is transparent: connect() presents the capability
+    token from content.TOKEN_PATH (or $ZEUS_TOKEN) so same-user tooling
+    keeps its operator surface. Pass auth=False only in tests that
+    exercise the unauthenticated watcher downgrade.
+    """
+
+    def __init__(self, host=None, port=None, timeout=5.0, auth=True):
         self.host = host or content.SERVER_HOST
         self.port = content.SERVER_PORT if port is None else port
         self.timeout = timeout
+        self.auth = auth
         self._sock = None
         self._fh = None
+
+    @staticmethod
+    def _load_token():
+        env = os.environ.get("ZEUS_TOKEN")
+        if env:
+            return env
+        try:
+            with open(content.TOKEN_PATH, "r", encoding="utf-8") as fh:
+                return fh.read().strip()
+        except OSError:
+            return None
 
     def connect(self):
         self._sock = socket.create_connection((self.host, self.port),
                                               timeout=self.timeout)
         self._fh = self._sock.makefile("rwb")
         hello = json.loads(self._fh.readline().decode("utf-8"))
+        if self.auth:
+            token = self._load_token()
+            if token:
+                try:
+                    self._call("auth", token=token)
+                except (ValueError, OSError):
+                    pass                # stay a watcher, loudly audited
         return hello
 
     def close(self):
