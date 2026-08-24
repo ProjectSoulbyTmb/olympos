@@ -33,8 +33,11 @@ ALLOW = {
 
 
 def tracked_files():
-    out = subprocess.run(["git", "ls-files", "-z"], capture_output=True,
-                         check=True).stdout
+    # -c safe.directory=* keeps the gate working inside linked
+    # worktrees whose metadata lives on ownership-blind filesystems.
+    out = subprocess.run(
+        ["git", "-c", "safe.directory=*", "ls-files", "-z"],
+        capture_output=True, check=True).stdout
     return [p.decode("utf-8") for p in out.split(b"\0") if p]
 
 
