@@ -11,11 +11,11 @@ goal below and are handled in §9 (Reconciliation).
 
 ## 0. The goal this design serves
 
-> You describe a system; Yggdrasil designs it, writes the code,
-> verifies it, and iterates autonomously - entirely on your machine.
-> The game sandbox (yggdrasil/muspelheim realms) is the proving ground
-> where build-and-verify loops harden before they generate arbitrary
-> software.
+> You describe a game or an app; Yggdrasil designs it, writes the
+> code, verifies it, and iterates autonomously - entirely on your
+> machine, fully open source. The Vulcan sandbox is the proving ground
+> where build-and-verify loops harden before they target arbitrary
+> projects.
 
 Everything else is machinery: kernels are the immune system, ratatosk is
 the nervous system, norn is memory and accountability, hades is the
@@ -68,9 +68,11 @@ Non-negotiable guarantees (each has an owner and a test):
 
 | Realm | Engine | Port | SDK | Path |
 |---|---|---|---|---|
-| yggdrasil (proving ground) | python-rsps | 43590 | GameSDK | `osrs-llm-agent/server/rsps_server.py` |
-| muspelheim | hyperion-181-netty | 43591 | GameSDK | `hyperion-181/` |
 | vulcan | building-sandbox | 43901 | VulcanSDK | `vulcan/host.py` |
+
+Retired registry entries (ports 43590/43591 and their engines) are
+deleted during reconciliation (§9); the registry ships with vulcan
+until new realms earn rows.
 
 Extension fields added by this design: `"tier"`, `"verify"`,
 "profile"`, `"topics"` (see §4).
@@ -251,9 +253,9 @@ Each stage is an organ handoff over the bus, gated before the next:
          (THOTH-configured, L2-bounded)
 ```
 
-The proving-ground realms matter because every SDK verb the builder may
-call already has rights, schema gates, and replay coverage there -
-hardening done once transfers to arbitrary targets.
+The proving ground matters because every SDK verb the builder may call
+already carries rights checks, schema gates, and verify coverage there -
+hardening done once transfers to arbitrary game and app targets.
 
 ## 8. Failure modes & containment
 
@@ -268,19 +270,37 @@ hardening done once transfers to arbitrary targets.
 
 That last row is not hypothetical - see §9.
 
-## 9. Reconciliation (blocking, needs operator decision)
+## 9. Reconciliation (decision recorded; execution rides the merge)
 
-Local `main` and `origin/main` diverged 2/8. This document targets
-origin/main. Required resolution before Phase 1 lands anywhere:
+Decision (operator, 2026-08-24): Yggdrasil is a **fully autonomous,
+open-source game and app development platform**. Nothing derived from
+the retired MMORPG sandbox survives - not code, data, names, or docs.
+Local commit `4a17caf` already removed it here; the identical purge is
+replayed on the remote lineage at integration time.
 
-1. `4a17caf` removed the proving-ground realms that the declared goal
-   depends on. Either revert it on the integrated branch, or re-state
-   the goal without a proving ground (design above then loses §7's
-   hardening path but nothing else).
-2. `d70c73f` (site hub) vs remote README/docs pivot: pick the landing
-   zone for generated site output (recommend: gitignore + CI artifact).
-3. After resolution: single merge or explicit rebase, then Phases 0-4
-   from `STRATEGY.md` proceed on one lineage.
+Purge checklist on merge (delete paths, then rewrite prose):
+- directories: `osrs-llm-agent/`, `osrs-rl/`, `osrs-unified/`,
+  `osrs-unified-v*.zip`, `hyperion-181/`
+- scripts: `play_rsps.py`, `rsps_audio.py`, `osrs_updater.py`,
+  `live_playthrough.py`, `probe_live.py`,
+  `register-updater-task.ps1`, `updater_config.json`
+- data: game seeds under `norn/seeds/`
+- registry: rebuild `realms/registry.json` with surviving realms only
+  (vulcan)
+- docs: remote README/goal-pivot pages rewritten to the section-0 goal;
+  local DESIGN.md already reflects retirement
+
+Kept untouched (engine-agnostic machinery): ratatosk, norn
+(clockwork/replay/rights/witness/pulse minus game seeds),
+realms loader, verify_system.py (its realm checks shrink), sentinel,
+doctor, GAIA, Hades, ZEUS, THOTH, vulcan, image-toolkit, buskit.
+
+Site output lands as a gitignored CI artifact. Mechanics: single merge
+or explicit rebase of `origin/main`, purge replayed on top, then
+M1-M6 proceed on one lineage.
+
+Guard: `verify_scope.py` fails any tracked file that reintroduces
+retired naming (self and this manifest excepted).
 
 ## 10. Acceptance criteria (per integration point)
 
@@ -299,7 +319,7 @@ origin/main. Required resolution before Phase 1 lands anywhere:
 
 | Step | Work | Unlocks |
 |---|---|---|
-| M0 | Resolve §9 reconciliation | everything |
+| M0 | Execute §9 purge-and-integrate on one lineage | everything |
 | M1 | Registry v2 fields + A1 test | Phase 1 manifest single-source |
 | M2 | Envelope adoption in sentinel ledger + GAIA reader | observability spine |
 | M3 | Rights binding table wired into THOTH grants | unified control plane |
