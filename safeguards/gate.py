@@ -32,7 +32,9 @@ CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
 
 def discover():
-    """Every verify_*.py: root-level plus one directory deep."""
+    """Auto-register every suite: root-level verify_*.py plus any
+    verify_*.py one directory deep (templates/, sub-engines, ...).
+    New suites join the gate by existing - zero registry upkeep."""
     suites = {}
     if os.path.isfile(os.path.join(HERE, "check.py")):
         suites["static"] = {
@@ -40,22 +42,36 @@ def discover():
                     "--all", "--strict"],
             "cwd": ROOT,
         }
-    for name in sorted(os.listdir(ROOT)):
-        p = os.path.join(ROOT, name)
-        if name.startswith("verify_") and name.endswith(".py"):
-            suites[name[7:-3]] = {
-                "cmd": [PY, "-u", os.path.join(name)],
-                "cwd": ROOT,
-            }
-        elif os.path.isdir(p) and not name.startswith(".") \
-                and name not in ("data", "safeguards", "__pycache__"):
-            v = os.path.join(p, f"verify_{name}.py")
-            if os.path.isfile(v):
-                suites[name] = {"cmd": [PY, "-u", v], "cwd": ROOT}
-            elif name == "gaia" and os.path.isfile(os.path.join(
-                    p, "package.json")):
-                suites["gaia"] = {"cmd": ["npm", "test"], "cwd": p,
-                                  "shell": True}
+
+    def add(key, path, cwd=None):
+        key = key[7:-3] if key.startswith("verify_") else key
+        suites.setdefault(key, {"cmd": [PY, "-u", path],
+                                "cwd": cwd or ROOT})
+
+    try:
+        for name in sorted(os.listdir(ROOT)):
+            p = os.path.join(ROOT, name)
+            if name.startswith("verify_") and name.endswith(".py"):
+                add(name, p)
+            elif os.path.isdir(p) and not name.startswith(".") \
+                    and name not in ("data", "safeguards", "__pycache__",
+                                     "node_modules"):
+                inner = os.path.join(p, f"verify_{name}.py")
+                if os.path.isfile(inner):
+                    add(name, inner)
+                elif name == "gaia":
+                    # node kernel: no python verifier, but its own
+                    # tests must still ride the same gate
+                    suites.setdefault("gaia", {
+                        "cmd": ("npm install --no-save && npm test"),
+                        "cwd": p, "shell": True})
+                else:
+                    for v in sorted(os.listdir(p)):
+                        if v.startswith("verify_") and v.endswith(".py") \
+                                and os.path.isfile(os.path.join(p, v)):
+                            add(v, os.path.join(p, v))
+    except OSError:
+        pass
     return suites
 
 
