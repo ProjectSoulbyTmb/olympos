@@ -168,8 +168,19 @@ def resolve_within(guest_root, rel):
 
 
 def _scrubbed_env(guest_root):
-    env = {k: v for k, v in os.environ.items()
-           if k in content.ENV_ALLOWLIST}
+    """Host env minus anything secret-shaped (allowlist-scrubbing
+    breaks Winsock on Windows - guests get the OS plumbing, never the
+    operator's credentials)."""
+    hints = getattr(content, "ENV_SECRET_HINTS",
+                    ("TOKEN", "SECRET", "KEY", "PASSWORD", "PASSWD",
+                     "CRED", "AWS_", "AZURE", "GCP_", "GITHUB",
+                     "NORN_WITNESS"))
+    env = {}
+    for k, v in os.environ.items():
+        up = k.upper()
+        if any(h in up for h in hints) or k == "NORN_WITNESS_DIR":
+            continue
+        env[k] = v
     tmp = os.path.join(guest_root, ".tmp")
     env["TEMP"] = tmp
     env["TMP"] = tmp

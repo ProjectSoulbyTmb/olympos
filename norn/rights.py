@@ -36,6 +36,15 @@ VULCAN_PROFILES = {
 }
 VULCAN_DEFAULT_PROFILE = "operator"
 
+# Daedalus realm: the workshop. Reading blueprints/history is open to
+# watchers; submitting builds and draining lanes is operator work.
+DAEDALUS_INFO = frozenset({"status", "builds", "blueprints", "close"})
+DAEDALUS_PROFILES = {
+    "operator": None,
+    "watcher": DAEDALUS_INFO,
+}
+DAEDALUS_DEFAULT_PROFILE = "operator"
+
 # Atlas realm: the hypervisor. Guests are compute; renting one is a
 # mutation, watching the fleet is not.
 ATLAS_INFO = frozenset({"ping", "status", "guests", "close"})

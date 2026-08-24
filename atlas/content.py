@@ -46,7 +46,9 @@ EVENTS_MAX = 500
 SUBSYSTEM_FAIL_LIMIT = 3
 SUBSYSTEM_REVIVE_TICKS = 6
 
-# Environment variables a guest process may inherit; everything else
-# is stripped so guests cannot smell the host's secrets.
-ENV_ALLOWLIST = ("SystemRoot", "SystemDrive", "COMSPEC", "PATHEXT",
-                 "PATH", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS")
+# Guest env scrubbing is denylist-based (allowlisting breaks Winsock
+# on Windows): keys matching these hints never reach a guest, plus
+# TEMP/TMP are redirected into the guest world.
+ENV_SECRET_HINTS = ("TOKEN", "SECRET", "KEY", "PASSWORD", "PASSWD",
+                    "CRED", "AWS_", "AZURE", "GCP_", "GITHUB",
+                    "NORN_WITNESS")

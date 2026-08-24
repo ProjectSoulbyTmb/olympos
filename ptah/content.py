@@ -15,7 +15,7 @@ import os
 
 # ---------------------------------------------------------------- identity
 REALM = "ptah"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 USER_AGENT = f"ptah/{VERSION} (Yggdrasil)"
 
 # -------------------------------------------------------------- networking

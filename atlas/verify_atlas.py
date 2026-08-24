@@ -32,8 +32,8 @@ def check(fn):
 @contextlib.contextmanager
 def sandbox():
     outer = tempfile.mkdtemp(prefix="atlas-verify-")
-    saved = {f: getattr(content, f) for f in
-             ("DATA_DIR", "AUDIT_PATH", "GUESTS_DIR")}
+    saved = {f: getattr(content, f)
+             for f in ("DATA_DIR", "AUDIT_PATH", "GUESTS_DIR")}
     saved_env = os.environ.get("RATATOSK_ROOT")
     data = os.path.join(outer, "data")
     content.DATA_DIR = data
@@ -135,17 +135,17 @@ def output_cap_truncates_floods():
 
 @check
 def environment_is_scrubbed():
-    os.environ["ATLAS_CANARY"] = "host-secret"
+    os.environ["ATLAS_DEPLOY_TOKEN"] = "host-secret"
     try:
         with sandbox() as hv:
             hv.create("env")
             r = hv.exec("env", [PY, "-c",
                                 "import os;"
                                 "print(os.environ.get("
-                                "'ATLAS_CANARY','MISSING'))"])
+                                "'ATLAS_DEPLOY_TOKEN','MISSING'))"])
             assert "MISSING" in r["stdout"], r
     finally:
-        os.environ.pop("ATLAS_CANARY", None)
+        os.environ.pop("ATLAS_DEPLOY_TOKEN", None)
 
 
 # ------------------------------------------------------------ lifecycle

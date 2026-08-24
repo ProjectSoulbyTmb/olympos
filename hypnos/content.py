@@ -59,6 +59,27 @@ AUDIT_MAX_BYTES = 2_000_000
 AUDIT_ROTATIONS = 3
 EVENTS_MAX = 500
 
+# ---------- full autonomy (operator approval 2026-08-24) ----------
+
+# A red build dispatches doctor automatically - once per cooldown
+# window - and the next build cycle verifies the repair. Closed loop:
+# detect, act, verify, with no human in the chain.
+AUTO_REPAIR_ENABLED = True
+AUTO_REPAIR_COOLDOWN_S = 1800.0   # max one doctor dispatch per window
+AUTO_REPAIR_ARGV = ["python", "doctor.py", "--ci"]
+AUTO_REPAIR_TIMEOUT_S = 600
+
+# Recurring duties: due entries become ordinary claims (same claim /
+# run / retry / resume machinery as everything else). Operators add
+# rows here; the sleeper never forgets one that is pending.
+SCHEDULES = [
+    {"name": "daily-provenance-scan", "every_s": 86400,
+     "label": "hades integrity scan",
+     "actions": [{"do": "run",
+                  "argv": ["python", "hades/cli.py", "scan"],
+                  "timeout_s": 900}]},
+]
+
 # ---------- self protection ----------
 
 SUBSYSTEM_FAIL_LIMIT = 3       # consecutive tick failures trip the breaker
@@ -89,6 +110,9 @@ BUILD_GATES = [
      "timeout_s": 600},
     {"name": "atlas", "argv": ["python", "atlas/verify_atlas.py"],
      "timeout_s": 300},
+    {"name": "daedalus",
+     "argv": ["python", "daedalus/verify_daedalus.py"],
+     "timeout_s": 420},
     {"name": "safeguards",
      "argv": ["python", "safeguards/verify_safeguards.py"],
      "timeout_s": 300},

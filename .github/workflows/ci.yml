@@ -46,48 +46,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Static gates (syntax, dupdefs, JSON, merge markers, secrets)
-        run: python safeguards/check.py --all --strict
       - name: GAIA kernel tests
         working-directory: gaia
         run: |
           npm install --no-save
           npm test
-      - name: Vulcan verify gate
-        run: python vulcan/verify_vulcan.py
-      - name: ZEUS protection-kernel gate
-        run: python zeus/verify_zeus.py
-      - name: Ratatosk post-office gate
-        run: python ratatosk/verify_ratatosk.py
-      - name: Hades provenance gate
-        run: python hades/verify_hades.py
-      - name: NORN integration gate
-        run: python norn/verify_norn.py
-      - name: Hypnos task-organ gate
-        run: python hypnos/verify_hypnos.py
-      - name: PTAH builder gate
-        run: python ptah/verify_ptah.py
-      - name: Atlas hypervisor gate
-        run: python atlas/verify_atlas.py
-      - name: Safeguards gate gate
-        run: python safeguards/verify_safeguards.py
-      - name: Buskit contract gate
-        run: python verify_buskit.py
-      - name: Scope guard gate
-        run: python verify_scope.py
-      - name: Sindri sandbox-forge gate
-        run: python verify_sindri.py
-      - name: Forseti arbitration gate
-        run: python verify_forseti.py
-      - name: Secrets hygiene gate
-        run: python verify_secrets.py
-      - name: Coverage floor gate
-        run: python verify_coverage.py
-      - name: System integration gate
-        run: python verify_system.py
-      - name: Godot template gate
-        run: python templates/verify_template.py
-      - name: Autopilot contract gate
-        run: python verify_autopilot.py
+      # one orchestrator, every suite: parallel, per-suite timeout,
+      # auto-discovered (new verify_*.py join the gate by existing)
+      - name: Parallel verify gates (all suites, bounded)
+        run: python safeguards/gate.py --full --timeout 600
       - name: Doctor stabilization gate
         run: python doctor.py --ci
