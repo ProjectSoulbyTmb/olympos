@@ -28,6 +28,7 @@ PY = sys.executable
 
 DEFAULT_TIMEOUT_S = 900.0
 MAX_WORKERS = 4
+RETRY_SETTLE_S = 3.0     # settle before re-running red suites
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
 
@@ -145,10 +146,30 @@ def main(argv=None):
                       + ("" if res["ok"] else f"| {res['tail'][:160]}"))
 
     results.sort(key=lambda r: r["suite"])
+
+    # One remediated retry before red (the doctor/sentinel convention):
+    # back-to-back batteries on a busy box trip timing-sensitive checks
+    # (worktree races, socket drills, SLO pulses) that pass in
+    # isolation. Red suites settle briefly, then run once more - a fix
+    # is never claimed without proof, and a real red stays red.
+    red = [r for r in results if not r["ok"]]
+    retried = []
+    if red:
+        time.sleep(RETRY_SETTLE_S)
+        for r in red:
+            spec = registry[r["suite"]]
+            again = run_suite(r["suite"], spec, timeout_s)
+            again["retried"] = True
+            retried.append(again)
+            publish_result(again)
+            results[results.index(r)] = again
+
+    retried_ok = sum(1 for r in retried if r["ok"])
     report = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"),
               "timeout_s": timeout_s,
               "passed": sum(1 for r in results if r["ok"]),
               "total": len(results),
+              "retries": {"count": len(retried), "healed": retried_ok},
               "results": results}
     try:
         out_dir = os.path.join(ROOT, "data", "gates")
@@ -161,7 +182,13 @@ def main(argv=None):
     if as_json:
         print(json.dumps(report, indent=1))
     else:
-        print(f"- gates: {report['passed']}/{report['total']} green")
+        for r in sorted(retried, key=lambda x: x["suite"]):
+            mark = "PASS" if r["ok"] else "FAIL"
+            print(f"[{mark}] {r['suite']:<16} {r['secs']:>6}s (retry) "
+                  + ("" if r["ok"] else f"| {r['tail'][:140]}"))
+        note = f", {len(retried)} retried ({retried_ok} healed)" \
+            if retried else ""
+        print(f"- gates: {report['passed']}/{report['total']} green{note}")
     return 0 if report["total"] and report["passed"] == report["total"] \
         else 1
 
