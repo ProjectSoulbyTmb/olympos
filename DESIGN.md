@@ -10,6 +10,7 @@ When code and this file disagree, fix the code.
 | **OSRS Lab** | `osrs-llm-agent/`, `osrs-rl/`, root scripts | Original tick-based game engine (15 skills, 24x24 world), authoritative JSON-lines RSPS server on 127.0.0.1:43590, pygame client (`play_rsps.py`), PPO combat RL, LLM strategic agent |
 | **Venus** | `assistant/` (own git repo) | Offline desktop companion: kernel.js event/service/command registries, plugin system, Piper TTS + Whisper STT + Ollama brain |
 | **Thoth** | opencode + `~/.config/opencode/` | The development layer itself: agents, skills, permissions. Runs with full automation grants |
+| **Vulcan** | `vulcan/` | Smart-building automation sandbox: content.py data tables, devices.py + world.py thermal/tick mechanics, rules.py automation engine (condition/schedule/event rules), sdk.py in-process + wire faces, server.py authoritative JSON-lines on 127.0.0.1:43901, verify_vulcan.py suite (17 checks) |
 
 ## Hard rules
 
@@ -75,6 +76,16 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
 - Windows-first: paths via `os.path`, PowerShell for orchestration.
 
 ## Decision log
+
+- 2026-08-23: Vulcan added (`vulcan/`). Same contract as OSRS Lab: all
+  numbers in `content.py`, authoritative JSON-lines server with an
+  `error` field on every response, one SDK surface for in-process and
+  wire clients, versioned saves (v1) that also carry the full ruleset
+  under an `automation` key (load-side default: built-ins only), and
+  its own verify gate (`python vulcan/verify_vulcan.py`, currently
+  18/18). Rules are plain JSON; actuator writes are idempotent no-ops
+  so tick rules can run freely, and alert actions are rate-limited
+  per rule.
 
 - 2026-08-23: Heart gained autonomic energy states (awake/drowsy/asleep
   driven by command activity, sleepBpm slowdown) and pluggable critical

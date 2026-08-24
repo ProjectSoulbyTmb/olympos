@@ -1,0 +1,204 @@
+﻿"""Vulcan authoritative server.
+
+One shared World (it is one building); every connection is a dashboard,
+automation client or console. JSON-lines protocol:
+
+  -> {"cmd": "state", "args": {}}
+  <- {"error": null, "result": {...}}
+
+Every response carries an `error` field (null on success), mirroring
+the RSPS server contract. An optional background thread auto-ticks the
+building at TICK_SECONDS_REAL so hosted runs stay alive on their own.
+"""
+
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+import json
+import socket
+import threading
+import time
+
+from rules import RuleEngine
+from sdk import VulcanSDK
+from world import World
+
+import content
+
+
+class BuildingServer:
+    def __init__(self, host=None, port=None, world=None, auto_tick=True):
+        self.host = host or content.SERVER_HOST
+        self.port = port or content.SERVER_PORT
+        self.world = world if world is not None else World()
+        self.engine = RuleEngine(self.world)
+        self.sdk = VulcanSDK(self.world, self.engine)
+        self.sessions = {}
+        self._lock = threading.Lock()
+        self._next_conn = 0
+        self._sock = None
+        self._thread = None
+        self._tick_thread = None
+        self.running = False
+        self.auto_tick = auto_tick
+
+    @property
+    def connection_count(self):
+        return len(self.sessions)
+
+    def start_async(self):
+        if self.running:
+            return
+        self._bind()
+        self.running = True
+        self._thread = threading.Thread(target=self.serve_forever,
+                                        daemon=True)
+        self._thread.start()
+        if self.auto_tick:
+            self._tick_thread = threading.Thread(target=self._auto_loop,
+                                                 daemon=True)
+            self._tick_thread.start()
+
+    def _bind(self):
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        last_err = None
+        for attempt in range(10):
+            try:
+                self._sock.bind((self.host, self.port))
+                break
+            except OSError as exc:
+                last_err = exc
+                self.port += 1
+        else:
+            raise OSError(f"no free port: {last_err}")
+        self._sock.listen(8)
+        self._sock.settimeout(0.5)
+        self.host, self.port = self._sock.getsockname()[:2]
+
+    def serve_forever(self):
+        while self.running:
+            try:
+                conn, addr = self._sock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            with self._lock:
+                self._next_conn += 1
+                cid = self._next_conn
+                if len(self.sessions) >= content.MAX_SESSIONS:
+                    self._deny(conn)
+                    continue
+                self.sessions[cid] = addr[0]
+            thread = threading.Thread(target=self._client_loop,
+                                      args=(conn, cid), daemon=True)
+            thread.start()
+
+    def _deny(self, conn):
+        try:
+            conn.sendall(json.dumps(
+                {"error": "server full", "result": None})
+                .encode("utf-8") + b"\n")
+        finally:
+            conn.close()
+
+    def _client_loop(self, conn, cid):
+        conn.sendall(json.dumps(
+            {"error": None, "result": {
+                "hello": "vulcan", "version": content.SAVE_VERSION,
+                "zones": len(self.world.zones),
+                "devices": len(self.world.devices)}}
+        ).encode("utf-8") + b"\n")
+        sock_file = conn.makefile("rb")
+        try:
+            for raw in sock_file:
+                if len(raw) > content.MAX_LINE_BYTES:
+                    self._send(conn, error="line too long")
+                    continue
+                try:
+                    msg = json.loads(raw.decode("utf-8"))
+                except (ValueError, UnicodeDecodeError):
+                    self._send(conn, error="bad json")
+                    continue
+                if not isinstance(msg, dict) or "cmd" not in msg:
+                    self._send(conn, error="missing cmd")
+                    continue
+                resp = self.handle(msg.get("cmd"), msg.get("args") or {})
+                self._send(conn, **resp)
+                if msg.get("cmd") == "close":
+                    break
+        except (ConnectionResetError, OSError):
+            pass
+        finally:
+            try:
+                conn.close()
+            except OSError:
+                pass
+            with self._lock:
+                self.sessions.pop(cid, None)
+
+    def handle(self, cmd, args):
+        cmd = str(cmd)
+        if cmd == "close":
+            return {"error": None, "result": {"bye": True}}
+        method = getattr(self.sdk, cmd, None)
+        if cmd not in VulcanSDK._VALID or not callable(method):
+            return {"error": f"unknown command: {cmd}", "result": None}
+        args = args if isinstance(args, dict) else {}
+        try:
+            with self._lock:
+                result = method(**args)
+            return {"error": None, "result": result}
+        except KeyError as exc:
+            return {"error": str(exc.args[0] if exc.args else exc),
+                    "result": None}
+        except (ValueError, TypeError) as exc:
+            return {"error": str(exc), "result": None}
+        except Exception as exc:
+            return {"error": f"internal error: {exc!r}", "result": None}
+
+    def _send(self, conn, error=None, result=None):
+        try:
+            conn.sendall(json.dumps({"error": error, "result": result},
+                                    separators=(",", ":"),
+                                    default=str).encode("utf-8") + b"\n")
+        except OSError:
+            pass
+
+    def _auto_loop(self):
+        next_at = time.time() + content.TICK_SECONDS_REAL
+        while self.running:
+            time.sleep(max(0.05, min(0.5, next_at - time.time())))
+            if time.time() < next_at:
+                continue
+            next_at = time.time() + content.TICK_SECONDS_REAL
+            try:
+                with self._lock:
+                    self.world.tick(rule_engine=self.engine)
+            except Exception as exc:
+                print(f"[vulcan] tick error: {exc}")
+
+
+def main():
+    server = BuildingServer(auto_tick=True)
+    server.start_async()
+    actual = server.port
+    print(f"[vulcan] hosting building on {server.host}:{actual} "
+          f"(auto-tick {content.TICK_SECONDS_REAL}s)")
+    print(f"[vulcan] connect: python -m vulcan.cli --connect "
+          f"{server.host} {actual}")
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        print("\n[vulcan] shutting down")
+        server.running = False
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,350 @@
+﻿"""Vulcan automation engine: condition/schedule/event rules.
+
+Rules are plain JSON (see content.DEFAULT_RULES). The engine evaluates
+tick rules every world tick, fires schedule rules when the simulated
+clock crosses their time, and dispatches event rules against events
+raised by the physics step. Alert-style actions are rate-limited per
+rule via alert_cooldown_ticks; ordinary actuator writes are idempotent
+no-ops when nothing changes, so tick rules can run freely.
+"""
+
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+import copy
+
+import content
+
+CONDITION_KINDS = {"zone", "device", "mode", "clock", "all", "any", "not"}
+ACTION_KINDS = {"device", "hvac", "scene", "mode", "alert", "lock_all",
+                "unlock_all", "lights_all", "hvac_all_off", "shed"}
+TRIGGER_TYPES = {"tick", "schedule", "event"}
+OPS = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b,
+       ">": lambda a, b: a > b, ">=": lambda a, b: a >= b,
+       "==": lambda a, b: a == b, "!=": lambda a, b: a != b}
+
+
+class SafeDict(dict):
+    def __missing__(self, key):
+        return "{" + key + "}"
+
+
+class RuleEngine:
+    def __init__(self, world):
+        self.world = world
+        self.rules = []
+        self._last_minute = world.clock_minutes()
+        self._alert_last_tick = {}
+        for spec in content.DEFAULT_RULES:
+            rule = copy.deepcopy(spec)
+            rule["builtin"] = True
+            rule["enabled"] = True
+            self.rules.append(rule)
+
+    # ---------- CRUD ----------
+
+    def add_rule(self, spec):
+        rule = dict(spec)
+        rid = str(rule.get("id") or "").strip()
+        if not rid:
+            raise ValueError("rule needs an id")
+        if any(r["id"] == rid for r in self.rules):
+            raise ValueError(f"rule id already exists: {rid}")
+        if not rule.get("name"):
+            rule["name"] = rid
+        trig = rule.get("trigger")
+        if not isinstance(trig, dict) or \
+                trig.get("type") not in TRIGGER_TYPES:
+            raise ValueError(f"trigger.type must be one of "
+                             f"{sorted(TRIGGER_TYPES)}")
+        if trig["type"] == "schedule" and "time" not in trig:
+            raise ValueError("schedule trigger needs time HH:MM")
+        if trig["type"] == "event" and "event" not in trig:
+            raise ValueError("event trigger needs event name")
+        if trig["type"] == "tick":
+            if rule.get("when") is not None:
+                self._validate_condition(rule["when"])
+        else:
+            if rule.get("when"):
+                self._validate_condition(rule["when"])
+        actions = rule.get("then")
+        if not isinstance(actions, list) or not actions:
+            raise ValueError("rule needs a non-empty then: [actions]")
+        for act in actions:
+            if not isinstance(act, dict) or \
+                    act.get("kind") not in ACTION_KINDS:
+                raise ValueError(f"action kinds: {sorted(ACTION_KINDS)}")
+        if rule.get("else"):
+            for act in rule["else"]:
+                if not isinstance(act, dict) or \
+                        act.get("kind") not in ACTION_KINDS:
+                    raise ValueError(f"action kinds: {sorted(ACTION_KINDS)}")
+        rule["builtin"] = False
+        rule["enabled"] = bool(rule.get("enabled", True))
+        self.rules.append(rule)
+        return rule
+
+    def _validate_condition(self, cond):
+        if not isinstance(cond, dict) or cond.get("kind") \
+                not in CONDITION_KINDS:
+            raise ValueError(f"condition kinds: {sorted(CONDITION_KINDS)}")
+        kind = cond["kind"]
+        if kind in ("all", "any"):
+            subs = cond.get(kind)
+            if not isinstance(subs, list) or not subs:
+                raise ValueError(f"{kind} needs a non-empty list")
+            for sub in subs:
+                self._validate_condition(sub)
+        elif kind == "not":
+            self._validate_condition(cond.get("not"))
+        elif kind in ("zone", "device"):
+            if kind == "zone" and "zone" not in cond:
+                raise ValueError("zone condition needs zone")
+            if kind == "device" and "device" not in cond:
+                raise ValueError("device condition needs device")
+            if cond.get("op") not in OPS or "attr" not in cond:
+                raise ValueError("condition needs attr and op in "
+                                 + str(sorted(OPS)))
+
+    def toggle_rule(self, rule_id, enabled=None):
+        rule = self._get(rule_id)
+        rule["enabled"] = (not rule["enabled"]) if enabled is None \
+            else bool(enabled)
+        return rule
+
+    def delete_rule(self, rule_id):
+        rule = self._get(rule_id)
+        if rule.get("builtin"):
+            raise ValueError("builtin rules cannot be deleted; toggle "
+                             "them instead")
+        self.rules = [r for r in self.rules if r["id"] != rule_id]
+
+    def list_rules(self):
+        out = []
+        for r in self.rules:
+            clean = {k: v for k, v in r.items()
+                     if k not in ("_last_value",)}
+            out.append(clean)
+        return out
+
+    def export_state(self):
+        """Snapshot for persistence (user rules + enabled flags)."""
+        return {"rules": copy.deepcopy(self.rules)}
+
+    def import_state(self, state):
+        """Restore saved automation; missing key keeps defaults."""
+        rules = (state or {}).get("rules")
+        if not rules:
+            return 0
+        if not isinstance(rules, list):
+            raise ValueError("automation payload must be a list")
+        seen = set()
+        for r in rules:
+            rid = r.get("id") if isinstance(r, dict) else None
+            if not rid or rid in seen:
+                raise ValueError(f"bad or duplicate rule id: {rid}")
+            seen.add(rid)
+        self.rules = copy.deepcopy(rules)
+        return len(self.rules)
+
+    def _get(self, rule_id):
+        for r in self.rules:
+            if r["id"] == rule_id:
+                return r
+        raise KeyError(f"unknown rule: {rule_id}")
+
+    # ---------- evaluation ----------
+
+    def on_tick(self, world, fired_events):
+        now = world.clock_minutes()
+        crossed = set()
+        prev = self._last_minute
+        self._last_minute = now
+        for r in self.rules:
+            if r["enabled"] and r["trigger"]["type"] == "schedule":
+                target = self._hhmm(r["trigger"]["time"])
+                if self._crossed(prev, now, target):
+                    crossed.add(r["id"])
+        ctx_base = self._base_context(world)
+        last_text = world.events[-1]["text"] if world.events else None
+        for entry in fired_events:
+            who = entry.get('device') or entry.get('zone') or ""
+            watts = f" {entry['watts']} W" if 'watts' in entry else ""
+            text = f"{entry['event']} {who}{watts}".strip()
+            if text != last_text:
+                world.log("event", text)
+            last_text = text
+        for rule in self.rules:
+            if not rule["enabled"]:
+                continue
+            trig = rule["trigger"]
+            ttype = trig["type"]
+            if ttype == "tick":
+                ctx = dict(ctx_base)
+                if self._match(rule.get("when"), world, ctx):
+                    self._run(rule, "then", world, ctx)
+                elif rule.get("else"):
+                    self._run(rule, "else", world, ctx)
+            elif ttype == "schedule":
+                if rule["id"] in crossed:
+                    self._run(rule, "then", world, dict(ctx_base))
+            elif ttype == "event":
+                for entry in fired_events:
+                    if entry.get("event") != trig["event"]:
+                        continue
+                    ctx = dict(ctx_base)
+                    ctx.update({k: v for k, v in entry.items()
+                                if isinstance(v, (str, int, float))})
+                    if self._match(rule.get("when"), world, ctx):
+                        self._run(rule, "then", world, ctx)
+
+    def _base_context(self, world):
+        coldest, temp = None, None
+        for z in world.zones.values():
+            if temp is None or z.temp < temp:
+                coldest, temp = z.name, z.temp
+        return {"coldest": coldest or "", "temp": temp if temp is not None
+                else 0.0}
+
+    def _run(self, rule, branch, world, ctx):
+        for act in rule.get(branch, []):
+            self._execute(act, world, ctx, rule)
+
+    def _execute(self, act, world, ctx, rule):
+        kind = act["kind"]
+        if kind == "device":
+            dev_id = str(act.get("device", "")).format_map(SafeDict(ctx))
+            try:
+                world.set_device(dev_id, act.get("set") or {})
+            except (KeyError, ValueError):
+                pass
+        elif kind == "hvac":
+            zone = str(act.get("zone", "")).format_map(SafeDict(ctx))
+            try:
+                world.set_hvac(zone, act.get("set") or {})
+            except (KeyError, ValueError):
+                pass
+        elif kind == "scene":
+            try:
+                world.apply_scene(act["name"])
+            except KeyError:
+                pass
+        elif kind == "mode":
+            try:
+                world.set_mode(act["name"])
+            except ValueError:
+                pass
+        elif kind == "alert":
+            cooldown = int(rule.get("alert_cooldown_ticks", 1))
+            last = self._alert_last_tick.get(rule["id"], -10 ** 9)
+            if world.tick_count - last >= cooldown:
+                self._alert_last_tick[rule["id"]] = world.tick_count
+                msg = str(act.get("message", "")).format_map(SafeDict(ctx))
+                world.alert(act.get("level", "warn"), msg)
+        elif kind == "lock_all":
+            for d in world.devices.values():
+                if d.type == "lock":
+                    d.apply({"locked": True})
+        elif kind == "unlock_all":
+            for d in world.devices.values():
+                if d.type == "lock":
+                    d.apply({"locked": False})
+        elif kind == "lights_all":
+            for d in world.devices.values():
+                if d.type == "light":
+                    d.apply(act.get("set") or {})
+        elif kind == "hvac_all_off":
+            for d in world.devices.values():
+                if d.type == "hvac":
+                    d.apply({"mode": "off"})
+        elif kind == "shed":
+            self._shed(world)
+
+    def _shed(self, world):
+        limit = content.POWER_LIMIT_W
+        shedded = []
+        for dev_id in content.LOAD_SHED_ORDER:
+            if world.building_power_w() <= limit:
+                break
+            dev = world.devices.get(dev_id)
+            if dev is not None and getattr(dev, "on", False):
+                dev.apply({"on": False})
+                shedded.append(dev_id)
+        if shedded:
+            world.alert("warn", "load shed: turned off "
+                                + ", ".join(shedded))
+
+    def _match(self, cond, world, ctx):
+        if cond is None:
+            return True
+        kind = cond["kind"]
+        if kind == "all":
+            return all(self._match(c, world, ctx) for c in cond["all"])
+        if kind == "any":
+            return any(self._match(c, world, ctx) for c in cond["any"])
+        if kind == "not":
+            return not self._match(cond["not"], world, ctx)
+        if kind == "mode":
+            return OPS[cond.get("op", "==")](world.mode,
+                                             cond.get("value"))
+        if kind == "clock":
+            now = world.clock_minutes()
+            start = self._hhmm(cond.get("after", "00:00"))
+            end = self._hhmm(cond.get("before", "23:59")) + 1
+            if start <= end:
+                return start <= now < end
+            return now >= start or now < end
+        if kind == "zone":
+            zone_name = str(cond["zone"]).format_map(SafeDict(ctx))
+            zone = world.zones.get(zone_name)
+            if zone is None:
+                return False
+            actual = self._zone_attr(zone, str(cond.get("attr", "temp")),
+                                     ctx)
+            return self._compare(actual, cond, ctx)
+        if kind == "device":
+            dev_id = str(cond["device"]).format_map(SafeDict(ctx))
+            dev = world.devices.get(dev_id)
+            if dev is None:
+                return False
+            snap = dev.snapshot()
+            actual = snap.get(str(cond.get("attr", "")))
+            return self._compare(actual, cond, ctx)
+        return False
+
+    @staticmethod
+    def _zone_attr(zone, attr, ctx):
+        if attr == "temp":
+            return round(zone.temp, 2)
+        if attr == "occupants":
+            return zone.occupants()
+        if attr == "power_w":
+            return sum(d.watts() for d in zone.devices.values())
+        return None
+
+    def _compare(self, actual, cond, ctx):
+        value = cond.get("value")
+        op = OPS[cond.get("op", "==")]
+        try:
+            if isinstance(actual, bool) or isinstance(value, bool):
+                return op(bool(actual), bool(value))
+            return op(actual, value)
+        except TypeError:
+            return False
+
+    @staticmethod
+    def _hhmm(s):
+        h, m = str(s).split(":")
+        return int(h) * 60 + int(m)
+
+    @staticmethod
+    def _crossed(prev, now, target):
+        if prev == now:
+            return False
+        if prev < now:
+            return prev < target <= now
+        return target > prev or target <= now

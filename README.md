@@ -36,10 +36,11 @@ $py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
 | `dashboard.py` / `OsrsLab.exe` | Desktop hub: pick an activity, run it, watch sessions + RL curves live |
 | `play_rsps.py` | **Playable game client**: graphical tile world with click/WASD movement, combat, skilling, XP drops - auto-hosts the server if none is running (`python play_rsps.py`) |
 | `osrs_updater.py` | Continuous live-data refresher: GE prices (4.5k items), item mapping, wiki update-feed watcher -> `knowledge/live/`. Run `python osrs_updater.py --watch 30` to stay current |
-| `MIND kernel /` | Tick-based 6-skill world (woodcutting, mining, fishing, cooking, firemaking, smithing), bank/shop/furnace/quests, Ultimate Ironman mode, pause/resume sessions, LLM strategic loop, GE-price + Wiki knowledge pipeline |
+| `MIND kernel /` | Tick-based 23-skill world (woodcutting, mining, fishing, cooking, firemaking, smithing, combat, prayer, ranged, magic, runecrafting, thieving, agility, herblore, crafting, fletching, slayer, farming, **construction**, **hunter**), bank/shop/furnace/quests, workshop sawmill + furniture building, bird-snare hunting ground, Ultimate Ironman mode, pause/resume sessions, LLM strategic loop, GE-price + Wiki knowledge pipeline |
 | `osrs-llm-agent/server/` | **Your own RSPS engine**: authoritative JSON-lines game server with per-character instanced worlds + `RemoteGameSDK` client so any strategy runs over the wire unchanged. Original protocol/engine modeled on OSRS mechanics - not interoperable with the official client |
 | `osrs-rl/` | Self-play PPO combat agent (200-iteration trained model: 60% win / 7.5% loss vs opponent pool, undefeated vs heuristic & random baselines), resume support |
 | `osrs-rl/rsps_adapter/` | Client env + Java relay plugin to train against your own Elvarg private server |
+| `vulcan/` | **Vulcan**: offline smart-building automation sandbox - 7-zone thermal sim (37 devices), rules engine (occupancy lighting, schedules, security, freeze/fire/load-shed), authoritative JSON-lines server on 127.0.0.1:43901, embedded-or-remote console. Verify: `python vulcan/verify_vulcan.py` |
 
 ## Feature parity with similar tools
 
