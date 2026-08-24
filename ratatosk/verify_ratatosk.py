@@ -304,6 +304,118 @@ def cli_end_to_end():
         shutil.rmtree(outer, ignore_errors=True)
 
 
+# ---------------------------------------------------- request/reply
+
+@check
+def request_reply_roundtrip():
+    post, tmp = sandbox()
+    try:
+        def responder():
+            # serve requests until the main thread stops asking
+            while not stop.is_set():
+                for l in post.peek("oracle"):
+                    if l["kind"] == "divine" and "corr" in l:
+                        post.respond(l, {"answer": 42}, frm="oracle")
+                        return
+                time.sleep(0.01)
+        stop = threading.Event()
+        th = threading.Thread(target=responder)
+        th.start()
+        try:
+            reply = post.request("oracle", "divine", {"q": "meaning"},
+                                 frm="seeker", timeout_s=5.0)
+        finally:
+            stop.set()
+            th.join(timeout=5)
+        assert isinstance(reply, dict), reply
+        assert reply["kind"] == "divine.reply", reply
+        assert reply["payload"] == {"answer": 42}, reply
+        assert reply["from"] == "oracle", reply
+        assert post.unread("seeker") == 0, \
+            "matched reply must be consumed, other mail untouched"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check
+def request_reply_wrong_corr_ignored():
+    """A same-kind reply with a foreign corr must NOT satisfy a wait."""
+    post, tmp = sandbox()
+    try:
+        # plant a decoy reply with the right kind but no matching corr
+        post.send("seeker", "divine.reply", {"counterfeit": True},
+                  frm="impostor")
+        got = post.request("ghost", "divine", {"q": 1}, frm="seeker",
+                           timeout_s=0.3, poll_s=0.02)
+        assert got is None, got
+        assert post.unread("seeker") == 1, \
+            "decoy letter must stay in the inbox"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check
+def request_timeout_returns_none():
+    post, tmp = sandbox()
+    try:
+        post.send("seeker", "unrelated", {"keep": True}, frm="other")
+        t0 = time.monotonic()
+        got = post.request("nobody", "ping", {}, frm="seeker",
+                           timeout_s=0.3, poll_s=0.05)
+        assert got is None and time.monotonic() - t0 < 5, "must time out"
+        letters = post.read("seeker")
+        assert len(letters) == 1 and \
+            letters[0]["kind"] == "unrelated", letters
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check
+def request_bad_args_typeerror():
+    post, tmp = sandbox()
+    try:
+        for bad in ({"kind": None}, {"timeout_s": "x"},
+                    {"poll_s": 0}, {"poll_s": -1}):
+            try:
+                post.request("a", **dict(bad, payload={}, frm="b"))
+            except TypeError:
+                pass
+            else:
+                raise AssertionError(f"expected TypeError: {bad}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# -------------------------------------------------- priority lanes
+
+@check
+def priority_lane_ordering():
+    post, tmp = sandbox()
+    try:
+        post.send("zeus", "log", {"i": 1}, frm="s")
+        post.send("zeus", "bolt", {"i": 2}, frm="s", priority="high")
+        post.send("zeus", "log", {"i": 3}, frm="s")
+        post.send("zeus", "smite", {"i": 4}, frm="s", priority="high")
+        inbox = os.path.join(post.root, "zeus", "inbox")
+        names = sorted(os.listdir(inbox))
+        highs = [f for f in names if f.startswith("!.")]
+        assert len(highs) == 2 and all(f[2:3].isdigit() for f in highs), \
+            names
+        assert names[:2] == highs, "high lane must sort first"
+        order = [(l["kind"], l["payload"]["i"])
+                 for l in post.read("zeus")]
+        assert order == [("bolt", 2), ("smite", 4),
+                         ("log", 1), ("log", 3)], order
+        try:
+            post.send("zeus", "x", {}, frm="s", priority="urgent")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("bad priority must be rejected")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
     print("=" * 64)
     print("RATATOSK VERIFY - filesystem communication network")

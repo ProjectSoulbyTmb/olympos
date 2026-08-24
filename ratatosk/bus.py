@@ -5,11 +5,22 @@ Layout under the post root (default `<repo>/data/post/`):
     registry.json                  organ name -> meta
     seq/<organ>.seq                per-sender monotonic counters
     locks/<resource>.lock          O_CREAT|O_EXCL spinlocks, stale takeover
-    <organ>/inbox/<seq>-<from>-<kind>-<token>.json   unread letters
-    <organ>/seen/...               read letters (purged by cap)
-    <organ>/heartbeat.json         last liveness stamp + note
-    topics/<topic>.jsonl           broadcast journal, line number = seq
-    cursors/<consumer>.<topic>     last consumed topic seq
+     <organ>/inbox/<seq>-<from>-<kind>-<token>.json   unread letters
+     <organ>/seen/...               read letters (purged by cap)
+     <organ>/heartbeat.json         last liveness stamp + note
+     topics/<topic>.jsonl           broadcast journal (live segment)
+     topics/<topic>.jsonl.N         rotated archives, N=1 newest archive
+     topics/<topic>.seq             persistent seq counter (never resets)
+     cursors/<consumer>.<topic>     last consumed topic seq
+
+Priority lanes: send(priority="high") leads the filename with "!."
+(e.g. "!.000042-...json"); "!" sorts below digits, so inbox listings -
+and therefore read()/peek() - deliver high-priority mail first, with
+sender-sequence order preserved inside each lane.
+
+Request/reply: send(corr=<id>) stamps the envelope; request() waits
+for a "<kind>.reply" letter with the same corr in the caller's own
+inbox; respond() answers a letter carrying both forward.
 
 Safety model:
 - delivery is `os.replace` of a temp file in the destination dir, so a
@@ -214,8 +225,15 @@ class Post:
 
     # -- direct mail --
 
-    def send(self, to, kind, payload, frm="cli"):
-        """Deliver one letter to an organ's inbox. Returns the id."""
+    def send(self, to, kind, payload, frm="cli", corr=None,
+             priority="normal"):
+        """Deliver one letter to an organ's inbox. Returns the id.
+
+        corr embeds a correlation id (request/reply pairing); priority
+        is "normal" or "high" - high mail gets a "!." filename prefix
+        so lexicographic listing delivers it first."""
+        if priority not in ("normal", "high"):
+            raise ValueError("priority must be 'normal' or 'high'")
         inbox, _ = self._ensure_organ(to)
         frm = _safe(frm)
         seq = self._next_seq(frm)
@@ -224,9 +242,104 @@ class Post:
                   "from": frm, "to": _safe(to), "kind": _safe(kind),
                   "ts": _now_iso(), "epoch": round(time.time(), 3),
                   "payload": payload}
-        fname = f"{seq:012d}-{frm}-{_safe(kind)}-{uuid.uuid4().hex[:8]}.json"
+        if corr is not None:
+            letter["corr"] = str(corr)
+        head = "!." if priority == "high" else ""
+        fname = (f"{head}{seq:012d}-{frm}-{_safe(kind)}-"
+                 f"{uuid.uuid4().hex[:8]}.json")
         atomic_write_json(os.path.join(inbox, fname), letter)
         return letter["id"]
+
+    def request(self, to, kind, payload, frm, timeout_s=10.0,
+                poll_s=0.05):
+        """Send a request and wait for its reply.
+
+        Stamps the outgoing letter with a fresh corr id, then polls our
+        own inbox (frm is treated as an organ) for a letter whose kind
+        is "<kind>.reply" carrying that corr. Returns the reply letter
+        dict, or None on timeout. Raises TypeError on malformed args;
+        everything else degrades to None."""
+        if not isinstance(kind, str) or not kind:
+            raise TypeError("kind must be a non-empty str")
+        if isinstance(timeout_s, bool) or \
+                not isinstance(timeout_s, (int, float)) or timeout_s < 0:
+            raise TypeError("timeout_s must be a non-negative number")
+        if isinstance(poll_s, bool) or \
+                not isinstance(poll_s, (int, float)) or poll_s <= 0:
+            raise TypeError("poll_s must be a positive number")
+        try:
+            corr = uuid.uuid4().hex
+            self.send(to, kind, payload, frm=frm, corr=corr)
+            self._ensure_organ(frm)      # our inbox must exist to poll
+            want = _safe(kind) + ".reply"
+            deadline = time.monotonic() + float(timeout_s)
+            while time.monotonic() < deadline:
+                hit = self._take_letter(
+                    frm,
+                    lambda l, c=corr, k=want: l.get("corr") == c
+                    and l.get("kind") == k)
+                if hit is not None:
+                    return hit
+                time.sleep(poll_s)
+            return None
+        except TypeError:
+            raise
+        except Exception:                # noqa: BLE001 - never kill host
+            return None
+
+    def respond(self, letter, payload, frm="cli"):
+        """Answer a request letter: sends "<kind>.reply" back to the
+        original sender with the same corr. Never raises."""
+        try:
+            if not isinstance(letter, dict):
+                return None
+            to = letter.get("from")
+            kind = letter.get("kind")
+            if not to or not kind:
+                return None
+            return self.send(to, str(_safe(kind)) + ".reply", payload,
+                             frm=frm, corr=letter.get("corr"))
+        except Exception:                # noqa: BLE001
+            return None
+
+    def _inbox_letters(self, name):
+        """Yield (fname, letter-or-None) for one inbox in delivery
+        order; unreadable files come through as None."""
+        inbox = self._dir(_safe(name), "inbox")
+        try:
+            names = sorted(f for f in os.listdir(inbox)
+                           if f.endswith(".json"))
+        except OSError:
+            return
+        for fname in names:
+            try:
+                letter = _read_json(os.path.join(inbox, fname))
+                if not isinstance(letter, dict):
+                    letter = None
+            except (OSError, ValueError):
+                letter = None
+            yield fname, letter
+
+    def _take_letter(self, name, pred):
+        """Consume the first inbox letter matching pred (moved to
+        seen/, other mail untouched); None when nothing matches."""
+        inbox = self._dir(_safe(name), "inbox")
+        seen = self._dir(_safe(name), "seen")
+        for fname, letter in self._inbox_letters(name):
+            if letter is None or "payload" not in letter:
+                continue
+            try:
+                if not pred(letter):
+                    continue
+            except Exception:            # noqa: BLE001 - bad pred, skip
+                continue
+            try:
+                os.replace(os.path.join(inbox, fname),
+                           os.path.join(seen, fname))
+            except OSError:
+                pass
+            return letter
+        return None
 
     def _next_seq(self, frm):
         seq_dir = self._dir("seq")
@@ -271,20 +384,11 @@ class Post:
         inbox = self._dir(_safe(name), "inbox")
         seen = self._dir(_safe(name), "seen")
         letters = []
-        try:
-            names = sorted(f for f in os.listdir(inbox)
-                           if f.endswith(".json"))
-        except OSError:
-            return letters
-        for fname in names:
+        for fname, letter in self._inbox_letters(name):
             if len(letters) >= limit:
                 break
             src = os.path.join(inbox, fname)
-            try:
-                letter = _read_json(src)
-                if not isinstance(letter, dict) or "payload" not in letter:
-                    raise ValueError("bad envelope")
-            except (OSError, ValueError):
+            if letter is None or "payload" not in letter:
                 if mark:
                     try:
                         os.replace(src, os.path.join(
