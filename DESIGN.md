@@ -77,6 +77,12 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
 
 ## Decision log
 
+- 2026-08-23: Hyperion-181 accepted as second realm ("Muspelheim")
+  per IMPLEMENTATION.md - Java 11/Netty RS2 listener plus a
+  JSON-lines gateway exposing the GameSDK verb set on port 43591 so
+  Bifrost, RL, LLM agent and verify_system run against it unchanged.
+  Cache assets stay out of git (OpenRS2 loader, thin-mode default).
+
 - 2026-08-23: trademark-hygiene rebrand (legal). Public-facing
   product names moved to the public domain: OSRS Lab -> Yggdrasil,
   dashboard exe OsrsLab.exe -> Heimdall.exe (legacy name still
