@@ -1,4 +1,4 @@
-﻿# --- nested repos / apps that manage their own git ---
+# --- nested repos / apps that manage their own git ---
 assistant/
 
 # --- sibling projects with their own build artifacts ---
@@ -54,3 +54,6 @@ site/
 atlas/data/
 daedalus/data/
 poseidon/data/
+
+# --- nested repos / apps that manage their own git ---
+heart/
