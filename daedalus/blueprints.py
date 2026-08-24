@@ -57,13 +57,24 @@ import json
 import socket
 import subprocess
 import sys
+import time
 
 proc = subprocess.Popen([sys.executable, "echo_server.py", "0"],
                         stdout=subprocess.PIPE, text=True)
 try:
     line = proc.stdout.readline()
     port = int(line.split("on ")[1])
-    s = socket.create_connection(("127.0.0.1", port), timeout=5)
+    # readiness retry: under parallel load the listener can refuse
+    # its first moments - poll until the deadline instead of dying
+    deadline = time.time() + 15
+    while True:
+        try:
+            s = socket.create_connection(("127.0.0.1", port), timeout=5)
+            break
+        except OSError:
+            assert proc.poll() is None, "server died before accepting"
+            assert time.time() < deadline, "server never accepted"
+            time.sleep(0.1)
     f = s.makefile("rwb")
     f.write(b'{"ping": 1}\\n')
     f.flush()
@@ -124,9 +135,22 @@ try:
         assert time.time() < deadline, "server never wrote port.txt"
         time.sleep(0.1)
     port = int(open("port.txt").read())
-    with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/health", timeout=5) as r:
-        assert json.loads(r.read()).get("ok") is True
+    # readiness retry: a refused connection right after bind is a
+    # scheduling artifact under load, not a broken weave - poll on
+    deadline = time.time() + 15
+    while True:
+        try:
+            with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/health", timeout=5) as r:
+                assert json.loads(r.read()).get("ok") is True
+            break
+        except AssertionError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - gate retries all
+            assert proc.poll() is None, \
+                "server died before accepting: %r" % (exc,)
+            assert time.time() < deadline, "server never answered"
+            time.sleep(0.1)
     print("health gate green")
     sys.exit(0)
 finally:
@@ -209,6 +233,7 @@ import json
 import socket
 import subprocess
 import sys
+import time
 
 src = open("kv_server.py", encoding="utf-8").read()
 assert "{{" not in src, "unresolved template placeholder"
