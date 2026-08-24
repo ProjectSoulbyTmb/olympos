@@ -6,9 +6,14 @@
 #   ... -Ai            also clones ComfyUI + venv under ai-stack\
 #   ... -Ai -CpuOnly   force CPU torch wheels (no NVIDIA GPU)
 #
-# Everything lands inside the workspace; nothing is installed system
-# wide and nothing phones home after download. Re-run any time - it
-# is idempotent and skips completed parts.
+# Everything lands outside OneDrive-synced storage when possible;
+# nothing is installed system wide and nothing phones home after
+# download. Re-run any time - it is idempotent and skips completed
+# parts.
+#
+# AI tier location: KINEMA_AI_HOME env var wins, else D:\kinema-ai,
+# else repo-local ai-stack\. Big wheels/models never go on a drive
+# that cannot hold them.
 
 param(
     [switch]$Ai,
@@ -57,7 +62,11 @@ if (-not $Ai) {
     exit 0
 }
 
-$stack = Join-Path $root "ai-stack"
+$stack = $env:KINEMA_AI_HOME
+if (-not $stack) {
+    if (Test-Path "D:\") { $stack = "D:\kinema-ai" }
+    else { $stack = Join-Path $root "ai-stack" }
+}
 New-Item -ItemType Directory -Force -Path $stack | Out-Null
 $comfy = Join-Path $stack "ComfyUI"
 
