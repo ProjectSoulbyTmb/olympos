@@ -43,4 +43,6 @@ hades/state/
 hypnos/data/
 
 # --- runtime state & generated site ---
+data/
+ptah/data/
 site/
