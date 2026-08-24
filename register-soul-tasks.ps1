@@ -41,10 +41,19 @@ function Install-OrganTask {
         -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
         -ExecutionTimeLimit ([TimeSpan]::Zero)
     $level = if ($Elevated) { "Highest" } else { "Limited" }
-    Register-ScheduledTask -TaskName $Name -Action $action `
-        -Trigger $trigger -Settings $settings -RunLevel $level `
-        -Force | Out-Null
-    Write-Output "registered '$Name' -> $Exe $ArgList"
+    try {
+        Register-ScheduledTask -TaskName $Name -Action $action `
+            -Trigger $trigger -Settings $settings -RunLevel $level `
+            -Force -ErrorAction Stop | Out-Null
+        Write-Output "registered '$Name' -> $Exe $ArgList"
+    } catch {
+        if ($_.Exception.Message -match "Access is denied" -and $Elevated) {
+            Write-Warning "'$Name' needs one elevated registration:"
+            Write-Warning "  run this script once from an Administrator PowerShell"
+        } else {
+            Write-Warning "could not register '${Name}': $($_.Exception.Message)"
+        }
+    }
 }
 
 Install-OrganTask "Yggdrasil ZEUS Guardian" $python `
@@ -57,10 +66,13 @@ Install-OrganTask "Yggdrasil GAIA Pulse" $node `
 if ($Unregister) { exit 0 }
 
 Write-Output ""
-Write-Output "autopilot armed. starting all three now..."
-Start-ScheduledTask -TaskName "Yggdrasil ZEUS Guardian"
-Start-ScheduledTask -TaskName "Yggdrasil HYPNOS Dreamworker"
-Start-ScheduledTask -TaskName "Yggdrasil GAIA Pulse"
+Write-Output "autopilot armed. starting what is registered..."
+foreach ($t in ("Yggdrasil ZEUS Guardian",
+                "Yggdrasil HYPNOS Dreamworker",
+                "Yggdrasil GAIA Pulse")) {
+    $st = (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue)
+    if ($st) { Start-ScheduledTask -TaskName $t }
+}
 Write-Output ""
 Write-Output "observe the organism:"
 Write-Output "  python -m ratatosk status          # organ heartbeats + mail"

@@ -42,3 +42,4 @@ jdktmp/
 # --- hades local seal state ---
 hades/state/
 hypnos/data/
+ptah/data/
