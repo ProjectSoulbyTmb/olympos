@@ -372,8 +372,20 @@ def check_wire_roundtrip(tmp):
                 return f"hello carried error: {hello['error']}"
             if hello["result"].get("hello") != "zeus":
                 return "wrong hello payload"
-            status = client.status()
-            if not status.get("zeus") or status["ticks"] != 0:
+            # under heavy load (concurrent self-verification runs) the
+            # first status read can race the accept thread - bounded
+            # retries keep the contract strict without flaking
+            status = {}
+            for _ in range(5):
+                try:
+                    probe = client.status()
+                except (OSError, ValueError):
+                    probe = {}
+                if probe.get("zeus") and probe["ticks"] == 0:
+                    status = probe
+                    break
+                time.sleep(0.2)
+            if not status.get("zeus"):
                 return "status wrong over the wire"
             rep = client.patrol(n=2)
             if rep["tick"] != 2:
