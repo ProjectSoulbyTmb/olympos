@@ -392,6 +392,20 @@
         "verification",
         "lanes"
       ]
+    },
+    {
+      "id": "L032",
+      "title": "Probe og:image and pin Referer before mass-downloading from media aggregators",
+      "category": "reliability",
+      "source": "ingest/media_ingest.py build cycle 2026-08-24: i-cdn.dbnaked.com returned 403 to naive HEAD checks; full-size scheme only discoverable via gallery og:image plus thumb-count derivation",
+      "lesson": "Media aggregator CDNs enforce hotlink protection: full-size asset URLs are tokenized or Referer-gated, so a scraper that guesses URL shapes gets silent 403/404s at scale. Derive the real scheme from the page og:image (or embedded JS arrays), pin the Referer of the serving HTML host on every CDN request, HEAD-check one candidate before enumerating thousands, and write downloads to *.part with atomic os.replace so killed runs resume without keeping truncated files. Verify parsers offline against captured-shape fixtures (zero-network suite) before any live crawl.",
+      "tags": [
+        "scraping",
+        "http",
+        "cdn",
+        "resumability",
+        "verification"
+      ]
     }
   ]
 }
