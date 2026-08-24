@@ -12,7 +12,7 @@ import { attachToEngine } from './kernel.js';
 import { knowledge } from './knowledge.js';
 import { createRelay } from './relay.js';
 
-export const THOTH_VERSION = '3.1.0';
+export const THOTH_VERSION = '3.2.0';
 
 export const thothFeature = {
   id: 'thoth',

@@ -358,3 +358,142 @@ LOCATIONS = {
     "hunting_ground": ("hunting", None, (3, 21)),
 }
 SPAWN = (8, 9)
+
+
+# ------------------------------------------------------------------
+# Expansion pack: catacombs, prayers, extra spells, dialogue, ladders
+# All numbers live here per the single-source-of-truth contract.
+# ------------------------------------------------------------------
+
+NPCS['skeleton'] = {'level': 15, 'hp': 30, 'max_hit': 3, 'accuracy': 14,
+                    'respawn': 25,
+                    'drops': [('bones', 1.0, 1, 2), ('coins', 0.9, 15, 45),
+                              ('iron_arrow', 0.35, 4, 10),
+                              ('fire_rune', 0.2, 2, 6)]}
+NPCS['hobgoblin'] = {'level': 26, 'hp': 42, 'max_hit': 4, 'accuracy': 17,
+                     'respawn': 40,
+                     'drops': [('bones', 1.0, 1, 2), ('coins', 1.0, 30, 80),
+                               ('guam_seed', 0.25, 1, 1),
+                               ('strength_potion', 0.15, 1, 1)]}
+NPCS['vulcan_guardian'] = {'level': 48, 'hp': 120, 'max_hit': 7,
+                           'accuracy': 20, 'respawn': 150,
+                           'drops': [('coins', 1.0, 400, 900),
+                                     ('fire_rune', 0.8, 10, 30),
+                                     ('guardian_shard', 0.55, 1, 1),
+                                     ('steel_chainbody', 0.2, 1, 1)]}
+NPC_SPAWNS['skeleton_1'] = ('skeleton', (20, 2))
+NPC_SPAWNS['skeleton_2'] = ('skeleton', (23, 5))
+NPC_SPAWNS['skeleton_3'] = ('skeleton', (19, 6))
+NPC_SPAWNS['hobgoblin_1'] = ('hobgoblin', (22, 7))
+NPC_SPAWNS['vulcan_guardian_1'] = ('vulcan_guardian', (23, 0))
+
+LOCATIONS['catacomb_entrance'] = ('ladder', None, (16, 2))
+LOCATIONS['catacomb_exit'] = ('ladder', None, (20, 7))
+LOCATIONS['wise_man'] = ('npc_talker', None, (6, 4))
+LADDER_DEST = {'catacomb_entrance': (21, 6),
+               'catacomb_exit': (16, 3)}
+CATACOMBS_RECT = (18, 0, 23, 7)
+
+SPELLS['water_strike'] = {'req': 5, 'runes': {'water_rune': 1},
+                          'max_hit': 4, 'base_xp': 8.5}
+SPELLS['earth_strike'] = {'req': 9,
+                          'runes': {'earth_rune': 1, 'air_rune': 1},
+                          'max_hit': 6, 'base_xp': 12.0}
+
+PRAYERS = {
+    'clarity':   {'req': 1,  'drain': 0.02, 'effect': 'attack',
+                  'value': 1.10},
+    'toughness': {'req': 5,  'drain': 0.03, 'effect': 'defence',
+                  'value': 1.15},
+    'fury':      {'req': 10, 'drain': 0.04, 'effect': 'strength',
+                  'value': 1.10},
+    'blessing':  {'req': 20, 'drain': 0.05, 'effect': 'regen',
+                  'value': 1.0},
+}
+PRAYER_REGEN_PER_TICK = 0.05
+
+SHOP_PRICES['water_rune'] = 8
+SHOP_PRICES['earth_rune'] = 12
+SHOP_PRICES['guardian_shard'] = 250
+SHOP_STOCK.extend(['water_rune', 'earth_rune', 'guardian_shard'])
+
+QUESTS['catacomb_probe'] = {
+    'item': 'bones', 'amount': 6, 'skill': 'prayer',
+    'xp_reward': 800.0, 'coin_reward': 220,
+    'description': 'prove yourself: bury the remains of 6 catacomb foes '
+                   '(any bones from the catacombs)',
+    'kill_kind': 'catacombs', 'kill_need': 6,
+}
+QUESTS['chef_order'] = {
+    'item': 'cooked_meat', 'amount': 3, 'skill': 'cooking',
+    'xp_reward': 200.0, 'coin_reward': 60,
+    'description': 'the wise man ordered 3 cooked meats for his stew',
+}
+QUESTS.update({})
+
+DIALOGUES = {
+    'quest_giver': {
+        'start': {
+            'text': 'Greetings, adventurer. The lab grounds are busy '
+                    'today - what do you need?',
+            'options': [
+                {'label': 'Any work for me?', 'goto': 'work'},
+                {'label': 'Heard about the catacombs?', 'goto': 'lore'},
+                {'label': 'Turn in a task.', 'action': ('turn_in',)},
+                {'label': 'Farewell.', 'end': True},
+            ]},
+        'work': {
+            'text': 'Always. Shrimp for the mess hall, or logs for the '
+                    'fire. Talk to me again once you have them.',
+            'options': [
+                {'label': 'I will bring shrimp.',
+                 'action': ('accept_quest', 'shrimp_fetch'), 'end': True},
+                {'label': 'Consider logs delivered.',
+                 'action': ('accept_quest', 'logs_fetch'), 'end': True},
+                {'label': 'Back.', 'goto': 'start'},
+            ]},
+        'lore': {
+            'text': 'The old catacombs east of here? Seal broken, '
+                    'things crawling out. The wise man knows more - and '
+                    'he pays better than I do.',
+            'options': [{'label': 'Back.', 'goto': 'start'}]},
+    },
+    'wise_man': {
+        'start': {
+            'text': 'Ah, a living visitor. I am cataloguing what stirs '
+                    'in the catacombs below.',
+            'options': [
+                {'label': 'What stirs down there?', 'goto': 'probe'},
+                {'label': 'Heard you need a chef.', 'goto': 'chef'},
+                {'label': 'Who are you?', 'goto': 'who'},
+                {'label': 'Farewell.', 'end': True},
+            ]},
+        'probe': {
+            'text': 'Guardians of the old forge. Bury six of their '
+                    'number and I will trust you with bigger work.',
+            'options': [
+                {'label': 'Consider it done.',
+                 'action': ('accept_quest', 'catacomb_probe'), 'end': True},
+                {'label': 'Too spooky. Back.', 'goto': 'start'},
+            ]},
+        'chef': {
+            'text': 'Three cooked meats. Research requires stew.',
+            'options': [
+                {'label': 'Stew incoming.',
+                 'action': ('accept_quest', 'chef_order'), 'end': True},
+                {'label': 'Later.', 'goto': 'start'},
+            ]},
+        'who': {
+            'text': 'A scholar of things best left buried. Also very '
+                    'hungry.',
+            'options': [{'label': 'Back.', 'goto': 'start'}]},
+    },
+}
+
+# kill-kind bookkeeping: which npc kinds count toward a kill quest
+KILL_CATEGORIES = {
+    'skeleton': 'catacombs',
+    'hobgoblin': 'catacombs',
+    'vulcan_guardian': 'catacombs',
+    'zombie': 'catacombs',
+}

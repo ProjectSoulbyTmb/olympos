@@ -23,6 +23,7 @@ import { observeFromSweeps, summarize, teach, unteach } from './learn.js';
 import { ESCALATION, FACTS, TOPOLOGY, adviseFor } from './wisdom.js';
 import { autoStatus, runTick, startAuto, stopAuto } from './autonomic.js';
 import { applySafeFixes, scanUnfinished, wiringReport } from './repair.js';
+import { planScaffold, scaffoldFeature } from './scaffold.js';
 
 async function complianceScanner() {
   const root = process.cwd();
@@ -371,6 +372,45 @@ export function buildTools() {
             : '  - clean',
           `Automation may fix: ${r.automationMay.join('; ')}`,
           `Human-only: ${r.humanOnly.join('; ')}`,
+        ].join('\n');
+      },
+    },
+    {
+      name: 'scaffold',
+      klass: 'L2',
+      summary: 'Scaffold a contract-complete feature (descriptor, knowledge, test, registry seam).',
+      usage: 'thoth scaffold <id> [title] [--write]',
+      run(engine, args) {
+        const parts = String(args || '').trim();
+        const write = /--write\b/.test(parts);
+        const cleaned = parts.replace(/--write\b/, '').trim();
+        const m =
+          /^(?<id>[a-z][a-z0-9-]*)(?:\s+"(?<t1>[^"]+)"|\s+'(?<t2>[^']+)'|\s+(?<t3>.+))?$/.exec(
+            cleaned
+          );
+        if (!m?.groups?.id) {
+          return 'Usage: thoth scaffold <id> ["Title"] [--write]. Dry-run by default.';
+        }
+        const opts = {
+          id: m.groups.id,
+          title: (m.groups.t1 || m.groups.t2 || m.groups.t3 || '').trim(),
+        };
+        if (!write) {
+          const plan = planScaffold(process.cwd(), opts);
+          if (plan.problems.length) return `Cannot scaffold: ${plan.problems.join('; ')}`;
+          return [
+            `Plan for feature "${plan.id}" (${plan.title}):`,
+            ...plan.files.map(f => `  + ${f}`),
+            '  ~ src/core/feature-registry.js (guarded dynamic-import seam)',
+            'Re-run with --write inside an administrator session to generate, wire, and verify.',
+          ].join('\n');
+        }
+        const result = scaffoldFeature(process.cwd(), opts);
+        engine.store.save(engine.state);
+        return [
+          `Scaffolded "${result.id}" and wired the guarded registry seam.`,
+          `Contract test: ${result.contractTestPassed ? 'PASSED' : 'FAILED'} (${result.testOutput})`,
+          result.files.map(f => `  + ${f}`).join('\n'),
         ].join('\n');
       },
     },

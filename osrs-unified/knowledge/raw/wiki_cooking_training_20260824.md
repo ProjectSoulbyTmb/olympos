@@ -1,7 +1,7 @@
 # Cooking training
 
 Source: https://oldschool.runescape.wiki/w/Cooking_training
-Fetched: 2026-08-24T01:28:03+00:00
+Fetched: 2026-08-24T01:48:33+00:00
 
 This guide aims to assist players in training Cooking by using the most effective methods available. The Grand Exchange prices of items will fluctuate, so check the prices before buying and selling supplies in large quantities.
 

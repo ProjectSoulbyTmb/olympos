@@ -1,10 +1,10 @@
 {
-  "fetched": "2026-08-24T01:28:03+00:00",
+  "fetched": "2026-08-24T01:48:33+00:00",
   "tracked_prices": {
     "Logs": {
-      "buy": 24,
-      "sell": 23,
-      "mid": 23,
+      "buy": 25,
+      "sell": 25,
+      "mid": 25,
       "limit": 15000
     },
     "Oak logs": {
@@ -15,31 +15,31 @@
     },
     "Willow logs": {
       "buy": 22,
-      "sell": 21,
-      "mid": 21,
+      "sell": 22,
+      "mid": 22,
       "limit": 15000
     },
     "Copper ore": {
-      "buy": 11,
+      "buy": 9,
       "sell": 10,
-      "mid": 10,
+      "mid": 9,
       "limit": 13000
     },
     "Tin ore": {
-      "buy": 13,
+      "buy": 11,
       "sell": 13,
-      "mid": 13,
+      "mid": 12,
       "limit": 13000
     },
     "Iron ore": {
       "buy": 70,
-      "sell": 70,
-      "mid": 70,
+      "sell": 69,
+      "mid": 69,
       "limit": 13000
     },
     "Raw shrimps": {
-      "buy": 22,
-      "sell": 22,
+      "buy": 23,
+      "sell": 21,
       "mid": 22,
       "limit": 15000
     },
@@ -50,15 +50,15 @@
       "limit": 6000
     },
     "Iron axe": {
-      "buy": 112,
+      "buy": 98,
       "sell": 55,
-      "mid": 83,
+      "mid": 76,
       "limit": 40
     },
     "Steel axe": {
       "buy": 300,
-      "sell": 161,
-      "mid": 230,
+      "sell": 270,
+      "mid": 285,
       "limit": 40
     },
     "Black axe": {
@@ -74,21 +74,21 @@
       "limit": 40
     },
     "Bronze pickaxe": {
-      "buy": 73,
+      "buy": 88,
       "sell": 64,
-      "mid": 68,
+      "mid": 76,
       "limit": 40
     },
     "Iron pickaxe": {
-      "buy": 49,
+      "buy": 67,
       "sell": 20,
-      "mid": 34,
+      "mid": 43,
       "limit": 40
     },
     "Steel pickaxe": {
-      "buy": 173,
-      "sell": 220,
-      "mid": 196,
+      "buy": 182,
+      "sell": 101,
+      "mid": 141,
       "limit": 40
     }
   },

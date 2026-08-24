@@ -16,6 +16,8 @@ from .content import (AGILITY_LAP_TICKS, AGILITY_LAP_XP, ARROWS,
                       SLAYER_TASK_POOL, SLAYER_XP_PER_TASK_KILL, SPELLS,
                       STALLS, TRAP_LOOT_FEATHERS, TRAP_READY_TICKS,
                       WEAPONS)
+from .content import (PRAYERS, PRAYER_REGEN_PER_TICK, LADDER_DEST,
+                      DIALOGUES)
 
 # _EXTRA_FALLBACK: tolerate import-list drift for extension registries
 for _n in ('QUESTS_EXTRA', 'COOKABLES_EXTRA', 'FIREMAKING_XP_EXTRA',
@@ -111,6 +113,10 @@ class World:
         self.energy_regen_mult = 1.0
         self.claims = set()
         self.quests = {q: "not_started" for q in QUESTS}
+        self.ground = {}
+        self.active_prayers = set()
+        self.prayer_points = 10.0
+        self.dialogue = None
         for name, (_kind, _res, _pos) in LOCATIONS.items():
             if _kind in ("tree", "rock"):
                 spec = (TREES if _kind == "tree" else ROCKS)[_res]
@@ -140,9 +146,40 @@ class World:
     def _armour_bonus(self):
         return sum(ARMOURS[p][1] for p in self.tools if p in ARMOURS)
 
+    def prayer_cap(self):
+        return 10 + self.eff_level("prayer")
+
+    def _pray_mult(self, effect):
+        m = 1.0
+        for p in self.active_prayers:
+            spec = PRAYERS.get(p)
+            if spec and spec["effect"] == effect:
+                m *= spec["value"]
+        return m
+
+    def toggle_prayer(self, name):
+        spec = PRAYERS.get(name)
+        if spec is None:
+            raise GameError(f"unknown prayer '{name}' "
+                            f"(valid: {', '.join(sorted(PRAYERS))})")
+        if name in self.active_prayers:
+            self.active_prayers.discard(name)
+            self.note(f"deactivated {name}")
+            self.spend(0)
+            return False
+        if self.skill_level("prayer") < spec["req"]:
+            raise GameError(f"{name} needs prayer level {spec['req']}")
+        if self.prayer_points < 1.0:
+            raise GameError("no prayer points - recharge at the shrine")
+        self.active_prayers.add(name)
+        self.note(f"activated {name}")
+        self.spend(1)
+        self.advance(1)
+        return True
+
     def save(self):
         return {
-            "version": 6,
+            "version": 7,
             "tick": self.tick,
             "tick_budget": self.tick_budget,
             "uim": self.uim,
@@ -171,11 +208,15 @@ class World:
             "energy_regen_mult": float(self.energy_regen_mult),
             "claims": sorted(self.claims),
             "quests": dict(self.quests),
+            "ground": {f"{x},{y}": dict(stack)
+                       for (x, y), stack in self.ground.items()},
+            "active_prayers": sorted(self.active_prayers),
+            "prayer_points": round(self.prayer_points, 2),
             "rng_state": self.rng.getstate(),
         }
 
     def load_snapshot(self, data):
-        if data.get("version") not in (1, 2, 3, 4, 5, 6):
+        if data.get("version") not in (1, 2, 3, 4, 5, 6, 7):
             raise ValueError("unsupported session version")
         self.reset()
         self.tick = data["tick"]
@@ -226,6 +267,11 @@ class World:
         saved_quests = data.get("quests")
         if saved_quests:
             self.quests.update(saved_quests)
+        for coord, stack in data.get("ground", {}).items():
+            gx, gy = coord.split(",")
+            self.ground[(int(gx), int(gy))] = dict(stack)
+        self.active_prayers = set(data.get("active_prayers", []))
+        self.prayer_points = float(data.get("prayer_points", 10.0))
         rs = data["rng_state"]
         self.rng.setstate((rs[0], tuple(rs[1]), rs[2]))
 
@@ -260,6 +306,21 @@ class World:
             kind, _p = NPC_SPAWNS[npc]
             self.npc_hp[npc] = NPCS[kind]["hp"]
         old_xp_total = self.xp_timeline[-1][1] if self.xp_timeline else 0.0
+        if self.active_prayers:
+            self.prayer_points -= sum(PRAYERS[p]["drain"]
+                                      for p in self.active_prayers)
+            if self.prayer_points <= 0:
+                self.prayer_points = 0.0
+                self.active_prayers.clear()
+                self.note("your prayers flicker out")
+        elif self.prayer_points < self.prayer_cap():
+            self.prayer_points = min(self.prayer_cap(),
+                                     self.prayer_points
+                                     + PRAYER_REGEN_PER_TICK * n)
+        if "blessing" in self.active_prayers and self.tick % 8 == 0 \
+                and self.hp < self.max_hp:
+            self.hp += 1
+            self.note("blessing restores 1 hp")
         old_coins = self.coin_timeline[-1][1] if self.coin_timeline else 0
         new_xp_total = self.total_xp
         if new_xp_total != old_xp_total:
@@ -328,6 +389,14 @@ class World:
         self.advance(ticks)
         self._moving = False
         self.pos = (x, y)
+        for lname, (kind, _res, lpos) in LOCATIONS.items():
+            if kind == "ladder" and tuple(lpos) == (x, y):
+                dest = LADDER_DEST.get(lname)
+                if dest:
+                    self.pos = tuple(dest)
+                    self.note(f"climbed {lname.replace('_', ' ')}")
+                    self.advance(1)
+                    return ticks + 1
         return ticks
 
     def set_run(self, on):
@@ -407,6 +476,66 @@ class World:
                     self.note(f"{q}: {have}/{spec['amount']} {spec['item']}")
         self.spend(1)
         self.advance(1)
+
+    def talk_to(self, npc=None):
+        npc = npc or "quest_giver"
+        if npc not in DIALOGUES:
+            raise GameError(f"nobody called '{npc}' wants to chat "
+                            f"(talkable: {', '.join(sorted(DIALOGUES))})")
+        loc = LOCATIONS.get(npc)
+        if loc is None or chebyshev(self.pos, loc[2]) > 1:
+            raise GameError(f"stand next to the {npc.replace('_', ' ')} "
+                            f"to talk")
+        self.dialogue = {"npc": npc, "page": "start"}
+        self.spend(1)
+        self.advance(1)
+        return self.dialogue_snapshot()
+
+    def dialogue_choose(self, idx):
+        d = self.dialogue
+        if not d:
+            raise GameError("no active conversation")
+        page = DIALOGUES[d["npc"]][d["page"]]
+        opts = page["options"]
+        i = int(idx)
+        if not 0 <= i < len(opts):
+            raise GameError(f"option {i} does not exist (0.."
+                            f"{len(opts) - 1})")
+        opt = opts[i]
+        act = opt.get("action")
+        if act:
+            kind = act[0]
+            if kind == "accept_quest":
+                q = act[1]
+                status = self.quests.get(q)
+                if status == "not_started":
+                    self.quests[q] = "active"
+                    self.note(f"quest accepted: "
+                              f"{QUESTS[q]['description']}")
+                elif status == "claimed":
+                    self.note("already done - thank you!")
+                else:
+                    self.note(f"{q}: still waiting on that")
+            elif kind == "turn_in":
+                self.talk_quest()
+            elif kind == "note":
+                self.note(str(act[1]))
+        if opt.get("goto"):
+            d["page"] = opt["goto"]
+        else:
+            self.dialogue = None
+        self.spend(1)
+        self.advance(1)
+        snap = self.dialogue_snapshot()
+        return snap or {"ended": True}
+
+    def dialogue_snapshot(self):
+        d = self.dialogue
+        if not d:
+            return None
+        page = DIALOGUES[d["npc"]][d["page"]]
+        return {"npc": d["npc"], "text": page["text"],
+                "options": [o["label"] for o in page["options"]]}
 
     def quest_status(self):
         return dict(self.quests)
@@ -561,18 +690,19 @@ class World:
 
     def _player_hit(self, kind):
         spec = NPCS[kind]
-        atk_lvl = self.eff_level("attack")
+        atk_lvl = self.eff_level("attack") * self._pray_mult("attack")
         atk_bonus, str_bonus = self._weapon()
         acc = min(0.95, max(0.20, 0.60 + (atk_lvl + atk_bonus -
                                           spec["accuracy"]) * 0.03))
         if self.rng.random() >= acc:
             return 0
-        max_hit = 1 + (self.eff_level("strength") + str_bonus * 2) // 6
+        str_lvl = self.eff_level("strength") * self._pray_mult("strength")
+        max_hit = 1 + (str_lvl + str_bonus * 2) // 6
         return self.rng.randint(1, max(1, int(max_hit)))
 
     def _npc_retaliate(self, kind):
         spec = NPCS[kind]
-        def_lvl = self.eff_level("defence")
+        def_lvl = self.eff_level("defence") * self._pray_mult("defence")
         armour = self._armour_bonus()
         acc = min(0.8, max(0.05,
                            0.5 - (def_lvl - spec["level"]) * 0.02 -
@@ -1325,8 +1455,30 @@ class World:
         self.inventory[item] -= take
         if self.inventory[item] == 0:
             del self.inventory[item]
+        stack = self.ground.setdefault(tuple(self.pos), {})
+        stack[item] = stack.get(item, 0) + take
+        self.note(f"dropped {take}x {item} here")
         self.spend(1)
         self.advance(1)
+
+    def pickup(self):
+        stack = self.ground.get(tuple(self.pos))
+        if not stack:
+            raise GameError("nothing on the ground here")
+        taken = []
+        for item in sorted(stack):
+            if not self.inv_add(item, stack[item]):
+                if taken:
+                    break
+                raise GameError("inventory full - bank something first")
+            taken.append(f"{stack[item]}x {item}")
+            del stack[item]
+        if not stack:
+            del self.ground[tuple(self.pos)]
+        self.note("picked up " + ", ".join(taken))
+        self.spend(1)
+        self.advance(1)
+        return True
 
     def wait(self, ticks=1):
         if ticks < 1:
@@ -1402,6 +1554,20 @@ class World:
             "nodes": nearby,
             "npcs": self.npcs(),
             "events": recent_log,
+            "ground": [
+                {"item": item, "n": n, "pos": [gx, gy]}
+                for (gx, gy), stack in sorted(self.ground.items())
+                if chebyshev(self.pos, (gx, gy)) <= 8
+                for item, n in sorted(stack.items())
+            ],
+            "prayers": {
+                "active": sorted(self.active_prayers),
+                "points": round(self.prayer_points, 1),
+                "cap": self.prayer_cap(),
+            },
+            "dialogue": self.dialogue_snapshot(),
+            "players": [],
+            "chat": [],
         }
 
     def peak_window_rate(self, window=150):

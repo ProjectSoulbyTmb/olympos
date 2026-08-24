@@ -87,6 +87,11 @@ export const knowledge = {
       reply:
         'THOTH scans first-party code for unfinished markers (TODO/FIXME/not-implemented) and missing license headers ("thoth repair", read-only), and reports a wiring checklist separating what automation may fix from what needs your decision ("thoth wire"). "thoth repair-fix" applies only deterministic repairs - Prettier with the repository config and SPDX header insertion - and syntax-verifies every rewritten file, restoring any that fail before they ever reach git. Because it writes source files it is elevated (L2): run it from an administrator session or with session elevation armed. Implementing stubbed logic and wiring new features into startup-frozen surfaces stay human-only by contract.',
     },
+    thothScaffold: {
+      title: 'Feature scaffolding',
+      reply:
+        '"thoth scaffold <id> [title]" plans a brand-new feature against the registry contract - descriptor, knowledge entry, fail-closed contract test, and a guarded dynamic-import seam in feature-registry.js. Add --write inside an administrator session to generate, wire, and verify for real: every generated file is syntax-checked and the generated contract test is executed before success is reported. Global answer-surface merging of new feature knowledge stays a one-line human seam in core/knowledge.js by design.',
+    },
     thothAdultWellness: {
       title: 'Adult wellness and control',
       reply:
@@ -159,6 +164,10 @@ export const knowledge = {
     {
       id: 'thothRepair',
       re: /\b(auto[- ]fix|self[- ]heal|repair|unfinished|stub[s]?|missing\s+headers?)\b/i,
+    },
+    {
+      id: 'thothScaffold',
+      re: /\b(scaffold(ing)?|generate\s+a\s+feature|new\s+feature\s+wire)\b/i,
     },
     {
       id: 'thoth',

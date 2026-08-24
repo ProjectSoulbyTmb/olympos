@@ -70,6 +70,14 @@ nothing leaves this PC.
   is syntax-verified; failures are restored byte-for-byte and reported.
   Stubbed logic and startup-frozen wiring stay human-only by contract.
 
+## Feature scaffolding (v3.2.0+)
+
+- `thoth scaffold <id> [title]` (L0 dry-run) plans a full feature package:
+  descriptor + knowledge + fail-closed contract test + guarded registry seam.
+- `thoth scaffold ... --write` (L2) generates, wires feature-registry.js,
+  syntax-checks every file, and executes the generated contract test before
+  reporting success. Global knowledge merge stays a human one-liner.
+
 ## Update procedure
 
 1. Edit here or in `../thoth-private`, then mirror.

@@ -12,23 +12,42 @@ class RemoteGameSDK:
     run unchanged over the wire."""
 
     def __init__(self, host="127.0.0.1", port=43590, name="player",
-                 uim=False, budget=3000, timeout=15):
+                 uim=False, budget=3000, timeout=15, channel=None,
+                 fresh=False):
         self.sock = socket.create_connection((host, port), timeout=timeout)
         self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.f = self.sock.makefile("r")
         resp = self._request({"cmd": "login", "name": name, "uim": uim,
-                              "budget": budget})
+                              "budget": budget, "channel": channel,
+                              "fresh": fresh})
         if not resp.get("ok"):
             raise RspsError(resp.get("error", "login failed"))
         self.name = resp["name"]
+        self.resumed = bool(resp.get("resumed"))
+        self._chat = []
         self._state = resp.get("state")
+
+    def chat(self, text):
+        resp = self._request({"cmd": "chat", "text": str(text)[:200]})
+        if not resp.get("ok"):
+            raise RspsError(resp.get("error", "chat failed"))
+        return True
+
+    def _drain_chat(self):
+        out = list(self._chat)
+        self._chat = []
+        return out
 
     def _request(self, payload):
         self.sock.sendall((json.dumps(payload) + "\n").encode())
         line = self.f.readline()
         if not line:
             raise ConnectionError("server closed the connection")
-        return json.loads(line)
+        resp = json.loads(line)
+        chat = resp.get("chat")
+        if chat:
+            self._chat.extend(chat)
+        return resp
 
     def _call(self, call, *args):
         resp = self._request({"cmd": "action", "call": call,

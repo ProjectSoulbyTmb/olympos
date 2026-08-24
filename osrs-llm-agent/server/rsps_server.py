@@ -1,8 +1,10 @@
 import json
+import os
 import random
 import socket
 import threading
 import time
+from collections import deque
 
 from game.world import World
 from game.sdk import GameSDK
@@ -14,15 +16,20 @@ MAX_SESSIONS = 32
 MAX_ACTIONS_PER_SECOND = 100
 MAX_INT_ARG = 10 ** 6
 PORT_ATTEMPTS = 10
+CHAT_HISTORY = 60
+AUTOSAVE_EVERY_TICKS = 240
 
 
 class Session:
-    def __init__(self, name, uim, tick_budget, seed):
+    def __init__(self, name, uim, tick_budget, seed, channel=None):
         self.name = name
         self.world = World(seed=seed, tick_budget=tick_budget, uim=uim)
         self.sdk = GameSDK(self.world)
+        self.channel = channel
+        self.chat_cursor = 0
         self.state_tick = None
         self.state_bytes = b""
+        self.last_saved_tick = -1
 
 
 class GameServer:
@@ -30,10 +37,17 @@ class GameServer:
 
     Each logged-in character gets its own instanced World; one connection
     is one session. Clients speak a JSON-lines protocol:
-      {"cmd": "login", "name": "...", "uim": false, "budget": 3000}
+      {"cmd": "login", "name": "...", "uim": false, "budget": 3000,
+       "channel": "main"}
       {"cmd": "action", "call": "chop", "args": []}
       {"cmd": "state"}
+      {"cmd": "chat", "text": "hello"}
       {"cmd": "close"}
+
+    Sessions that pass the same `channel` see each other's presence in
+    state payloads ("players") and share a chat feed piggybacked on
+    every response. Snapshots persist to server/saves/ and resume by
+    name on re-login (pass "fresh": true to start over).
 
     This is an original protocol for an original engine - it models OSRS
     mechanics but is not interoperable with the official game client.
@@ -45,6 +59,10 @@ class GameServer:
         self.port = port
         self.default_budget = default_budget
         self.sessions = {}
+        self.saves_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "saves")
+        os.makedirs(self.saves_dir, exist_ok=True)
+        self.channels = {}
         self._lock = threading.Lock()
         self._conn_counters = {}
         self._sock = None
@@ -208,6 +226,7 @@ class GameServer:
                 if cmd == "login":
                     name = str(req.get("name") or
                                f"player_{random.randint(100, 999)}")
+                    channel = str(req.get("channel") or "").strip() or None
                     with self._lock:
                         if name in self.sessions:
                             resp = {"ok": False,
@@ -218,29 +237,66 @@ class GameServer:
                                 uim=bool(req.get("uim")),
                                 tick_budget=int(req.get(
                                     "budget", self.default_budget)),
-                                seed=random.randint(0, 2 ** 31 - 1))
+                                seed=random.randint(0, 2 ** 31 - 1),
+                                channel=channel)
+                            resumed, note = self._try_resume(sess, req)
                             self.sessions[name] = sess
+                            if channel:
+                                room = self.channels.setdefault(channel,
+                                                                deque())
+                                for other in room:
+                                    o = self.sessions.get(other)
+                                    if o:
+                                        o.world.note(
+                                            f"{name} entered the world")
+                                room.append(name)
                             resp = {"ok": True, "name": name,
+                                    "resumed": resumed,
                                     "state": sess.world.state()}
+                            if note:
+                                resp["note"] = note
                 elif sess is None:
                     resp = {"ok": False, "error": "not logged in"}
                 elif cmd == "state":
-                    conn.sendall(GameServer._state_bytes(sess))
-                    continue
+                    if sess.channel:
+                        st = sess.world.state()
+                        st["players"] = self._presence(sess)
+                        resp = {"ok": True, "state": st}
+                    else:
+                        conn.sendall(GameServer._state_bytes(sess))
+                        continue
                 elif cmd == "docs":
                     from game.knowledge import render_markdown
                     resp = {"ok": True, "docs": render_markdown()}
                 elif cmd == "live":
                     resp = {"ok": True,
                             "live": self.live_summary(req.get("items"))}
+                elif cmd == "chat":
+                    text = str(req.get("text", "")).strip()[:200]
+                    if not text:
+                        resp = {"ok": False, "error": "empty chat"}
+                    else:
+                        self._broadcast_chat(sess, text)
+                        resp = {"ok": True}
                 elif cmd == "action":
                     resp = self._run_action(sess, req)
                 elif cmd == "close":
+                    self._persist(sess)
                     resp = {"ok": True}
                     conn.sendall((json.dumps(resp) + "\n").encode())
                     break
                 else:
                     resp = {"ok": False, "error": f"unknown cmd '{cmd}'"}
+                if sess is not None:
+                    resp["chat"] = self._drain_chat(sess)
+                    players = self._presence(sess)
+                    if players:
+                        st = resp.get("state")
+                        if isinstance(st, dict):
+                            st["players"] = players
+                    if sess.world.tick - sess.last_saved_tick \
+                            >= AUTOSAVE_EVERY_TICKS:
+                        self._persist(sess)
                 conn.sendall((json.dumps(resp) + "\n").encode())
         except (ConnectionError, OSError):
             pass
@@ -249,10 +305,90 @@ class GameServer:
             if sess is not None:
                 with self._lock:
                     self.sessions.pop(sess.name, None)
+                self._leave_channel(sess)
+                self._persist(sess)
             try:
                 conn.close()
             except OSError:
                 pass
+
+    # ---------- channels / chat / persistence ----------
+
+    def _save_path(self, name):
+        safe = "".join(c for c in name
+                       if c.isalnum() or c in "-_")[:40] or "player"
+        return os.path.join(self.saves_dir, f"{safe}.json")
+
+    def _try_resume(self, sess, req):
+        path = self._save_path(sess.name)
+        if req.get("fresh") or not os.path.exists(path):
+            return False, None
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                snap = json.load(fh)
+            sess.world.load_snapshot(snap)
+            sess.last_saved_tick = sess.world.tick
+            return True, f"resumed {sess.name} (tick {sess.world.tick})"
+        except Exception as exc:
+            sess.world.reset()
+            return False, f"resume failed ({exc}); fresh start"
+
+    def _persist(self, sess):
+        try:
+            snap = sess.world.save()
+            sess.last_saved_tick = sess.world.tick
+            tmp = self._save_path(sess.name) + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(snap, fh)
+            os.replace(tmp, self._save_path(sess.name))
+        except OSError:
+            pass
+
+    def _broadcast_chat(self, sess, text):
+        line = {"from": sess.name, "text": text,
+                "t": sess.world.tick}
+        targets = [s for s in self.sessions.values()
+                   if s.channel and s.channel == sess.channel]
+        for target in targets:
+            target.chat_log = getattr(target, "chat_log", deque())
+            target.chat_log.append(line)
+
+    def _drain_chat(self, sess):
+        log = getattr(sess, "chat_log", None)
+        if not log:
+            return []
+        out = list(log)
+        log.clear()
+        return out
+
+    def _presence(self, sess):
+        if not sess.channel:
+            return []
+        players = []
+        for other in self.channels.get(sess.channel, ()):
+            if other == sess.name:
+                continue
+            o = self.sessions.get(other)
+            if o is not None:
+                players.append({"name": o.name,
+                                "pos": list(o.world.pos)})
+        return players
+
+    def _leave_channel(self, sess):
+        channel = sess.channel
+        if not channel:
+            return
+        room = self.channels.get(channel)
+        if room and sess.name in room:
+            room.remove(sess.name)
+            for other in room:
+                o = self.sessions.get(other)
+                if o:
+                    o.world.note(f"{sess.name} left the world")
+                    o.chat_log = getattr(o, "chat_log", deque())
+                    o.chat_log.append({"from": "system",
+                                       "text": f"{sess.name} left",
+                                       "t": o.world.tick})
 
     @staticmethod
     def _state_bytes(sess):
