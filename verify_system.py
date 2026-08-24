@@ -534,8 +534,12 @@ def t_llm_endpoint():
 
 
 def t_dashboard_exe():
-    exe = os.path.join(HERE, "OsrsLab.exe")
-    assert os.path.exists(exe)
+    exe = next((c for c in (
+        os.path.join(HERE, "Heimdall.exe"),
+        os.path.join(HERE, "dist", "Heimdall.exe"),
+        os.path.join(HERE, "OsrsLab.exe"))  # legacy name
+        if os.path.exists(c)), None)
+    assert exe, "no dashboard exe found"
     proc = subprocess.run([exe, "--once"], timeout=60,
                           capture_output=True)
     assert proc.returncode == 0
@@ -734,7 +738,7 @@ def t_venus_vtuber_layer():
 def t_packaging_and_runner():
     build = open(os.path.join(HERE, "build_client.ps1"),
                  encoding="utf-8").read()
-    assert "play_rsps.py" in build and "OsrsPlay" in build
+    assert "play_rsps.py" in build and "Bifrost" in build
     src = open(os.path.join(HERE, "runner.py"), encoding="utf-8").read()
     assert '"Play now (graphical client)"' in src and "def play_client" in \
         src
@@ -746,20 +750,24 @@ def t_packaging_and_runner():
 def t_trading_and_status():
     from server.rsps_server import GameServer
     from server.client import RemoteGameSDK
-    srv = GameServer(port=43991)
+    srv = GameServer(port=43990)
     srv.start_async()
     time.sleep(0.8)
     try:
         a = RemoteGameSDK(name="tr_alice", port=srv.port,
-                          channel="main")
-        b = RemoteGameSDK(name="tr_bob", port=srv.port, channel="main")
+                          channel="main", fresh=True)
+        b = RemoteGameSDK(name="tr_bob", port=srv.port,
+                          channel="main", fresh=True)
         st = a._request({"cmd": "status"})["status"]
-        assert {"tr_alice", "tr_bob"} <= set(st["players"])
-        assert st["channels"] == ["main"]
+        assert {"tr_alice", "tr_bob"} <= set(st["players"]), \
+            f"players missing: {st}"
+        assert st["channels"] == ["main"], f"channels: {st}"
         a._request({"cmd": "trade_offer", "target": "tr_bob"})
         r = b._request({"cmd": "state"})
-        assert any(n["type"] == "trade_invite"
-                   for n in r.get("notices", []))
+        invites = [n for n in r.get("notices", [])
+                   if n.get("type") == "trade_invite"]
+        assert invites, f"invite lost: {r.get(chr(39)+chr(39))}" if False else \
+            f"invite lost: notices={r.get("notices")}"
         b._request({"cmd": "trade_accept"})
         a._call("walk", "tree_1")
         for i in range(24):
@@ -770,29 +778,34 @@ def t_trading_and_status():
             except Exception:
                 a._call("walk", "tree_2")
         n_logs = min(3, a.inventory().get("logs", 0))
-        assert n_logs >= 1, "no logs chopped for trade"
-        assert a._request({"cmd": "trade_add",
-                           "item": "logs",
-                           "n": n_logs})["ok"]
+        assert n_logs >= 1, f"no logs chopped: {a.inventory()}"
+        ra = a._request({"cmd": "trade_add", "item": "logs",
+                         "n": n_logs})
+        assert ra["ok"], f"trade_add failed: {ra}"
         b._request({"cmd": "trade_confirm"})
         before_a = a.inventory().get("logs", 0)
-        r = a._request({"cmd": "trade_confirm"})
-        assert r["ok"], r
-        assert a.inventory().get("logs", 0) == before_a - n_logs
-        assert b.inventory().get("logs") == n_logs
-        assert not a._request({"cmd": "state"}).get("trade")
+        rc = a._request({"cmd": "trade_confirm"})
+        assert rc["ok"], f"confirm failed: {rc}"
+        after_a = a.inventory().get("logs", 0)
+        assert after_a == before_a - n_logs, \
+            f"alice logs {before_a}->{after_a}"
+        got_b = b.inventory().get("logs", 0)
+        assert got_b == n_logs, f"bob logs={got_b} want {n_logs}"
+        assert not a._request({"cmd": "state"}).get("trade"), \
+            "trade still open"
         a._request({"cmd": "trade_offer", "target": "tr_bob"})
         b._request({"cmd": "trade_accept"})
         b._request({"cmd": "trade_cancel"})
-        assert not a.state().get("trade")
+        assert not a.state().get("trade"), "cancel did not clear"
         a.close(); b.close()
     finally:
         srv.running = False
     return "invite/confirm/execute/cancel + status endpoint"
 
 
+
 print("=" * 72)
-print("OSRS LAB - FULL SYSTEM VERIFICATION")
+print("YGGDRASIL (OSRS LAB) - FULL SYSTEM VERIFICATION")
 print("=" * 72)
 
 for name, fn in [
@@ -813,7 +826,7 @@ for name, fn in [
     ("DATA: continuous live updater", t_live_updater),
     ("DATA: live stream + server wiring", t_live_stream),
     ("SOCKET: LLM endpoint (ollama)", t_llm_endpoint),
-    ("APP: OsrsLab.exe", t_dashboard_exe),
+    ("APP: dashboard exe", t_dashboard_exe),
     ("APP: easy runner wiring", t_runner),
     ("ENGINE: ground items & pickup", t_ground_items),
     ("ENGINE: prayer book", t_prayers),

@@ -1,5 +1,5 @@
 {
-  "user_agent": "OsrsLab local sandbox - knowledge refresher",
+  "user_agent": "Yggdrasil local sandbox - knowledge refresher",
   "timeout_s": 15,
   "retries": 3,
   "backoff_s": 2.0,

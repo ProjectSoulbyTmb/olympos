@@ -1,10 +1,10 @@
 {
-  "fetched": "2026-08-24T02:28:03+00:00",
+  "fetched": "2026-08-24T03:28:03+00:00",
   "tracked_prices": {
     "Logs": {
-      "buy": 25,
-      "sell": 25,
-      "mid": 25,
+      "buy": 24,
+      "sell": 23,
+      "mid": 23,
       "limit": 15000
     },
     "Oak logs": {
@@ -15,14 +15,14 @@
     },
     "Willow logs": {
       "buy": 21,
-      "sell": 20,
-      "mid": 20,
+      "sell": 22,
+      "mid": 21,
       "limit": 15000
     },
     "Copper ore": {
-      "buy": 10,
-      "sell": 9,
-      "mid": 9,
+      "buy": 11,
+      "sell": 10,
+      "mid": 10,
       "limit": 13000
     },
     "Tin ore": {
@@ -33,62 +33,62 @@
     },
     "Iron ore": {
       "buy": 72,
-      "sell": 70,
+      "sell": 71,
       "mid": 71,
       "limit": 13000
     },
     "Raw shrimps": {
-      "buy": 20,
+      "buy": 23,
       "sell": 20,
-      "mid": 20,
+      "mid": 21,
       "limit": 15000
     },
     "Shrimps": {
-      "buy": 22,
-      "sell": 20,
-      "mid": 21,
+      "buy": 24,
+      "sell": 24,
+      "mid": 24,
       "limit": 6000
     },
     "Iron axe": {
-      "buy": 72,
+      "buy": 103,
       "sell": 55,
-      "mid": 63,
+      "mid": 79,
       "limit": 40
     },
     "Steel axe": {
-      "buy": 163,
-      "sell": 161,
-      "mid": 162,
+      "buy": 239,
+      "sell": 195,
+      "mid": 217,
       "limit": 40
     },
     "Black axe": {
       "buy": 1006,
-      "sell": 1144,
-      "mid": 1075,
+      "sell": 941,
+      "mid": 973,
       "limit": 40
     },
     "Mithril axe": {
-      "buy": 109,
-      "sell": 105,
-      "mid": 107,
+      "buy": 175,
+      "sell": 175,
+      "mid": 175,
       "limit": 40
     },
     "Bronze pickaxe": {
-      "buy": 84,
+      "buy": 67,
       "sell": 66,
-      "mid": 75,
+      "mid": 66,
       "limit": 40
     },
     "Iron pickaxe": {
-      "buy": 22,
-      "sell": 20,
-      "mid": 21,
+      "buy": 67,
+      "sell": 50,
+      "mid": 58,
       "limit": 40
     },
     "Steel pickaxe": {
-      "buy": 182,
+      "buy": 165,
       "sell": 101,
-      "mid": 141,
+      "mid": 133,
       "limit": 40
     }
   },

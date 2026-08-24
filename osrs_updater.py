@@ -1,4 +1,4 @@
-"""Continuous updater: keeps OsrsLab current with the live OSRS game.
+"""Continuous updater: keeps Yggdrasil current with the live game data.
 
 Stable-by-design:
   - retries each source with exponential backoff
@@ -36,7 +36,7 @@ LOG_PATH = os.path.join(LIVE_DIR, "updater.log")
 LOG_MAX_BYTES = 512 * 1024
 
 DEFAULT_CONFIG = {
-    "user_agent": "OsrsLab local sandbox - knowledge refresher",
+    "user_agent": "Yggdrasil local sandbox - knowledge refresher",
     "timeout_s": 15,
     "retries": 3,
     "backoff_s": 2.0,

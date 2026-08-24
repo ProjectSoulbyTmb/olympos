@@ -7,7 +7,7 @@ When code and this file disagree, fix the code.
 
 | Product | Path | What it is |
 |---|---|---|
-| **OSRS Lab** | `osrs-llm-agent/`, `osrs-rl/`, root scripts | Original tick-based game engine (15 skills, 24x24 world), authoritative JSON-lines RSPS server on 127.0.0.1:43590, pygame client (`play_rsps.py`), PPO combat RL, LLM strategic agent |
+| **Yggdrasil** (was OSRS Lab) | `osrs-llm-agent/`, `osrs-rl/`, root scripts | Original tick-based game engine (15 skills, 24x24 world), authoritative JSON-lines RSPS server on 127.0.0.1:43590, pygame client (`play_rsps.py`), PPO combat RL, LLM strategic agent |
 | **Venus** | `assistant/` (own git repo) | Offline desktop companion: kernel.js event/service/command registries, plugin system, Piper TTS + Whisper STT + Ollama brain |
 | **Thoth** | opencode + `~/.config/opencode/` | The development layer itself: agents, skills, permissions. Runs with full automation grants |
 | **Vulcan** | `vulcan/` | Smart-building automation sandbox: content.py data tables, devices.py + world.py thermal/tick mechanics, rules.py automation engine (condition/schedule/event rules), sdk.py in-process + wire faces, server.py authoritative JSON-lines on 127.0.0.1:43901, verify_vulcan.py suite (17 checks) |
@@ -76,6 +76,16 @@ LiveStream(live_dir=...) or module-level LIVE_DIR override.
 - Windows-first: paths via `os.path`, PowerShell for orchestration.
 
 ## Decision log
+
+- 2026-08-23: trademark-hygiene rebrand (legal). Public-facing
+  product names moved to the public domain: OSRS Lab -> Yggdrasil,
+  dashboard exe OsrsLab.exe -> Heimdall.exe (legacy name still
+  launches), MIND -> Minerva, supervisor -> Argus, playable client
+  OsrsPlay -> Bifrost. Internal paths/imports (osrs-llm-agent/,
+  play_rsps.py, MindSupervisor class) are descriptive identifiers,
+  not marks, and stay. README carries a Jagex non-affiliation +
+  nominative-use disclaimer. Repo rename on GitHub is an owner
+  setting: osrs-lab -> yggdrasil-lab recommended.
 
 - 2026-08-23: Vulcan added (`vulcan/`). Same contract as OSRS Lab: all
   numbers in `content.py`, authoritative JSON-lines server with an

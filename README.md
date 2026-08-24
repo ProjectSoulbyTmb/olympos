@@ -1,4 +1,6 @@
-# OSRS Lab
+# Yggdrasil
+
+> Formerly "OSRS Lab". Not affiliated with Jagex. "Old School RuneScape" and "OSRS" are trademarks of Jagex Ltd - used here only descriptively; the engine is original and never touches their services.
 
 A complete, offline, local research sandbox for Old School RuneScape-style
 game AI: a tick-based skilling world, a self-play reinforcement-learning
@@ -21,8 +23,8 @@ through every capability with sensible defaults (press Enter to accept):
 4) Run the LLM strategic agent        0) Quit
 ```
 
-Or double-click **`OsrsLab.exe`** (keep it next to the `osrs-llm-agent`
-folder) for the GUI hub. From source:
+Or double-click **`Heimdall.exe`** (legacy: `OsrsLab.exe`; keep it next to the
+`osrs-llm-agent` folder) for the GUI hub. From source:
 
 ```powershell
 $py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
@@ -33,10 +35,10 @@ $py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
 
 | Path | What it is |
 |---|---|
-| `dashboard.py` / `OsrsLab.exe` | Desktop hub: pick an activity, run it, watch sessions + RL curves live |
-| `play_rsps.py` | **Playable game client**: graphical tile world with click/right-click context menus, WASD movement, combat with hit splats, skilling, XP drops, minimap, dialogue trees, prayer/magic/bank/shop/journal tabs, shared-channel chat, **VTuber-style avatar rig** (blink/breath/idle-sway/mouth-flap, emotes: /wave /dance /bow...) - auto-hosts the server if none is running (`python play_rsps.py`, or runner menu "Play now", or `build_client.ps1` for a standalone exe) |
+| `dashboard.py` / `Heimdall.exe` | Desktop hub (**Heimdall**, the gate): pick an activity, run it, watch sessions + RL curves live |
+| `play_rsps.py` | **Playable game client** (**Bifrost**): graphical tile world with click/right-click context menus, WASD movement, combat with hit splats, skilling, XP drops, minimap, dialogue trees, prayer/magic/bank/shop/journal tabs, shared-channel chat, **VTuber-style avatar rig** (blink/breath/idle-sway/mouth-flap, emotes: /wave /dance /bow...) - auto-hosts the server if none is running (`python play_rsps.py`, or runner menu "Play now", or `build_client.ps1` for a standalone exe) |
 | `osrs_updater.py` | Continuous live-data refresher: GE prices (4.5k items), item mapping, wiki update-feed watcher -> `knowledge/live/`. Run `python osrs_updater.py --watch 30` to stay current |
-| `MIND kernel /` | Tick-based 23-skill world (woodcutting, mining, fishing, cooking, firemaking, smithing, combat, prayer, ranged, magic, runecrafting, thieving, agility, herblore, crafting, fletching, slayer, farming, **construction**, **hunter**), bank/shop/furnace/quests, workshop sawmill + furniture building, bird-snare hunting ground, Ultimate Ironman mode, pause/resume sessions, LLM strategic loop, GE-price + Wiki knowledge pipeline |
+| `Minerva kernel` (`osrs-unified/mind/`) | Tick-based 23-skill world (woodcutting, mining, fishing, cooking, firemaking, smithing, combat, prayer, ranged, magic, runecrafting, thieving, agility, herblore, crafting, fletching, slayer, farming, **construction**, **hunter**), bank/shop/furnace/quests, workshop sawmill + furniture building, bird-snare hunting ground, Ultimate Ironman mode, pause/resume sessions, LLM strategic loop, GE-price + Wiki knowledge pipeline |
 | `osrs-llm-agent/server/` | **Your own RSPS engine**: authoritative JSON-lines game server with per-character instanced worlds + `RemoteGameSDK` client so any strategy runs over the wire unchanged. Original protocol/engine modeled on OSRS mechanics - not interoperable with the official client |
 | `osrs-rl/` | Self-play PPO combat agent (200-iteration trained model: 60% win / 7.5% loss vs opponent pool, undefeated vs heuristic & random baselines), resume support |
 | `osrs-rl/rsps_adapter/` | Client env + Java relay plugin to train against your own Elvarg private server |
@@ -59,7 +61,7 @@ $py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
 ```powershell
 $py = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
 & $py -m pip install -r requirements.txt
-& $py -m PyInstaller --onefile --windowed --name OsrsLab `
+& $py -m PyInstaller --onefile --windowed --name Heimdall `
     --paths "osrs-llm-agent" --hidden-import bench --hidden-import game.world `
     --hidden-import game.sdk --hidden-import agent.llm --hidden-import agent.loop `
     --hidden-import agent.runner --distpath dist `

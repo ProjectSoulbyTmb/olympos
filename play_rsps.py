@@ -1,4 +1,4 @@
-"""OsrsLab Play - a graphical client for the local OSRS Lab RSPS engine.
+"""Bifrost - a graphical client for the local realm engine.
 
 Connects to the authoritative JSON-lines game server on 127.0.0.1:43590
 and starts one automatically if none is running. All art and audio are
@@ -109,7 +109,7 @@ class Floater:
 
 
 class Splat:
-    """OSRS-style hit splat: a small rounded diamond with a number."""
+    """Classic-MMO-style hit splat: a small rounded diamond with a number."""
 
     def __init__(self, amount, pos, taken=False):
         self.amount, self.pos, self.taken = int(amount), list(pos), taken
@@ -339,7 +339,7 @@ class Game:
         w = GRID * TILE + PANEL
         h = max(GRID * TILE, 560)
         self.screen = pygame.display.set_mode((w, h))
-        pygame.display.set_caption("OsrsLab - local RSPS")
+        pygame.display.set_caption("Bifrost - Yggdrasil local realm")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("consolas", 15)
         self.big = pygame.font.SysFont("consolas", 19, bold=True)

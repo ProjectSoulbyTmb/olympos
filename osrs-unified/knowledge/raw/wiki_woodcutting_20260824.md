@@ -1,7 +1,7 @@
 # Woodcutting
 
 Source: https://oldschool.runescape.wiki/w/Woodcutting
-Fetched: 2026-08-24T02:28:03+00:00
+Fetched: 2026-08-24T03:28:03+00:00
 
 Woodcutting is a gathering skill that primarily involves chopping trees to obtain logs used in the Fletching, Firemaking, and Construction skills. Players with a higher Woodcutting level can chop down new types of trees and cut down trees quicker, especially as higher levels of axes become available.
 Woodcutting is a useful skill for a low-levelled player to make money early in the game. On the map, locations of rare trees can be located with a tree  icon.

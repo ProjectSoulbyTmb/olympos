@@ -1,4 +1,4 @@
-# Registers (or removes) a Windows Scheduled Task that refreshes OsrsLab
+# Registers (or removes) a Windows Scheduled Task that refreshes Yggdrasil
 # live data every 30 minutes, whether you are logged in or not.
 #
 #   powershell -ExecutionPolicy Bypass -File register-updater-task.ps1
@@ -10,7 +10,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$taskName = "OsrsLab Live Updater"
+$taskName = "Yggdrasil Live Updater"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $python = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
 if (-not (Test-Path $python)) { $python = "python" }

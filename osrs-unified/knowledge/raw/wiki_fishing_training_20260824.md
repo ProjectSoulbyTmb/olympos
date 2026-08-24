@@ -1,7 +1,7 @@
 # Fishing training
 
 Source: https://oldschool.runescape.wiki/w/Fishing_training
-Fetched: 2026-08-24T02:28:03+00:00
+Fetched: 2026-08-24T03:28:03+00:00
 
 This guide outlines the best methods for training the Fishing skill.
 

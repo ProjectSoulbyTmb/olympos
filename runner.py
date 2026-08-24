@@ -206,7 +206,7 @@ def refresh_live():
 
 
 def supervised_server():
-    print("\nMIND supervisor: health probes, auto-restart, content tracking.")
+    print("\nArgus supervisor: health probes, auto-restart, content tracking.")
     port = int(ask("Port", "43590"))
     sys.path.insert(0, AGENT_DIR)
     from server.supervisor import MindSupervisor
@@ -233,7 +233,7 @@ MENU = [
     ("Evaluate a trained combat agent", evaluate_rl),
     ("Run the LLM strategic agent", run_llm_agent),
     ("Host your RSPS server", host_rsps),
-    ("Keep RSPS online 24/7 (MIND supervisor)", supervised_server),
+    ("Keep RSPS online 24/7 (Argus supervisor)", supervised_server),
     ("Refresh OSRS knowledge base", refresh_knowledge),
     ("Launch desktop dashboard", launch_dashboard),
     ("Performance benchmark", perf_benchmark),
@@ -244,7 +244,7 @@ def main():
     while True:
         print()
         hr()
-        print("OSRS LAB - EASY RUNNER")
+        print("YGGDRASIL - EASY RUNNER")
         hr()
         for i, (label, _) in enumerate(MENU, 1):
             print(f"  {i}) {label}")

@@ -102,13 +102,13 @@ def draw_world_map(canvas, session):
 class Dashboard(tk.Tk):
     def __init__(self, once=False):
         super().__init__()
-        self.title("OsrsLab - local training & agent monitor")
+        self.title("Heimdall - Yggdrasil training & agent monitor")
         self.configure(bg=BG)
         self.geometry("900x700")
 
         header = tk.Frame(self, bg=BG)
         header.pack(fill="x", padx=12, pady=(10, 4))
-        tk.Label(header, text="OSRS LAB", bg=BG, fg=ACCENT,
+        tk.Label(header, text="YGGDRASIL", bg=BG, fg=ACCENT,
                  font=("Consolas", 16, "bold")).pack(side="left")
         tk.Label(header, text="local sim only - never connects to Jagex services",
                  bg=BG, fg=DIM, font=("Consolas", 8)).pack(side="right")
@@ -155,7 +155,7 @@ class Dashboard(tk.Tk):
 
         map_frame = tk.Frame(self, bg=BG)
         map_frame.pack(fill="x", padx=12, pady=(0, 4))
-        tk.Label(map_frame, text="WORLD VIEW (sim)  ·  MIND kernel v1.0",
+        tk.Label(map_frame, text="WORLD VIEW (sim)  ·  Minerva kernel v1.0",
                  bg=BG, fg=FG, font=("Consolas", 11, "bold")).pack(anchor="w")
         self.map = tk.Canvas(map_frame, width=16 * 14, height=16 * 14,
                              bg="#0e1116", highlightthickness=0)

@@ -1,4 +1,4 @@
-"""Procedural sound effects for the OsrsLab client.
+"""Procedural sound effects for the Bifrost client.
 
 Every sound is synthesised at startup with numpy - no audio files,
 nothing copyrighted. If the mixer cannot start (headless, missing

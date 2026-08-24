@@ -1,6 +1,6 @@
 # OSRS ground-truth knowledge
 
-Fetched: 2026-08-24T02:28:03+00:00
+Fetched: 2026-08-24T03:28:03+00:00
 
 ## Sources
 - Grand Exchange real-time prices: https://prices.runescape.wiki/api/v1/osrs/latest
@@ -22,21 +22,21 @@ Fetched: 2026-08-24T02:28:03+00:00
 ## Live Grand Exchange snapshot (tracked items)
 | Item | Buy (high) | Sell (low) | Mid | GE limit /4h |
 |---|---|---|---|---|
-| Black axe | 1006 | 1144 | 1075 | 40 |
-| Bronze pickaxe | 84 | 66 | 75 | 40 |
-| Copper ore | 10 | 9 | 9 | 13000 |
-| Iron axe | 72 | 55 | 63 | 40 |
-| Iron ore | 72 | 70 | 71 | 13000 |
-| Iron pickaxe | 22 | 20 | 21 | 40 |
-| Logs | 25 | 25 | 25 | 15000 |
-| Mithril axe | 109 | 105 | 107 | 40 |
+| Black axe | 1006 | 941 | 973 | 40 |
+| Bronze pickaxe | 67 | 66 | 66 | 40 |
+| Copper ore | 11 | 10 | 10 | 13000 |
+| Iron axe | 103 | 55 | 79 | 40 |
+| Iron ore | 72 | 71 | 71 | 13000 |
+| Iron pickaxe | 67 | 50 | 58 | 40 |
+| Logs | 24 | 23 | 23 | 15000 |
+| Mithril axe | 175 | 175 | 175 | 40 |
 | Oak logs | 41 | 41 | 41 | 15000 |
-| Raw shrimps | 20 | 20 | 20 | 15000 |
-| Shrimps | 22 | 20 | 21 | 6000 |
-| Steel axe | 163 | 161 | 162 | 40 |
-| Steel pickaxe | 182 | 101 | 141 | 40 |
+| Raw shrimps | 23 | 20 | 21 | 15000 |
+| Shrimps | 24 | 24 | 24 | 6000 |
+| Steel axe | 239 | 195 | 217 | 40 |
+| Steel pickaxe | 165 | 101 | 133 | 40 |
 | Tin ore | 12 | 11 | 11 | 13000 |
-| Willow logs | 21 | 20 | 20 | 15000 |
+| Willow logs | 21 | 22 | 21 | 15000 |
 
 ## Wiki article digests
 
