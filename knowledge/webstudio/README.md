@@ -27,6 +27,21 @@ and `playbooks.md`.
 4. **Task ships or hosts** -> `publishing-hosting.md`.
 5. Programmatic lookup -> filter `webstudio.json` by `category` or `tags`.
 
+### Wired surfaces
+
+- **Search**: every topic file and every JSON entry is indexed by
+  `python knowledge/engine.py` (TF-IDF). Query examples:
+  `search "webstudio mcp checkpoint"` -> `ws:WS-009`,
+  `search "share link credential"` -> `ws:WS-004`.
+- **PTAH tool**: the `knowledge` tool hits this corpus automatically
+  (same engine).
+- **Verify gate**: `knowledge/verify_knowledge.py` validates schema,
+  unique monotonic `WS-###` ids, https sources, and retrieval hits;
+  wired into `doctor.py --ci`.
+
+Adding entries: append with the next free `WS-###`, keep ids strictly
+increasing (the gate enforces it), cite https sources.
+
 ## Refresh policy
 
 Webstudio ships fast (docs regenerate from CLI source every release). Before a

@@ -396,7 +396,9 @@ class KnowledgeTool(Tool):
 
     name = "knowledge"
     description = ("Search the distilled fleet library: architecture "
-                   "patterns, protocols, incident playbooks, lessons.")
+                   "patterns, protocols, incident playbooks, lessons, "
+                   "and external-product databases (e.g. Webstudio "
+                   "website-builder integration).")
     schema_text = '{"query": "<search terms>", "top": <int?, default 3>}'
 
     def run(self, args, ctx):
