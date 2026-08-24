@@ -40,6 +40,8 @@ Contract: bus failures NEVER crash a host organ. Every helper used for
 wiring swallows OSError/ImportError and degrades to a no-op.
 """
 
-from .bus import Post, VERSION, default_root, publish, beat
+from .bus import (Post, VERSION, default_root, publish, safe_send,
+                  fit_payload, deadman, beat)
 
-__all__ = ["Post", "VERSION", "default_root", "publish", "beat"]
+__all__ = ["Post", "VERSION", "default_root", "publish", "safe_send",
+           "fit_payload", "deadman", "beat"]

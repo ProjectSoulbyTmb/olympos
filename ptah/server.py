@@ -76,86 +76,98 @@ def make_handler(store, runner, token=None):
             return conv
 
         # ------------------------------------------------------- routes
-        def do_GET(self):                      # noqa: N802 - stdlib API
-            parsed = urllib.parse.urlparse(self.path)
-            parts = [p for p in parsed.path.split("/") if p]
+        def _guard(self, fn):
+            """Run a route handler; every failure becomes clean JSON."""
             try:
-                if parsed.path == "/healthz":
-                    return self._json({"status": "ok",
-                                       "version": content.VERSION})
-                if not self._authed():
-                    return self._json({"error": "unauthorized"}, 401)
-                if parts[:3] == ["api", "v1", "conversations"]:
-                    if len(parts) == 3:
-                        return self._json(
-                            {"conversations": store.list()})
-                    cid = parts[3]
-                    conv = self._conversation(cid)
-                    if len(parts) == 4:
-                        return self._json(conv.meta)
-                    if len(parts) == 5 and parts[4] == "events":
-                        q = urllib.parse.parse_qs(parsed.query)
-                        after = int((q.get("after") or ["0"])[0])
-                        chunk, total = conv.slice(after)
-                        return self._json({
-                            "status": conv.status,
-                            "total": total,
-                            "events": [e.to_dict() for e in chunk]})
-                raise ApiError(404, "unknown route")
+                fn()
             except ApiError as exc:
-                return self._json({"error": exc.message}, exc.status)
-            except (TypeError, ValueError) as exc:
-                return self._json({"error": str(exc)}, 400)
+                self._json({"error": exc.message}, exc.status)
+            except (BrokenPipeError, ConnectionResetError):
+                pass                  # client vanished - nothing to say
+            except Exception as exc:  # noqa: BLE001 - never leak HTML
+                try:
+                    self._json({"error": f"{type(exc).__name__}: "
+                                         f"{exc}"}, 500)
+                except Exception:
+                    pass
+
+        # ------------------------------------------------------- routes
+        def do_GET(self):                      # noqa: N802 - stdlib API
+            self._guard(self._route_get)
 
         def do_POST(self):                     # noqa: N802 - stdlib API
-            parts = [p for p in urllib.parse.urlparse(self.path).path.split("/")
+            self._guard(self._route_post)
+
+        def _route_get(self):
+            parsed = urllib.parse.urlparse(self.path)
+            parts = [p for p in parsed.path.split("/") if p]
+            if parsed.path == "/healthz":
+                return self._json({"status": "ok",
+                                   "version": content.VERSION})
+            if not self._authed():
+                return self._json({"error": "unauthorized"}, 401)
+            if parts[:3] == ["api", "v1", "conversations"]:
+                if len(parts) == 3:
+                    return self._json({"conversations": store.list()})
+                cid = parts[3]
+                conv = self._conversation(cid)
+                if len(parts) == 4:
+                    return self._json(conv.meta)
+                if len(parts) == 5 and parts[4] == "events":
+                    q = urllib.parse.parse_qs(parsed.query)
+                    after = int((q.get("after") or ["0"])[0])
+                    chunk, total = conv.slice(after)
+                    return self._json({
+                        "status": conv.status,
+                        "total": total,
+                        "events": [e.to_dict() for e in chunk]})
+            raise ApiError(404, "unknown route")
+
+        def _route_post(self):
+            parts = [p for p in
+                     urllib.parse.urlparse(self.path).path.split("/")
                      if p]
-            try:
-                if not self._authed():
-                    return self._json({"error": "unauthorized"}, 401)
-                if parts[:3] == ["api", "v1", "conversations"]:
-                    if len(parts) == 3:
-                        body = self._body()
-                        workspace = body.get("workspace") or "."
-                        conv = store.create(workspace)
-                        return self._json(conv.meta, 201)
-                    if len(parts) == 5 and parts[4] == "messages":
-                        conv = self._conversation(parts[3])
-                        body = self._body()
-                        text = str(body.get("text", ""))
-                        confirm = bool(body.get("confirm", False))
-                        wait = bool(body.get("wait", True))
-                        timeout_s = min(float(body.get("timeout_s", 180)),
-                                        600.0)
-                        if conv.status == conv.RUNNING:
-                            raise ApiError(409,
-                                           "conversation already running")
-                        result_holder = {}
+            if not self._authed():
+                return self._json({"error": "unauthorized"}, 401)
+            if parts[:3] == ["api", "v1", "conversations"]:
+                if len(parts) == 3:
+                    body = self._body()
+                    workspace = body.get("workspace") or "."
+                    conv = store.create(workspace)
+                    return self._json(conv.meta, 201)
+                if len(parts) == 5 and parts[4] == "messages":
+                    conv = self._conversation(parts[3])
+                    body = self._body()
+                    text = str(body.get("text", ""))
+                    confirm = bool(body.get("confirm", False))
+                    wait = bool(body.get("wait", True))
+                    timeout_s = min(float(body.get("timeout_s", 180)),
+                                    600.0)
+                    if conv.status == conv.RUNNING:
+                        raise ApiError(409,
+                                       "conversation already running")
+                    result_holder = {}
 
-                        def work():
-                            result_holder["result"] = runner(
-                                conv, text, confirm)
+                    def work():
+                        result_holder["result"] = runner(
+                            conv, text, confirm)
 
-                        if wait:
-                            worker = threading.Thread(target=work)
-                            worker.start()
-                            worker.join(timeout_s)
-                            if worker.is_alive():
-                                raise ApiError(504, "run timed out")
-                            res = result_holder.get("result")
-                            return self._json({
-                                "id": conv.id, "status": conv.status,
-                                "reason": getattr(res, "reason", None),
-                                "iterations": getattr(res, "iterations", 0),
-                            })
-                        threading.Thread(target=work, daemon=True).start()
-                        return self._json({"id": conv.id, "started": True},
-                                          202)
-                raise ApiError(404, "unknown route")
-            except ApiError as exc:
-                return self._json({"error": exc.message}, exc.status)
-            except (TypeError, ValueError) as exc:
-                return self._json({"error": str(exc)}, 400)
+                    if wait:
+                        worker = threading.Thread(target=work)
+                        worker.start()
+                        worker.join(timeout_s)
+                        if worker.is_alive():
+                            raise ApiError(504, "run timed out")
+                        res = result_holder.get("result")
+                        return self._json({
+                            "id": conv.id, "status": conv.status,
+                            "reason": getattr(res, "reason", None),
+                            "iterations": getattr(res, "iterations", 0),
+                        })
+                    threading.Thread(target=work, daemon=True).start()
+                    return self._json({"id": conv.id, "started": True},
+                                      202)
+            raise ApiError(404, "unknown route")
 
     return Handler
 

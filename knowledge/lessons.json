@@ -220,6 +220,14 @@
       "source": "three-way main-branch collision during the ptah kernel landing",
       "lesson": "Two agents sharing one checkout lose updates even when both act in good faith: resets sweep staged files, commits land on moved HEADs, and force-pushes orphan whole lineages mid-task. Give every writer its own git worktree (independent index + HEAD, immune to foreign resets), a private auto/<name> branch, and exactly one route to main: push branch, open PR, squash-merge, fast-forward the mirror. Delta-based assertions and re-reading files immediately before editing are load-bearing complements - shared state always races.",
       "tags": ["agents", "git", "worktrees", "pull-request", "coordination"]
+    },
+    {
+      "id": "L028",
+      "title": "Commit through a private index in shared checkouts",
+      "category": "autonomy",
+      "source": "safeguards kit - staging races in the shared OneDrive checkout",
+      "lesson": "In a checkout several writers touch, the shared .git index is the race surface: one agent's git add stages another agent's half-edited files, and a sweep commit ships work nobody reviewed. Stage through an isolated GIT_INDEX_FILE containing only your declared paths, run mechanical gates on exactly those paths - syntax compile, duplicate top-level def scan, JSON validity (safeguards/check.py) - and only then commit. Wire check.py as the pre-commit hook too, so the gate fires even for writers who bypass the safe-commit wrapper.",
+      "tags": ["agents", "git", "index", "hooks", "coordination"]
     }
   ]
 }
