@@ -18,7 +18,7 @@ of the ATHENA doctrine).
    proposed `fleet.json`.
 2. `STRATEGY.md` — direction of travel: tier model, gaps, phased
    roadmap Phase 0–4, risk register, non-goals.
-3. `knowledge/engineering-rules.md` — 16 binding rules, each citing a
+3. `knowledge/engineering-rules.md` — 21 binding rules, each citing a
    lesson id. These are law, not advice.
 4. `knowledge/architecture-playbook.md` — 10 proven patterns with
    lesson ids; use as default shapes for new designs.
@@ -50,6 +50,14 @@ deps — designed under `docs/adr/0001`, registry row pending H0
 sign-off; `hebe/` claimed by its lane (registry row exists). `docs/`
 founded 2026-08-24 (`adr/`, `plans/cycles/`, `contracts/`) holds the
 ATHENA artifact suite.
+
+Knowledge organ (audited 2026-08-24, post webstudio wiring):
+`knowledge/engine.py` TF-IDF search now indexes library docs,
+lessons.json, and external-product databases via `_DB_SPECS`
+(first: `knowledge/webstudio/` - Webstudio website-builder DB with
+25 WS-### entries + 7 topic files). `knowledge/verify_knowledge.py`
+runs 7 gates (schema, monotonic ids, retrieval) wired into
+`doctor.py --ci`; PTAH `knowledge` tool covers product DBs.
 
 Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
 ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
