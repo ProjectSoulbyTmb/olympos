@@ -69,6 +69,14 @@ cd gaia && node gaia.mjs pulse --once
   `register-ptah-task.ps1` - Windows Scheduled Task helpers that keep
   the kernels running around the clock.
 
+## Multi-agent flow
+
+Autonomous writers never share a checkout: each works in its own git
+worktree under `.worktrees/<name>` on an `auto/<name>` branch, and all
+changes reach `main` through squash-merged pull requests. The root
+checkout is an integration mirror - it pulls, it does not host commits.
+Protocol and helper: [`FLOW.md`](FLOW.md) / `flow.ps1`.
+
 ## Doctrine
 
 - **Verify suites are hard gates**: every behavioral change ships a

@@ -45,3 +45,6 @@ hades/state/
 # --- runtime state & generated site ---
 site/
 .opencode/
+
+# --- per-agent git worktrees (FLOW.md) ---
+.worktrees/
