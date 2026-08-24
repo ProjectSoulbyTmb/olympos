@@ -1,0 +1,30 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package repository snapshot
+        shell: pwsh
+        run: |
+          $name = "osrs-lab-${{ github.ref_name }}-windows"
+          New-Item -ItemType Directory -Path out | Out-Null
+          Copy-Item -Recurse -Path gaia,vulcan,osrs-unified,osrs-rl,osrs-llm-agent,assistant,image-toolkit,tools,README.md -Destination "out\$name" -ErrorAction SilentlyContinue
+          Get-ChildItem -Recurse "out\$name" -Include __pycache__,*.pyc,node_modules,.git | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path "out\$name" -DestinationPath "$name.zip"
+          "ZIP=$name.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" "$env:ZIP" `
+            --title "${{ github.ref_name }}" --generate-notes
