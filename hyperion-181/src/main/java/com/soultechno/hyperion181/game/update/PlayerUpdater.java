@@ -73,8 +73,8 @@ public final class PlayerUpdater {
         PacketBuilder masks = new PacketBuilder();
         for (Player added : additions) {
             out.putBits(11, added.getId());
-            out.putBits(1, added.isAppearanceUpdateRequired());
-            out.putBits(1, true); // discard walking queue client-side
+            out.putBits(1, added.isAppearanceUpdateRequired() ? 1 : 0);
+            out.putBits(1, 1); // discard walking queue client-side
             int dx = added.getAbsX() - self.getAbsX();
             int dy = added.getAbsY() - self.getAbsY();
             out.putBits(5, dy & 0x1F);

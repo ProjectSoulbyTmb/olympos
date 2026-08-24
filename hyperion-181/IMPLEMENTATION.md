@@ -66,7 +66,7 @@ com.soultechno.hyperion181
 
 ## 5. Milestones
 
-### M0 - Toolchain (0.5 day)
+### M0 - Toolchain (0.5 day) - DONE
 Gradle wrapper committed (`gradle wrapper --gradle-version 8.7`),
 `./gradlew build` green on a clean checkout, JUnit smoke test that
 runs the Isaac known-answer vectors from `randvect.txt`.

@@ -37,3 +37,10 @@ Thumbs.db
 osrs-llm-agent/runs/
 
 osrs-llm-agent/server/saves/
+
+# Hyperion-181 toolchain + build outputs
+tools/
+jdktmp/
+hyperion-181/.gradle/
+hyperion-181/build/
+*.class

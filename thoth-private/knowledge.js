@@ -92,6 +92,11 @@ export const knowledge = {
       reply:
         '"thoth scaffold <id> [title]" plans a brand-new feature against the registry contract - descriptor, knowledge entry, fail-closed contract test, and a guarded dynamic-import seam in feature-registry.js. Add --write inside an administrator session to generate, wire, and verify for real: every generated file is syntax-checked and the generated contract test is executed before success is reported. Global answer-surface merging of new feature knowledge stays a one-line human seam in core/knowledge.js by design.',
     },
+    thothScribe: {
+      title: 'Auto Scribe documentation service',
+      reply:
+        '"Auto Scribe" is THOTH\'s automated documentation service, covering every system the fleet sweep can see - apps, repositories, and the website docs. "thoth scribe" (read-only) inventories all first-party Markdown and audits it against machine-checked facts: unknown "thoth <command>" references and broken relative document links. "thoth scribe-write" (needs an L1 standing grant) performs the full document rewrite: it regenerates .operator/auto-scribe/<system>.md digests plus a _fleet.md index purely from verified facts - identity, scripts, documents, network posture, topology roles, and the live command registry - and applies exactly one mechanical fix class: relinking a broken link when a unique same-basename target exists. Prose is never improvised; historical version mentions stay untouched. The autonomic loop spends idle ticks on scribe-write while its grant is live.',
+    },
     thothEngineDoctrine: {
       title: 'RSPS engine doctrine (RuneSource / Hyperion)',
       reply:
@@ -178,6 +183,10 @@ export const knowledge = {
     {
       id: 'thothScaffold',
       re: /\b(scaffold(ing)?|generate\s+a\s+feature|new\s+feature\s+wire)\b/i,
+    },
+    {
+      id: 'thothScribe',
+      re: /\b(auto[\s-]?scribe|scribe(?:-write)?|document(?:ation)?\s+(?:rewrite|regenerat\w*|drift|service)|(?:docs?|documents?|markdown)\s+(?:rewrit\w+|regenerat\w+|drift))\b/i,
     },
     {
       id: 'thothEngineDoctrine',

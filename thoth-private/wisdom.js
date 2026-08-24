@@ -14,7 +14,7 @@
 export const FACTS = {
   autonomy: {
     posture:
-      'Standing L1 is live on every grantable tool (backup, capture, changelog, focus, mood, pin, remember, scratch, teach, unpin, unteach, watch) - those run promptless and advise --apply may execute them.',
+      'Standing L1 is live on every grantable tool (backup, capture, changelog, focus, mood, pin, remember, scribe-write, scratch, teach, unpin, unteach, watch) - those run promptless and advise --apply may execute them.',
     neverAutomated:
       'restore / reset stay L2: each call needs a proven administrator session. Arming session-scoped elevation (admin panel) removes the per-call confirm for that session while keeping the automatic safety backup.',
     rationale:
@@ -58,6 +58,7 @@ export const FACTS = {
     learnings: '.operator/thoth_learnings.json',
     toolUse: '.operator/thoth_tooluse.json',
     growthAudit: '.operator/growth_audit.jsonl',
+    scribeDigests: '.operator/auto-scribe/',
     consentPolicy: 'standards/consent-policy.json',
   },
 };

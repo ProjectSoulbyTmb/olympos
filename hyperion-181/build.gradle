@@ -7,8 +7,8 @@ version = '0.1.0'
 
 java {
     toolchain {
-        // Hyperion-181 target: Java 11 LTS.
-        languageVersion = JavaLanguageVersion.of(11)
+        // Hyperion-181 target: Java 17 LTS (records for wire types).
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
@@ -33,7 +33,7 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 11
+    options.release = 17
 }
 
 test {

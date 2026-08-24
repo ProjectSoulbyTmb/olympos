@@ -24,6 +24,13 @@ import { ESCALATION, FACTS, TOPOLOGY, adviseFor } from './wisdom.js';
 import { autoStatus, runTick, startAuto, stopAuto } from './autonomic.js';
 import { applySafeFixes, scanUnfinished, wiringReport } from './repair.js';
 import { planScaffold, scaffoldFeature } from './scaffold.js';
+import {
+  applyDocFixes,
+  auditDocs,
+  SCRIBE_VERSION,
+  scribeInventory,
+  writeDigests,
+} from './scribe.js';
 
 async function complianceScanner() {
   const root = process.cwd();
@@ -411,6 +418,78 @@ export function buildTools() {
           `Scaffolded "${result.id}" and wired the guarded registry seam.`,
           `Contract test: ${result.contractTestPassed ? 'PASSED' : 'FAILED'} (${result.testOutput})`,
           result.files.map(f => `  + ${f}`).join('\n'),
+        ].join('\n');
+      },
+    },
+    {
+      name: 'scribe',
+      klass: 'L0',
+      summary:
+        'AUTO SCRIBE audit: verified fleet/document inventory plus drift (unknown commands, broken links).',
+      usage: 'thoth scribe [system-filter]',
+      run(_engine, args) {
+        const filter = String(args || '')
+          .trim()
+          .toLowerCase();
+        const inv = scribeInventory(process.cwd());
+        const audit = auditDocs(process.cwd());
+        const systems = inv.systems.filter(s => !filter || s.name.toLowerCase().includes(filter));
+        const rows = systems.map(
+          s =>
+            `- ${s.name}${s.self ? ' (self)' : ''}: ${s.version || 'no pkg'} | docs ${s.docs.length} | ${s.kinds.join('+') || '?'}${s.attention.length ? ` | ! ${s.attention[0]}` : ''}`
+        );
+        const driftCount = audit.unknownCommands.length + audit.brokenLinks.length;
+        const examples = [...audit.unknownCommands, ...audit.brokenLinks]
+          .slice(0, 6)
+          .map(f => `- [${f.kind}] ${f.file}:${f.line}: ${f.detail}`)
+          .join('\n');
+        return clip(
+          [
+            `AUTO SCRIBE v${SCRIBE_VERSION} (${inv.at}) - thoth v${inv.thothVersion || '?'}, ${inv.tools.length} registered tools`,
+            ...rows.slice(0, 24),
+            '',
+            `${audit.docsScanned} doc(s) audited across ${audit.systems} system(s) | drift items: ${driftCount}`,
+            examples ? `${examples}\n` : '',
+            driftCount
+              ? 'Full rewrite with mechanical link fixes: "thoth scribe-write" (L1).'
+              : 'No drift. "thoth scribe-write" (L1) regenerates the verified digests anyway.',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        );
+      },
+    },
+    {
+      name: 'scribe-write',
+      klass: 'L1',
+      summary:
+        'AUTO SCRIBE rewrite: regenerate verified digests for every system; apply unique-match link fixes.',
+      usage: 'thoth scribe-write',
+      run(engine, _args, _ctx, _all, kernel) {
+        const audit = auditDocs(process.cwd());
+        const fixes = applyDocFixes(audit);
+        const digests = writeDigests(process.cwd());
+        engine.state.thoth.scribe = {
+          at: digests.at,
+          version: SCRIBE_VERSION,
+          digests: digests.written.length,
+          changed: digests.changed.length,
+          fixed: fixes.applied.length,
+          driftOpen: audit.unknownCommands.length + (audit.brokenLinks.length - fixes.applied.length),
+        };
+        engine.store.save(engine.state);
+        kernel?.relay?.emit?.('scribe', {
+          digests: digests.written.length,
+          changed: digests.changed.length,
+          fixed: fixes.applied.length,
+          announce: fixes.applied.length > 0 || digests.changed.length > 0,
+          text: `Auto Scribe rewrote ${digests.written.length} digest(s); ${fixes.applied.length} mechanical fix(es).`,
+        });
+        return [
+          `Digests rewritten: ${digests.written.length} (${digests.changed.length} changed content) -> ${digests.dir}`,
+          `Mechanical link fixes applied: ${fixes.applied.length}${fixes.applied.length ? `\n${fixes.applied.slice(0, 5).map(a => `  - ${a}`).join('\n')}` : ''}`,
+          `Fixes refused (ambiguous/missing target): ${fixes.skipped.length}`,
+          `Report-only drift left for a human: ${engine.state.thoth.scribe.driftOpen}`,
         ].join('\n');
       },
     },

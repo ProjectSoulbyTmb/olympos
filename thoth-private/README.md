@@ -78,6 +78,22 @@ nothing leaves this PC.
   syntax-checks every file, and executes the generated contract test before
   reporting success. Global knowledge merge stays a human one-liner.
 
+## Auto Scribe (v3.3.0+)
+
+- `scribe.js` is the automated documentation service covering every system
+  the fleet sweep can see - apps, repositories, and the website docs folder.
+- `thoth scribe` (L0) inventories all first-party Markdown and audits it
+  against machine-checked facts: unknown `thoth <command>` references and
+  broken relative doc links (with unique-target relink proposals).
+- `thoth scribe-write` (L1) is the full document rewrite: regenerates
+  `.operator/auto-scribe/<system>.md` digests plus a `_fleet.md` index from
+  verified facts ONLY (identity, scripts, documents, network posture,
+  topology roles, live command registry) and applies exactly one mechanical
+  fix class - relinking a broken link when exactly one same-basename target
+  exists. Prose is never improvised; historical version mentions stay put.
+- Autonomic integration: idle ticks (no playbook action) spend their one
+  permitted action on `scribe-write` while its standing grant is live.
+
 ## Update procedure
 
 1. Edit here or in `../thoth-private`, then mirror.

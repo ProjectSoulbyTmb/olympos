@@ -53,7 +53,8 @@ class UtilCiphersTest {
         org.junit.jupiter.api.Assertions.assertFalse(
                 java.util.Arrays.equals(plain, buf), "encrypt was a no-op");
         x.decrypt(buf, 0, buf.length);
-        assertArrayEquals(plain, buf, "decrypt did not restore plaintext");
+        org.junit.jupiter.api.Assertions.assertArrayEquals(
+                plain, buf, "decrypt did not restore plaintext");
     }
 
     @Test
@@ -64,13 +65,17 @@ class UtilCiphersTest {
         new Random(9).nextBytes(buf);
         byte[] plain = buf.clone();
         x.encrypt(buf, 0, buf.length);
-        assertArrayEquals(plain, 0, 8, buf);   // first block changed
+        org.junit.jupiter.api.Assertions.assertFalse(
+                java.util.Arrays.equals(java.util.Arrays.copyOfRange(plain, 0, 8),
+                        java.util.Arrays.copyOfRange(buf, 0, 8)),
+                "first block was not encrypted");
         org.junit.jupiter.api.Assertions.assertArrayEquals(
                 java.util.Arrays.copyOfRange(plain, 8, 10),
                 java.util.Arrays.copyOfRange(buf, 8, 10),
                 "trailing bytes must be untouched");
         x.decrypt(buf, 0, buf.length);
-        assertArrayEquals(plain, buf, "roundtrip failed");
+        org.junit.jupiter.api.Assertions.assertArrayEquals(
+                plain, buf, "roundtrip failed");
     }
 
     private static void assertArrayEquals(byte[] want, int off, int len,

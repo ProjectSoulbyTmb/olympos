@@ -6,6 +6,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.math.BigInteger;
+import java.util.List;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.spec.RSAPrivateKeySpec;
@@ -34,6 +35,10 @@ public final class LoginDecoder extends io.netty.handler.codec.ByteToMessageDeco
 
     private final PrivateKey rsaKey;
 
+    public LoginDecoder() {
+        this(null); // thin/dev mode: block arrives XTEA-free plaintext
+    }
+
     public LoginDecoder(PrivateKey rsaKey) {
         this.rsaKey = rsaKey;
     }
@@ -52,9 +57,14 @@ public final class LoginDecoder extends io.netty.handler.codec.ByteToMessageDeco
         byte[] block = new byte[blockSize];
         in.readBytes(block);
 
-        BigInteger cipherText = new BigInteger(block);
-        BigInteger plain = cipherText.modPow(d(rsaKey), n(rsaKey));
-        byte[] decoded = stripLeadingZeros(plain.toByteArray());
+        byte[] decoded;
+        if (rsaKey != null) {
+            BigInteger cipherText = new BigInteger(block);
+            BigInteger plain = cipherText.modPow(d(rsaKey), n(rsaKey));
+            decoded = stripLeadingZeros(plain.toByteArray());
+        } else {
+            decoded = block; // dev mode: RSA skipped
+        }
 
         int offset = 1; // marker byte 10 or 1
         int[] inSeed = new int[4];
@@ -74,8 +84,21 @@ public final class LoginDecoder extends io.netty.handler.codec.ByteToMessageDeco
         ctx.pipeline().addBefore("game-decoder", "game-encoder",
                 new GameMessageEncoder(encodeCipher));
 
-        out.add(new LoginRequest(new String(decoded, java.nio.charset.StandardCharsets.UTF_8,
-                Math.min(decoded.length, 64)).trim(), inSeed));
+        String username = extractUsername(decoded);
+        out.add(new LoginRequest(username));
+    }
+
+    private static String extractUsername(byte[] decoded) {
+        // credentials section starts after the seed block; name runs to
+        // the first non-printable or 64-byte cap
+        int start = Math.min(33, decoded.length);
+        int end = start;
+        while (end < Math.min(decoded.length, start + 64)
+                && decoded[end] >= 32 && decoded[end] < 127) {
+            end++;
+        }
+        return new String(decoded, start, end - start,
+                java.nio.charset.StandardCharsets.UTF_8).trim();
     }
 
     private static int readInt(byte[] b, int off) {

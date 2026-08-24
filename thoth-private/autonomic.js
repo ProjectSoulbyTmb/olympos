@@ -10,6 +10,8 @@
  *   4. at most ONE permitted action - a step whose tool holds an active
  *      class right now (L0 always, L1 via live standing grant). Elevated
  *      and human-marked steps are never executed by the loop.
+ *   5. idle ticks (no playbook action) hand their one permitted action to
+ *      AUTO SCRIBE (scribe-write, L1) so documentation stays truthful.
  *
  * The loop honors the master switch exactly like manual invocation, emits
  * every decision through the relay, and is bounded: one action per tick,
@@ -70,8 +72,8 @@ export async function runTick(engine, kernel, { relay } = {}) {
   const matches = adviseFor(report);
 
   let action = null;
+  const granted = new Map((kernel?.listTools() || []).map(tool => [tool.name, tool.granted]));
   if (matches.length) {
-    const granted = new Map((kernel?.listTools() || []).map(tool => [tool.name, tool.granted]));
     outer: for (const { playbook } of matches) {
       for (const step of playbook.steps) {
         const toolName = /"thoth\s+(\w+)/.exec(step.text)?.[1];
@@ -85,6 +87,25 @@ export async function runTick(engine, kernel, { relay } = {}) {
         };
         break outer;
       }
+    }
+  }
+  // Idle-tick rail: when no playbook needs this tick's single permitted
+  // action, AUTO SCRIBE may spend it - keeping every digest and doc link
+  // truthful - but only while its standing grant is live. Same one-action
+  // bound, same grant depth as everything else.
+  if (!action && granted.get('scribe-write')) {
+    try {
+      const result = await kernel.handleCommand({ tool: 'scribe-write', args: '' }, {});
+      if (result.ok) {
+        action = {
+          playbook: 'auto-scribe',
+          tool: 'scribe-write',
+          ok: true,
+          reply: String(result.reply ?? '').slice(0, 300),
+        };
+      }
+    } catch {
+      /* scribe failures never break the tick */
     }
   }
 

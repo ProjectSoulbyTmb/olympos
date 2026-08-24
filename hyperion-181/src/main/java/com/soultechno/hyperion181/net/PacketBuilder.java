@@ -64,6 +64,14 @@ public final class PacketBuilder {
         return this;
     }
 
+    /** Commits any open bit section, realigning to a whole byte. */
+    private void alignToByte() {
+        if (bitCursor >= 0) {
+            written = (bitCursor + 7) >> 3;
+            bitCursor = -1;
+        }
+    }
+
     /** Enters bit mode at the next whole-byte boundary. */
     public PacketBuilder accessBits() {
         alignToByte();
