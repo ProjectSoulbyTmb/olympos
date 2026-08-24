@@ -85,7 +85,11 @@ CPU_HARD_PCT = 97.0            # immediate hard limit
 MEM_SOFT_MB = 2048             # working set soft limit
 RUNAWAY_SAMPLES = 4            # soft-limit samples before escalation
 ESCALATION_POLICY = {          # action once runaway confirmed
-    "default": "alert",        # alert | bolt
+    "default": "bolt",         # alert | bolt - full autonomy approved
+                               # by operator 2026-08-24: confirmed
+                               # runaways are discharged automatically.
+                               # NEVER_KILL_PIDS + SYSTEM_PATH_PREFIXES
+                               # rails still refuse system processes.
 }
 
 # Ports that belong to the ecosystem; an unknown listener elsewhere is

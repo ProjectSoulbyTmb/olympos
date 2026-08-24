@@ -185,13 +185,10 @@ class Post:
     """One filesystem post office shared by every organ in the repo."""
 
     def __init__(self, root=None, rotate_bytes=ROTATE_BYTES,
-                 keep_segments=KEEP_SEGMENTS, flood_unread=None):
+                 keep_segments=KEEP_SEGMENTS):
         self.root = root or default_root()
         self.rotate_bytes = max(int(rotate_bytes), 1)
         self.keep_segments = max(int(keep_segments), 1)
-        # per-instance override keeps the flood test off OneDrive-hour
-        # lock churn while production keeps the 1000-letter default
-        self.flood_unread = int(flood_unread or FLOOD_UNREAD)
 
     # -- paths --
 
@@ -718,7 +715,7 @@ class Post:
             organs[name] = {"unread": unread,
                             "heartbeat_age_s": hb_age,
                             "stale": hb_age is None or hb_age > 600,
-                            "flooded": unread > self.flood_unread,
+                            "flooded": unread > FLOOD_UNREAD,
                             "next_letter": last,
                             "metrics": self._load_metrics(name)}
         topics = {}

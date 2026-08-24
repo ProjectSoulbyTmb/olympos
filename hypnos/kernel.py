@@ -123,7 +123,8 @@ class Breaker:
 
 _PATH_FIELDS = ("WORKSPACE", "DATA_DIR", "AUDIT_PATH", "STATE_PATH",
                 "QUEUE_DIR", "DROPIN_DIR", "DROPIN_DONE",
-                "DROPIN_FAILED", "ALLOWED_ROOTS", "BUILD_ENABLED")
+                "DROPIN_FAILED", "ALLOWED_ROOTS", "BUILD_ENABLED",
+                "SCHEDULES")
 
 
 @contextlib.contextmanager
@@ -145,6 +146,7 @@ def sandbox(workspace, data_dir=None):
         content.DROPIN_FAILED = os.path.join(content.DROPIN_DIR, "failed")
         content.ALLOWED_ROOTS = [workspace]
         content.BUILD_ENABLED = False    # gates opt in per-test explicitly
+        content.SCHEDULES = []           # schedules opt in per-test too
         os.environ["RATATOSK_ROOT"] = os.path.join(data, "post")
         os.makedirs(workspace, exist_ok=True)
         os.makedirs(data, exist_ok=True)
@@ -166,7 +168,7 @@ class Kernel:
             raise RuntimeError("ratatosk bus unavailable")
         self.post = post or Post()
         self.breakers = {name: Breaker(name, self)
-                         for name in ("sweep", "mail", "queue",
+                         for name in ("sweep", "sched", "mail", "queue",
                                       "maint", "build")}
         self.events = deque(maxlen=content.EVENTS_MAX)
         self.tick_count = 0
@@ -178,6 +180,8 @@ class Kernel:
         self.last_task = None
         self.last_build = None
         self._last_build_epoch = 0.0
+        self._last_repair_epoch = 0.0
+        self._sched_stamps = {}
         self._session_claims = set()
         os.makedirs(content.DATA_DIR, exist_ok=True)
         os.makedirs(content.QUEUE_DIR, exist_ok=True)
@@ -250,12 +254,21 @@ class Kernel:
             self.last_task = st.get("last_task")
             self.last_build = st.get("last_build")
             self._last_build_epoch = float(st.get("last_build_epoch", 0))
+            self._last_repair_epoch = float(
+                st.get("last_repair_epoch", 0))
+            stamps = st.get("sched_stamps", {})
+            if isinstance(stamps, dict):
+                self._sched_stamps = {str(k): float(v)
+                                      for k, v in stamps.items()}
         except (OSError, ValueError, TypeError):
             pass
 
     def save_state(self):
         snap = self._state_snapshot()
         snap["last_build_epoch"] = round(self._last_build_epoch, 3)
+        snap["last_repair_epoch"] = round(self._last_repair_epoch, 3)
+        snap["sched_stamps"] = {k: round(v, 3)
+                                for k, v in self._sched_stamps.items()}
         try:
             _atomic_json(content.STATE_PATH, snap)
         except OSError:
@@ -603,18 +616,88 @@ class Kernel:
         self.last_build = {"ok": all_ok, "ts": report["ts"]}
         self.audit("build", ok=all_ok,
                    gates=[g["name"] for g in gates])
+        self._maybe_autorepair(all_ok)
         return report
+
+    # --------------------------- full autonomy ---------------------------
+
+    def _maybe_autorepair(self, build_ok):
+        """Closed loop: a red build dispatches doctor automatically,
+        once per cooldown window; the next build verifies the repair.
+        The claim queue dedupes, so a pending doctor never doubles."""
+        if build_ok or not content.AUTO_REPAIR_ENABLED:
+            return
+        if _now() - self._last_repair_epoch \
+                < content.AUTO_REPAIR_COOLDOWN_S:
+            return
+        job = {
+            "v": content.VERSION,
+            "id": "autorepair-doctor",
+            "task": "autorepair-doctor",
+            "label": "auto: stabilize after failed build",
+            "actions": [{"do": "run", "argv": content.AUTO_REPAIR_ARGV,
+                         "timeout_s": content.AUTO_REPAIR_TIMEOUT_S}],
+            "on_error": "continue",
+            "reply_to": None,
+            "src": "autorepair",
+            "attempts": 0,
+            "max_attempts": 1,
+            "next_epoch": _now(),
+            "enqueued_epoch": _now(),
+        }
+        if self.enqueue(job):
+            self._last_repair_epoch = _now()
+            self.audit("auto-repair-dispatch")
+
+    def _schedules(self):
+        """Recurring duties: fire due SCHEDULES entries as claims."""
+        fired = 0
+        for spec in getattr(content, "SCHEDULES", []):
+            name = _slug(spec.get("name") or "")
+            if not name or not isinstance(spec.get("actions"), list):
+                continue
+            try:
+                every = float(spec.get("every_s", 3600))
+            except (TypeError, ValueError):
+                every = 3600.0
+            last = float(self._sched_stamps.get(name, 0.0))
+            if _now() - last < every:
+                continue
+            job = {
+                "v": content.VERSION,
+                "id": name,
+                "task": name,
+                "label": str(spec.get("label", ""))[:200],
+                "actions": spec["actions"],
+                "on_error": "continue"
+                if spec.get("on_error") == "continue" else "stop",
+                "reply_to": spec.get("reply_to"),
+                "src": "schedule:" + name,
+                "attempts": 0,
+                "max_attempts": content.RETRY_MAX_ATTEMPTS
+                if spec.get("retry") else 1,
+                "next_epoch": _now(),
+                "enqueued_epoch": _now(),
+            }
+            if self.enqueue(job):
+                self._sched_stamps[name] = _now()
+                fired += 1
+        return fired
 
     # ------------------------------ the tick ------------------------------
 
     def tick(self):
         self.tick_count += 1
-        s = {"dropins": 0, "letters": 0, "claimed": 0, "ran": 0,
-             "resumed": 0, "retries": 0, "built": False}
+        s = {"dropins": 0, "scheduled": 0, "letters": 0, "claimed": 0,
+             "ran": 0, "resumed": 0, "retries": 0, "built": False}
 
         swept = self.breakers["sweep"].run(self._sweep)
         if swept:
             s["dropins"] = swept
+
+        sched = self.breakers["sched"].run(self._schedules)
+        if sched:
+            s["scheduled"] = sched
 
         mailed = self.breakers["mail"].run(self._mail)
         if mailed:

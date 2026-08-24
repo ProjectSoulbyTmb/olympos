@@ -440,6 +440,69 @@ def state_and_heartbeat_stay_fresh():
         assert age is not None and age < 30, age
 
 
+# -------------------------------------------------------- full autonomy
+
+@check
+def failed_build_auto_dispatches_doctor_once():
+    saved_enabled = content.BUILD_ENABLED
+    try:
+        with sandbox(tempfile.mkdtemp(prefix="hypnos-v-")) as k:
+            content.BUILD_ENABLED = True
+            content.BUILD_GATES = [
+                {"name": "broken",
+                 "argv": [sys.executable, "-c", "raise SystemExit(9)"],
+                 "timeout_s": 60}]
+            content.BUILD_MIN_INTERVAL_S = 0
+            content.AUTO_REPAIR_ENABLED = True
+            content.AUTO_REPAIR_COOLDOWN_S = 0
+            submit(k.post, {"actions": [{"do": "mkdir", "path": "r"}]})
+            k.tick()
+            claims = glob.glob(os.path.join(content.QUEUE_DIR,
+                                            "*.json"))
+            assert any("autorepair-doctor" in c for c in claims), claims
+            kinds = [e["kind"] for e in k.events]
+            assert "auto-repair-dispatch" in kinds, kinds
+            # cooldown window: no second dispatch even if red again
+            content.AUTO_REPAIR_COOLDOWN_S = 9999
+            k._last_repair_epoch = time.time()
+            n_before = len([e for e in k.events
+                            if e["kind"] == "auto-repair-dispatch"])
+            k.tick()
+            n_after = len([e for e in k.events
+                           if e["kind"] == "auto-repair-dispatch"])
+            assert n_after == n_before, (n_before, n_after)
+    finally:
+        content.BUILD_ENABLED = saved_enabled
+
+
+@check
+def recurring_schedules_fire_and_stamp():
+    saved_scheds = getattr(content, "SCHEDULES", [])
+    try:
+        with sandbox(tempfile.mkdtemp(prefix="hypnos-v-")) as k:
+            content.SCHEDULES = [{
+                "name": "pulse-check", "every_s": 0,
+                "actions": [{"do": "write_file",
+                             "path": "sched-proof.txt",
+                             "text": "on schedule"}]}]
+            s1 = k.tick()
+            assert s1["scheduled"] == 1 and s1["ran"] >= 1, s1
+            assert os.path.exists(
+                os.path.join(content.WORKSPACE, "sched-proof.txt"))
+            snap = json.load(open(content.STATE_PATH,
+                                  encoding="utf-8"))
+            assert "pulse-check" in snap.get("sched_stamps", {}), snap
+            # interval not yet elapsed -> must not re-fire
+            content.SCHEDULES = [{
+                "name": "pulse-check", "every_s": 86400,
+                "actions": [{"do": "write_file",
+                             "path": "sched-proof.txt", "text": "x"}]}]
+            s2 = k.tick()
+            assert s2["scheduled"] == 0, s2
+    finally:
+        content.SCHEDULES = saved_scheds
+
+
 # ------------------------------------------------------------- gate runner
 
 def main():

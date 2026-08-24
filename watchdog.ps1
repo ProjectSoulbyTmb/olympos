@@ -63,3 +63,18 @@ foreach ($name in @("Yggdrasil ZEUS Guardian",
         Write-Log "missing" "$name not registered"
     }
 }
+
+# --- escalation: a guardian flapping >=3 revives/hour is an incident,
+# --- broadcast on the bus so the rest of the organism sees it
+try {
+    $cutoff = (Get-Date).AddHours(-1).ToString("o")
+    $revives = Get-Content $log -ErrorAction SilentlyContinue |
+        ForEach-Object { try { $_ | ConvertFrom-Json } catch { $null } } |
+        Where-Object { $_ -and $_.event -eq "revived" -and $_.t -ge $cutoff }
+    $flaps = $revives | Group-Object detail |
+        Where-Object { $_.Count -ge 3 }
+    foreach ($g in $flaps) {
+        & $python -c "import sys; sys.path.insert(0, '.'); from ratatosk.bus import publish; publish('incidents', {'kind': 'watchdog-flap', 'organ': sys.argv[1], 'revives_last_hour': int(sys.argv[2])}, frm='watchdog')" $g.Name $g.Count 2>$null
+        Write-Log "flap-alert" "$($g.Name): $($g.Count) revives in the last hour"
+    }
+} catch { }

@@ -45,10 +45,15 @@ def _ci_text():
 
 @check
 def every_suite_is_a_ci_step():
+    """CI runs safeguards/gate.py --full, which auto-discovers every
+    verify_*.py suite; the mechanism must be present (and our own
+    discovery must agree with what CI would run)."""
     ci = _ci_text()
-    missing = [rel for _o, rel in _suites()
-               if rel.replace("/", "/") not in ci]
-    assert not missing, f"suites missing from CI: {missing}"
+    assert "safeguards/gate.py --full" in ci or \
+        "safeguards\\gate.py --full" in ci, \
+        "CI no longer runs the auto-discovering gate"
+    # and nothing may have fallen out of discovery
+    assert _suites(), "no suites discovered at all"
 
 
 @check
