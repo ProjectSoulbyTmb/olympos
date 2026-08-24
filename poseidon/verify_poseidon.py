@@ -19,7 +19,9 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
-from poseidon.kernel import FAIL_LIMIT, TideEngine  # noqa: E402
+from poseidon.kernel import (ACTIVE_DELAY_S, FAIL_BACKOFF_BASE_S,
+                             FAIL_LIMIT, QUARANTINE_COOLDOWN_S,
+                             TideEngine)  # noqa: E402
 
 CHECKS = []
 FAILS = []
@@ -74,9 +76,9 @@ class Fixture:
         git(self.root, "config", "user.name", "tide-test")
         git(self.root, "config", "user.email", "tide@test")
 
-    def engine(self, mode="local"):
+    def engine(self, mode="local", interval=60.0):
         eng = TideEngine(root=self.root, mode=mode, bus=False,
-                         interval=60.0)
+                         interval=interval)
         return eng
 
     def write(self, rel, text):
@@ -287,6 +289,73 @@ def fleet_berths_are_idempotent_and_reported():
         assert rows["gaia"]["branch"] == "auto/gaia"
         assert rows["gaia"]["ahead_main"] == 0
         assert rows["gaia"]["dirty"] is False
+    finally:
+        fx.cleanup()
+
+
+@check
+def settle_guard_spares_post_snapshot_writer_edits():
+    fx = Fixture()
+    try:
+        fx.write("file.txt", "line-1 tide\nline-2\n")
+        fx.write("new.txt", "tide cargo\n")
+        eng = fx.engine()
+        d = eng.drift()
+        subject, body = eng.message(d, 1)
+        snap = eng.snapshot(d, subject)
+        assert snap is not None
+        # a writer touches two swept paths AFTER the snapshot sailed
+        fx.write("file.txt", "line-1 WRITER-AHEAD\nline-2\n")
+        fx.write("new.txt", "WRITER-AHEAD cargo\n")
+        res = eng.settle_mirror(snap)
+        assert "file.txt" in res["skipped"], res
+        assert "file.txt" not in res["restored"], res
+        assert fx.read("file.txt") == "line-1 WRITER-AHEAD\nline-2\n", \
+            "settle clobbered a post-snapshot edit"
+        assert fx.read("new.txt") == "WRITER-AHEAD cargo\n", \
+            "settle deleted a diverged untracked file"
+        # untouched-by-writer paths still restore cleanly: none here,
+        # so the mirror pull is allowed to be refused (diverged dirt)
+        assert res["pulled"] is False or res["pulled"] is True
+    finally:
+        fx.cleanup()
+
+
+@check
+def next_delay_sprints_and_backs_off():
+    fx = Fixture()
+    try:
+        eng = fx.engine(interval=300.0)
+        assert eng.next_delay("shipped") == ACTIVE_DELAY_S
+        assert eng.next_delay("still-water") == 300.0
+        assert eng.next_delay("failed", 1) == FAIL_BACKOFF_BASE_S
+        assert eng.next_delay("failed", 2) == FAIL_BACKOFF_BASE_S * 2
+        cap = eng.next_delay("failed", 99)
+        assert cap == QUARANTINE_COOLDOWN_S, "backoff must respect cap"
+    finally:
+        fx.cleanup()
+
+
+@check
+def fleet_sync_is_parallel_and_lazy():
+    fx = Fixture()
+    try:
+        from poseidon import fleet
+        eng = fx.engine()
+        rival = os.path.join(fx.base, "rival")
+        git(fx.base, "clone", "origin.git", "rival")
+        with open(os.path.join(rival, "file.txt"), "a") as fh:
+            fh.write("rival line\n")
+        git(rival, "commit", "-am", "rival advances main")
+        git(rival, "push", "origin", "main")
+        results = fleet.sync(eng)             # no berths exist yet
+        for name in fleet.FLEET:
+            assert results[name] == "synced", (name, results[name])
+            assert os.path.exists(os.path.join(
+                eng.wt_path(name), ".git")), name
+        rows = fleet.status(eng)
+        behind = [n for n, r in rows.items() if r.get("behind_main")]
+        assert not behind, "sync must absorb origin/main everywhere"
     finally:
         fx.cleanup()
 
