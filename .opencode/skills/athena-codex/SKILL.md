@@ -36,7 +36,10 @@ incidents ledger, `--watch N`; **realm gates derive from the registry**),
 `realms/registry.json` schema v2 with full membership incl. tier/lang/
 verify/profile, comprehensive `.github/workflows/ci.yml`, PTAH working
 tree, forseti organ. Safeguards pre-commit gate activates via
-`git config core.hooksPath safeguards/githooks` (committed shim).
+`git config core.hooksPath safeguards/githooks` (committed shim);
+a `post-commit` shim runs `mirror_sync.py --hook` so every commit
+converges the `D:\Default Project` execution mirror automatically
+(`--audit --strict` is the CI-able drift check).
 Shipping protocol: FLOW.md - private worktrees + auto/* branches +
 squash PRs; direct pushes to main are hook-blocked.
 
