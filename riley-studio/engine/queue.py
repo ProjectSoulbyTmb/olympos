@@ -183,18 +183,33 @@ class JobQueue(object):
                            timeout=float(params.get("timeout", 3600)))
         return self._fetch(entry, outdir, base_url=self.comfy_base)
 
+    def _resolve_input(self, p):
+        """Absolute paths must exist; bare/rel paths live under data_dir
+        (gallery paths like outputs/<job>/file.png resolve here)."""
+        if os.path.isabs(p):
+            if os.path.isfile(p):
+                return p
+            raise ValueError("input image not found: %r" % p)
+        cand = os.path.normpath(os.path.join(self.data_dir, p))
+        if os.path.isfile(cand):
+            return cand
+        raise ValueError("input image not found: %r "
+                         "(try a gallery path like outputs/<job>/<file>)"
+                         % p)
+
     def _build_graph(self, kind, params):
         params = dict(params)
         model_key = params.pop("model", None)
         if kind == "upscale":
-            uploaded = self._upload(params.pop("image"),
-                                    base_url=self.comfy_base)
+            uploaded = self._upload(
+                self._resolve_input(params.pop("image")),
+                base_url=self.comfy_base)
             return graphs.g_upscale(
                 uploaded, float(params.get("scale_by", 2.0)))
         if kind.startswith("img2"):
             src = params.pop("image")
-            params["_uploaded"] = self._upload(src,
-                                               base_url=self.comfy_base)
+            params["_uploaded"] = self._upload(
+                self._resolve_input(src), base_url=self.comfy_base)
         if model_key:
             resolved = models.resolve(model_key, self.ai_home)
             return self._graph_for(kind, resolved, params)

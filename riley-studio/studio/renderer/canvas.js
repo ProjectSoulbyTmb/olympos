@@ -207,6 +207,10 @@ function startResize(e, id) {
 function renderProps() {
   const l = current();
   const box = $("props");
+  const media = l && (l.type === "image" || l.type === "video") && l.src;
+  $("bUpscale").style.display =
+    media && l.type === "image" ? "" : "none";
+  $("bAnimate").style.display = media ? "" : "none";
   if (!l) {
     box.style.display = "none";
     $("propName").textContent = "nothing selected";
@@ -614,6 +618,84 @@ $("bExpJpg").addEventListener("click", () =>
   saveStill("image/jpeg", "jpg"));
 $("bExpMp4").addEventListener("click", () => exportReel("export_mp4"));
 $("bExpGif").addEventListener("click", () => exportReel("export_gif"));
+
+/* --------------------------------------------------------- extras */
+
+$("cPreset").addEventListener("change", () => {
+  const v = $("cPreset").value;
+  if (!v) return;
+  const [w, h] = v.split("x").map(Number);
+  proj.width = w;
+  proj.height = h;
+  $("cW").value = w;
+  $("cH").value = h;
+  touch();
+});
+
+function relPathOf(l) {
+  const q = (l.src || "").split("/api/file?p=")[1];
+  return q ? decodeURIComponent(q) : null;
+}
+
+$("bUpscale").addEventListener("click", async () => {
+  const l = current();
+  if (!l || l.type !== "image" || genBusy) return;
+  const rel = relPathOf(l);
+  if (!rel) { logGen("upscale needs an engine-generated image"); return; }
+  genBusy = true;
+  logGen("upscaling…");
+  const sub = await api.post("/api/generate",
+                             { kind: "upscale", image: rel,
+                               scale_by: 2 });
+  if (!sub.ok) { logGen(sub.error || "refused"); genBusy = false; return; }
+  const job = await pollJob(sub.job, "upscaling");
+  if (job && job.files[0]) {
+    addLayer({ type: "image", name: l.name + " ×2",
+               src: fileSrc(job.files[0].split(/[\\/]/).
+                            slice(-3).join("/")),
+               w: Math.round(l.w * 2), h: Math.round(l.h * 2),
+               x: Math.max(0, l.x - Math.round(l.w / 2)),
+               y: Math.max(0, l.y - Math.round(l.h / 2)) });
+  }
+  genBusy = false;
+});
+
+$("bAnimate").addEventListener("click", async () => {
+  const l = current();
+  if (!l || genBusy) return;
+  const rel = relPathOf(l);
+  if (!rel) { logGen("animate needs an engine-generated image"); return; }
+  const prompt = $("gPrompt").value.trim() ||
+                 ("gentle cinematic motion, breathing camera");
+  // LTX likes modest resolutions on small GPUs
+  const ar = l.w / l.h;
+  let w = 480;
+  let h = Math.round(480 / ar / 8) * 8;
+  h = Math.min(Math.max(h, 256), 768);
+  genBusy = true;
+  logGen("animating…");
+  const sub = await api.post("/api/generate", {
+    kind: "img2vid", model: "ltxv-distilled-q3",
+    image: rel, prompt, width: _even(w), height: _even(h),
+    length: Number($("gLen").value) || 97, seed:
+      Math.floor(Math.random() * 2147483647),
+  });
+  if (!sub.ok) { logGen(sub.error || "refused"); genBusy = false; return; }
+  const job = await pollJob(sub.job, "animating");
+  if (job && job.files[0]) {
+    const w2 = Math.min(proj.width - 40, l.w);
+    addLayer({ type: "video",
+               name: "motion of " + l.name,
+               src: fileSrc(job.files[0].split(/[\\/]/).
+                            slice(-3).join("/")),
+               w: Math.round(w2),
+               h: Math.round(w2 * h / w),
+               x: l.x, y: l.y,
+               dur: Math.round(((Number($("gLen").value) || 97) /
+                                24) * 10) / 10 });
+  }
+  genBusy = false;
+});
 
 $("cW").addEventListener("change", () => {
   proj.width = Math.max(64, Number($("cW").value) || proj.width);

@@ -363,6 +363,34 @@ def check_export_render():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+@check("queue resolves gallery-relative image inputs")
+def check_queue_relpath_inputs():
+    from engine.queue import JobQueue
+    tmp = tempfile.mkdtemp(prefix="rs-rel-")
+    try:
+        seen = {}
+        q = JobQueue(
+            tmp, submit_fn=lambda wf, base_url=None: "p",
+            poll_fn=lambda pid, base_url=None, timeout=0, interval=0:
+                {"outputs": {}},
+            fetch_fn=lambda e, d, base_url=None: [],
+            upload_fn=lambda path, base_url=None, field="image":
+                seen.setdefault("path", path) or "up.png")
+        gallery_dir = os.path.join(tmp, "outputs", "abc123")
+        os.makedirs(gallery_dir)
+        img = os.path.join(gallery_dir, "shot.png")
+        _touch(img)
+        q._build_graph("upscale", {"image": "outputs/abc123/shot.png"})
+        assert seen["path"] == img, seen
+        try:
+            q._build_graph("upscale", {"image": "outputs/zzz/none.png"})
+            raise AssertionError("missing rel input accepted")
+        except ValueError as exc:
+            assert "not found" in str(exc)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def _touch(path):
     with open(path, "wb") as fh:
         fh.write(b"\x89PNG\r\n\x1a\nfake")
