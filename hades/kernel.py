@@ -55,6 +55,7 @@ EXCLUDED_DIRS = {
     "__pycache__", ".git", ".github", "node_modules", "dist", "release",
     "build", "backups", "jdktmp", "runs", "saves", ".gradle", ".venv",
     "vendor", "piper", "whisper", "models", "cache", ".idea", ".vscode",
+    ".worktrees", ".temp",
 }
 SKIP_EXTS = {
     ".pyc", ".pyo", ".exe", ".dll", ".zip", ".pt", ".onnx", ".bin",
@@ -63,6 +64,7 @@ SKIP_EXTS = {
 MAX_SCAN_BYTES = 1_000_000
 
 DEFAULT_CONFIG = {
+    "include_realms": True,
     "products": [
         {"name": "vulcan",
          "include": ["vulcan/**/*.py"],
@@ -122,6 +124,7 @@ class Hades:
         self.key_path = os.path.join(self.state_dir, "key.bin")
         self.audit = AuditLog(os.path.join(self.state_dir, "audit.log"))
         self.patrol_log = os.path.join(self.state_dir, "patrol.log")
+        self.exempt_path = os.path.join(self.state_dir, "exemptions.json")
         if config is not None:
             self.config = config
         elif os.path.exists(CONFIG_PATH):
@@ -160,9 +163,48 @@ class Hades:
                 out.append(os.path.join(dirpath, fn))
         return out
 
+    def _realm_products(self):
+        """Derive one product per registered realm (registry.json) so a
+        seal covers the whole fleet, not just hand-picked units. Realms
+        already present as explicit products are left alone; each auto
+        product excludes its own runtime state directory."""
+        registry = os.path.join(self.root, "realms", "registry.json")
+        if not os.path.exists(registry):
+            return []
+        try:
+            with open(registry, "r", encoding="utf-8") as f:
+                rows = json.load(f).get("realms", [])
+        except (OSError, ValueError):
+            return []
+        out = []
+        for row in rows:
+            name = str(row.get("name", "")).strip()
+            if not name:
+                continue
+            if any(p.get("name") == name
+                   for p in self.config.get("products", [])):
+                continue
+            rpath = str(row.get("path", "")) or name
+            top = rpath.replace("\\", "/").split("/")[0]
+            if top != name:
+                top = name
+            if not os.path.isdir(os.path.join(self.root, top)):
+                continue
+            out.append({"name": name, "realm": True,
+                        "include": ["%s/**/*.py" % name],
+                        "exclude": ["%s/state/**" % name]})
+        return out
+
+    def _products(self):
+        prods = list(self.config.get("products", []))
+        if self.config.get("include_realms"):
+            prods += [p for p in self._realm_products()
+                      if all(p["name"] != q.get("name") for q in prods)]
+        return prods
+
     def collect(self):
         rules = []
-        for prod in self.config.get("products", []):
+        for prod in self._products():
             inc = [_pat_to_re(p) for p in prod.get("include", [])]
             exc = [_pat_to_re(p) for p in prod.get("exclude", [])]
             rules.append((prod["name"], inc, exc))
@@ -286,25 +328,40 @@ class Hades:
     def verify(self):
         doc = self._load_seal()
         files = doc["manifest"]["files"]
+        exemptions = self._load_exemptions()["exemptions"]
         violations = []
+        exempted = []
         for rel, entry in sorted(files.items()):
             path = os.path.join(self.root, rel)
             if not os.path.exists(path):
-                violations.append({"kind": "MISSING", "path": rel})
-                continue
-            raw, err = self._read_bytes(path)
-            if raw is None:
-                violations.append({"kind": "UNREADABLE", "path": rel})
-                continue
-            if hashlib.sha256(raw).hexdigest() != entry["sha256"]:
-                violations.append({"kind": "MODIFIED", "path": rel})
+                kind = "MISSING"
+            else:
+                raw, err = self._read_bytes(path)
+                if raw is None:
+                    kind = "UNREADABLE"
+                elif hashlib.sha256(raw).hexdigest() != entry["sha256"]:
+                    kind = "MODIFIED"
+                else:
+                    continue
+            if rel in exemptions:
+                exempted.append({"kind": kind, "path": rel,
+                                 "reason": exemptions[rel].get("reason", "")})
+            else:
+                violations.append({"kind": kind, "path": rel})
         known = set(files)
-        unreg = [rel for rel in self.collect() if rel not in known]
-        violations.extend({"kind": "UNREGISTERED", "path": r} for r in unreg)
+        for rel in self.collect():
+            if rel in known:
+                continue
+            if rel in exemptions:
+                exempted.append({"kind": "UNREGISTERED", "path": rel,
+                                 "reason": exemptions[rel].get("reason", "")})
+            else:
+                violations.append({"kind": "UNREGISTERED", "path": rel})
         report = {
             "status": "clean" if not violations else "violations",
             "files": len(files),
             "violations": violations,
+            "exempted": exempted,
             "sealed_at": doc.get("sealed_at"),
         }
         if violations:
@@ -426,6 +483,73 @@ class Hades:
             self.audit.append({"kind": "detect_hit",
                                "files": sorted({r["file"] for r in authentic})[:20]})
         return records
+
+    # ---------- operator authority surface ----------
+
+    def _load_exemptions(self):
+        try:
+            with open(self.exempt_path, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            return d if isinstance(d, dict) and isinstance(
+                d.get("exemptions"), dict) else {"v": 1, "exemptions": {}}
+        except (OSError, ValueError):
+            return {"v": 1, "exemptions": {}}
+
+    def _save_exemptions(self, doc):
+        os.makedirs(self.state_dir, exist_ok=True)
+        tmp = self.exempt_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(doc, f, indent=1, sort_keys=True)
+        os.replace(tmp, self.exempt_path)
+
+    def grant_exemption(self, path, reason=""):
+        """Accept a deviation as baseline (operator-privileged).
+        Exempted paths stop failing verify/ensure but stay visible."""
+        rel = path.replace("\\", "/")
+        doc = self._load_exemptions()
+        doc["exemptions"][rel] = {
+            "reason": str(reason)[:200],
+            "granted": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        self._save_exemptions(doc)
+        self.audit.append({"kind": "exempt", "path": rel,
+                           "reason": str(reason)[:120]})
+        return doc["exemptions"][rel]
+
+    def revoke_exemption(self, path):
+        rel = path.replace("\\", "/")
+        doc = self._load_exemptions()
+        had = doc["exemptions"].pop(rel, None)
+        if had:
+            self._save_exemptions(doc)
+            self.audit.append({"kind": "unexempt", "path": rel})
+        return bool(had)
+
+    def unseal(self):
+        """Retire seal state entirely (backed up, never destroyed)."""
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        trash = os.path.join(self.state_dir, "trash-" + stamp)
+        moved = []
+        for p in (self.seal_path, self.anchor_path):
+            if os.path.exists(p):
+                os.makedirs(trash, exist_ok=True)
+                dst = os.path.join(trash, os.path.basename(p))
+                os.replace(p, dst)
+                moved.append(os.path.basename(p))
+        self.audit.append({"kind": "unseal", "moved": moved})
+        return moved
+
+    def rotate_seal_key(self):
+        """Fresh signing key; immediately re-seal so verify stays true."""
+        os.makedirs(self.state_dir, exist_ok=True)
+        fd = os.open(self.key_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                     0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(os.urandom(32))
+        counts = self.seal()
+        self.audit.append({"kind": "rotate-key",
+                           "files": sum(counts.values())})
+        return counts
 
     # ---------- guard / status ----------
 
