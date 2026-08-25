@@ -52,9 +52,28 @@ def harness(tmp, replies, policy="confirm-risky", max_iters=12):
 
 
 # ------------------------------------------------------------------ checks
+def _registry_port(name):
+    """The port realms/registry.json declares for `name` (single
+    source of membership); historical floor when the manifest is
+    absent or unreadable."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    reg = os.path.join(os.path.dirname(here), "realms",
+                       "registry.json")
+    try:
+        with open(reg, encoding="utf-8") as fh:
+            for r in json.load(fh).get("realms", []):
+                if r.get("name") == name and r.get("port"):
+                    return int(r["port"])
+    except (OSError, ValueError):
+        pass
+    return 43903
+
+
 def check_fleet_identity():
-    if content.SERVER_PORT != 43903:
-        return f"port drifted: {content.SERVER_PORT}"
+    expected = _registry_port("ptah")
+    if content.SERVER_PORT != expected:
+        return f"port drifted: {content.SERVER_PORT} " \
+               f"!= registry {expected}"
     if content.VERSION.count(".") != 2:
         return f"version not semver: {content.VERSION}"
     try:
