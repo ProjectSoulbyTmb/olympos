@@ -10,6 +10,12 @@
 
 ## Context
 
+- **North star (extended 2026-08-25, same day as acceptance):** the
+  operator ordered Volt to become a *fully usable operating system*
+  running on its own bare-metal kernel, named **THOTH** — see
+  `docs/adr/0003-volt-bare-metal-thoth-kernel.md`. This ADR's V1–V5
+  remain unchanged as Track A (sovereign foundation); the metal ladder
+  is Track B (V6–V12) in `docs/plans/project-voltage-roadmap.md`.
 - DESIGN.md states the ecosystem converges on *"a fully autonomous,
   open-source game and app development platform"*. An open-source-core
   extraction was planned 2026-08-25 (working name "Darwin"), then
