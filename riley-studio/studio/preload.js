@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("riley", {
   get: (p) => invoke("api:get", p),
   post: (p, body) => invoke("api:post", p, body),
   fileUrl: (rel) => invoke("file:url", rel),
+  saveDataUrl: (arg) => invoke("file:saveDataUrl", arg),
   saveProject: (arg) => invoke("project:save", arg),
   openProject: () => invoke("project:open"),
   openWin: (name) => invoke("win:open", name),

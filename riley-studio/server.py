@@ -208,12 +208,13 @@ def make_handler(engine):
                 return self._json(400, {"ok": False, "error": "bad json"})
             if route == "/api/generate":
                 kind = str(payload.pop("kind", ""))
-                if not kind or kind not in graphs.BUILDERS and \
-                        kind != "upscale":
+                allowed = set(graphs.BUILDERS) | \
+                    {"upscale", "export_mp4", "export_gif"}
+                if not kind or kind not in allowed:
                     return self._json(400, {
                         "ok": False,
-                        "error": "kind must be one of %s or upscale"
-                                 % sorted(graphs.BUILDERS)})
+                        "error": "kind must be one of %s"
+                                 % sorted(allowed)})
                 jid = engine.queue.submit(kind, payload)
                 return self._json(202, ok=True, job=jid)
             if route == "/api/models/pull":

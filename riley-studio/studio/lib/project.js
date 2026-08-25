@@ -27,7 +27,7 @@ function isNum(n) { return typeof n === "number" && Number.isFinite(n); }
 
 function normalizeLayer(raw, i) {
   const type = raw.type;
-  if (!["image", "text", "rect"].includes(type)) {
+  if (!["image", "text", "rect", "video"].includes(type)) {
     throw new Error(`layer ${i}: bad type ${JSON.stringify(type)}`);
   }
   if (type === "image" && typeof raw.src !== "string") {
@@ -52,6 +52,8 @@ function normalizeLayer(raw, i) {
     text: typeof raw.text === "string" ? raw.text : undefined,
     fontSize: isNum(raw.fontSize) ? raw.fontSize : undefined,
     color: typeof raw.color === "string" ? raw.color : undefined,
+    dur: isNum(raw.dur) ? Math.min(30, Math.max(0.3, raw.dur))
+                        : undefined,
   };
 }
 

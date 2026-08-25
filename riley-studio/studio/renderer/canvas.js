@@ -46,6 +46,14 @@ function layerNode(l) {
       ? l.src : fileSrc(l.src);
     img.draggable = false;
     d.appendChild(img);
+  } else if (l.type === "video" && l.src) {
+    const v = document.createElement("video");
+    v.src = fileSrc(l.src);
+    v.muted = true;
+    v.loop = true;
+    v.autoplay = true;
+    v.play().catch(() => {});
+    d.appendChild(v);
   } else if (l.type === "text") {
     d.style.color = l.color || "#fff";
     d.style.fontSize = (l.fontSize || 48) + "px";
@@ -87,6 +95,7 @@ function render() {
   }
   renderLayerList();
   renderProps();
+  renderTimeline();
   fitStage();
 }
 
@@ -139,6 +148,7 @@ function addLayer(partial) {
     locked: false,
   };
   const l = Object.assign(base, partial);
+  if (!l.dur && (l.type === "image" || l.type === "video")) l.dur = 2.5;
   l.id = "L" + Date.now().toString(36) +
          Math.random().toString(36).slice(2, 6);
   proj.layers.push(l);
@@ -286,6 +296,7 @@ async function refreshModels() {
   const r = await api.get("/api/models");
   const sel = $("gModel");
   sel.textContent = "";
+  const wantKind = $("gKind").value === "video" ? "video" : "image";
   if (!r.ok) {
     const o = document.createElement("option");
     o.textContent = "(engine offline)";
@@ -294,11 +305,15 @@ async function refreshModels() {
     return;
   }
   setEnginePill(true);
-  const keys = Object.keys(r.models).filter(
-    (k) => r.models[k].kind === "image" && r.models[k].complete);
-  const pool = keys.length
-    ? keys
-    : Object.keys(r.models).filter((k) => r.models[k].kind === "image");
+  const pool = Object.keys(r.models).filter(
+    (k) => r.models[k].kind === wantKind);
+  if (!pool.length) {
+    const o = document.createElement("option");
+    o.value = "";
+    o.textContent = `no ${wantKind} models in manifest`;
+    sel.appendChild(o);
+    return;
+  }
   for (const k of pool) {
     const o = document.createElement("option");
     o.value = k;
@@ -318,6 +333,26 @@ function logGen(html) {
   $("genStatus").innerHTML = html;
 }
 
+$("gKind").addEventListener("change", () => {
+  const vid = $("gKind").value === "video";
+  $("gLenRow").style.display = vid ? "" : "none";
+  const sizes = vid
+    ? [["480x480", "480 x 480"], ["768x512", "768 x 512"],
+       ["512x768", "512 x 768"]]
+    : [["512x512", "512 x 512 square"], ["512x768", "512 x 768 portrait"],
+       ["768x512", "768 x 512 landscape"], ["768x768", "768 x 768 square"],
+       ["1024x1024", "1024 x 1024 large"]];
+  const sel = $("gSize");
+  sel.textContent = "";
+  for (const [v, label] of sizes) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = label;
+    sel.appendChild(o);
+  }
+  refreshModels();
+});
+
 $("bGenerate").addEventListener("click", async () => {
   if (genBusy) return;
   const prompt = $("gPrompt").value.trim();
@@ -332,14 +367,22 @@ $("bGenerate").addEventListener("click", async () => {
   const seed = $("gRandSeed").checked
     ? Math.floor(Math.random() * 2147483647)
     : Number($("gSeed").value) || 0;
+  const isVideo = $("gKind").value === "video";
   const body = {
-    kind: "txt2img", model, prompt,
+    kind: isVideo ? "txt2vid" : "txt2img",
+    model, prompt,
     negative: $("gNeg").value.trim(),
     width: w, height: h,
-    steps: Number($("gSteps").value) || 20,
-    cfg: Number($("gCfg").value) || 7,
     seed,
   };
+  if (isVideo) {
+    body.length = Number($("gLen").value) || 97;
+    body.steps = 8;
+    body.cfg = 3.0;
+  } else {
+    body.steps = Number($("gSteps").value) || 20;
+    body.cfg = Number($("gCfg").value) || 7;
+  }
   genBusy = true;
   logGen("submitting…");
   const sub = await api.post("/api/generate", body);
@@ -348,33 +391,189 @@ $("bGenerate").addEventListener("click", async () => {
     genBusy = false;
     return;
   }
-  const t0 = Date.now();
-  for (;;) {
-    await new Promise((r) => setTimeout(r, 1600));
-    const j = await api.get("/api/job/" + sub.job);
-    if (!j.ok) { logGen("lost job"); break; }
-    const st = j.job.status;
-    if (st === "done") {
-      const rel = j.job.files[0].split(/[\\/]/).slice(-3).join("/");
-      const src = fileSrc(rel);
-      const fit = Math.min(proj.width * 0.7 / w, proj.height * 0.7 / h);
+  const job = await pollJob(sub.job, "generating");
+  if (job && job.files[0]) {
+    const rel = job.files[0].split(/[\\/]/).slice(-3).join("/");
+    const src = fileSrc(rel);
+    if (isVideo) {
+      addLayer({ type: "video", name: "clip " + body.seed, src,
+                 w: Math.round(proj.width * 0.5),
+                 h: Math.round(proj.width * 0.5 * h / w),
+                 x: Math.round(proj.width * 0.25),
+                 y: Math.round(proj.height * 0.2),
+                 dur: Math.round((body.length || 97) / 24 * 10) / 10 });
+    } else {
+      const fit = Math.min(proj.width * 0.7 / w,
+                           proj.height * 0.7 / h);
       addLayer({ type: "image", name: "gen " + body.seed, src,
                  w: Math.round(w * fit), h: Math.round(h * fit),
                  x: Math.round((proj.width - w * fit) / 2),
                  y: Math.round((proj.height - h * fit) / 2) });
-      logGen(`done in ${Math.round((Date.now() - t0) / 1000)}s`);
-      break;
     }
-    if (st === "error") {
-      logGen(`<span style='color:var(--bad)'>${j.job.error}</span>`);
-      break;
-    }
-    if (st === "cancelled") { logGen("cancelled"); break; }
-    logGen(`generating… <b>${st}</b> (${Math.
-           round((Date.now() - t0) / 1000)}s)`);
   }
   genBusy = false;
 });
+
+/* ---------------------------------------------------------- timeline */
+
+function mediaLayers() {
+  return proj.layers.filter(
+    (l) => (l.type === "image" || l.type === "video") && l.visible);
+}
+
+function renderTimeline() {
+  const box = $("tlClips");
+  if (!box) return;
+  box.textContent = "";
+  let total = 0;
+  const clips = mediaLayers();
+  if (!clips.length) {
+    $("tlTotal").textContent = "add generated images / clips";
+    return;
+  }
+  for (const l of clips) {
+    total += l.type === "video"
+      ? (l.dur || 4)
+      : (l.dur || 2.5);
+    const c = document.createElement("div");
+    c.className = "clip" + (l.id === selId ? " sel" : "");
+    let thumb;
+    if (l.type === "video") {
+      thumb = document.createElement("video");
+      thumb.src = fileSrc(l.src);
+      thumb.muted = true;
+    } else {
+      thumb = document.createElement("img");
+      thumb.src = fileSrc(l.src);
+    }
+    const row = document.createElement("div");
+    row.className = "cdur";
+    if (l.type === "image") {
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.step = "0.5";
+      inp.min = "0.5";
+      inp.value = l.dur || 2.5;
+      inp.addEventListener("change", () => {
+        l.dur = Math.max(0.3, Number(inp.value) || 2.5);
+        touch();
+      });
+      const s = document.createElement("span");
+      s.textContent = "s";
+      row.append(inp, s);
+    } else {
+      row.textContent = `clip ${(l.dur || 4).toFixed(1)}s`;
+    }
+    c.append(thumb, row);
+    c.onclick = () => select(l.id);
+    box.appendChild(c);
+  }
+  $("tlTotal").textContent =
+    `${clips.length} clip(s) · ~${total.toFixed(1)}s`;
+}
+
+/* ----------------------------------------------------------- exports */
+
+async function saveStill(mime, ext) {
+  const off = document.createElement("canvas");
+  off.width = proj.width;
+  off.height = proj.height;
+  const ctx = off.getContext("2d");
+  ctx.fillStyle = proj.bg;
+  ctx.fillRect(0, 0, off.width, off.height);
+  for (const l of proj.layers) {
+    if (!l.visible) continue;
+    ctx.save();
+    ctx.globalAlpha = l.opacity;
+    ctx.translate(l.x + l.w / 2, l.y + l.h / 2);
+    if (l.rot) ctx.rotate(l.rot * Math.PI / 180);
+    try {
+      if ((l.type === "image" || l.type === "video") && l.src) {
+        const m = new Image();
+        m.src = l.src.startsWith("http") ? l.src : fileSrc(l.src);
+        await m.decode();
+        ctx.drawImage(m, -l.w / 2, -l.h / 2, l.w, l.h);
+      } else if (l.type === "text") {
+        ctx.fillStyle = l.color || "#fff";
+        ctx.font = `700 ${l.fontSize || 48}px 'Segoe UI', sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        (l.text || "").split("\n").forEach((line, i, arr) => {
+          const dy = (i - (arr.length - 1) / 2) *
+                     (l.fontSize || 48) * 1.25;
+          ctx.fillText(line, 0, dy, l.w);
+        });
+      } else {
+        ctx.fillStyle = l.color || "#7c5cff";
+        ctx.beginPath();
+        const r = 10;
+        ctx.roundRect(-l.w / 2, -l.h / 2, l.w, l.h, r);
+        ctx.fill();
+      }
+    } catch (_) { /* skip unrenderable layer */ }
+    ctx.restore();
+  }
+  const r = await api.saveDataUrl({
+    name: "export." + ext,
+    dataUrl: off.toDataURL(mime, 0.92),
+  });
+  logGen(r.ok ? `saved ${ext.toUpperCase()}:\n${r.path}`
+              : (r.error || "save cancelled"));
+}
+
+async function pollJob(jobId, label) {
+  const t0 = Date.now();
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 1600));
+    const j = await api.get("/api/job/" + jobId);
+    if (!j.ok) { logGen("lost job"); return null; }
+    const st = j.job.status;
+    if (st === "done") {
+      logGen(`${label} done in ${Math.round((Date.now() - t0) / 1000)}s`);
+      return j.job;
+    }
+    if (st === "error") {
+      logGen(`<span style='color:var(--bad)'>${j.job.error}</span>`);
+      return null;
+    }
+    if (st === "cancelled") { logGen("cancelled"); return null; }
+    logGen(`${label}… <b>${st}</b> ` +
+           `(${Math.round((Date.now() - t0) / 1000)}s)`);
+  }
+}
+
+async function exportReel(kind) {
+  const files = [];
+  for (const l of mediaLayers()) {
+    if (l.type !== "image") continue;
+    // engine-generated layers carry src via /api/file?p=outputs/<id>/<f>
+    const q = l.src.split("/api/file?p=")[1];
+    if (!q) { logGen("reel needs engine-generated images only"); return; }
+    files.push(decodeURIComponent(q));
+  }
+  if (files.length < 2) {
+    logGen("need >=2 visible image layers for a reel");
+    return;
+  }
+  const steps = [{
+    type: "slideshow", images: files, output: "reel.mp4",
+    per_image: 2.5, crossfade: 0.5,
+    size: `${_even(proj.width)}x${_even(proj.height)}`, fps: 30,
+  }];
+  if (kind === "export_gif") {
+    steps.push({ type: "gif", input: "reel.mp4", output: "reel.gif",
+                 fps: 12, width: Math.min(480, proj.width) });
+  }
+  const sub = await api.post("/api/generate", { kind, steps });
+  if (!sub.ok) { logGen(sub.error || "export refused"); return; }
+  const job = await pollJob(sub.job, "exporting");
+  if (job && job.files[0]) {
+    window.open(await api.fileUrl(
+      job.files[0].split(/[\\/]/).slice(-3).join("/")), "_blank");
+  }
+}
+
+function _even(n) { return Math.max(16, Math.round(n / 2) * 2); }
 
 /* ------------------------------------------------------- tools & io */
 
@@ -409,6 +608,12 @@ $("bImgAdd").addEventListener("click", () => {
 
 $("bGallery").addEventListener("click", () => api.openWin("gallery"));
 $("bModels").addEventListener("click", () => api.openWin("models"));
+$("bExpPng").addEventListener("click", () => saveStill("image/png",
+                                                       "png"));
+$("bExpJpg").addEventListener("click", () =>
+  saveStill("image/jpeg", "jpg"));
+$("bExpMp4").addEventListener("click", () => exportReel("export_mp4"));
+$("bExpGif").addEventListener("click", () => exportReel("export_gif"));
 
 $("cW").addEventListener("change", () => {
   proj.width = Math.max(64, Number($("cW").value) || proj.width);

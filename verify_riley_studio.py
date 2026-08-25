@@ -148,12 +148,17 @@ def check_queue_roundtrip():
             time.sleep(0.05)
         rec = q.get(jid)
         assert rec["status"] == "done", rec
-        assert rec["files"] == [os.path.join(tmp, "outputs", jid, "out.png")]
-        assert os.path.isfile(os.path.join(tmp, "jobs.jsonl"))
-        pend = q.submit("txt2img_checkpoint", {"prompt": "never"})
-        assert q.cancel(pend) is True
+        expect = os.path.join(tmp, "outputs", jid, "out.png")
+        assert rec["files"] == [expect], rec["files"]
+        assert os.path.isfile(expect), "fake output missing on disk"
+        assert os.path.isfile(os.path.join(tmp, "jobs.jsonl")), \
+            "journal missing"
+        q.stop()  # park the worker so the probe job stays pending
+        pend = q.submit("txt2img_checkpoint",
+                        {"prompt": "never",
+                         "checkpoint": "x.safetensors"})
+        assert q.cancel(pend) is True, "pending job not cancelled"
         assert q.get(pend)["status"] == "cancelled"
-        q.stop()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -294,6 +299,67 @@ def check_engine_api():
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@check("export compilers emit sane ffmpeg argv")
+def check_export_compilers():
+    from engine import export
+    a = export.compile_slideshow(["a.png", "b.png", "c.png"], "out.mp4",
+                                 per_image=2.0, crossfade=0.5)
+    assert a.count("-i") == 3
+    joined = " ".join(a)
+    assert "xfade" in joined and "libx264" in joined and \
+        "faststart" in joined
+    one = export.compile_slideshow(["solo.png"], "solo.mp4")
+    assert one.count("-i") == 1 and "xfade" not in " ".join(one)
+    g = export.compile_gif("in.mp4", "o.gif", fps=12, width=480)
+    assert "palettegen" in " ".join(g)
+    t = export.compile_text_card("hello: world", "card.mp4", seconds=2)
+    assert "drawtext" in " ".join(t) and "\\:" in " ".join(t)
+    for bad in ({"steps": []},
+                {"steps": [{"type": "wat"}]},
+                {"steps": [{"type": "slideshow", "images": []}]},
+                {"steps": [{"type": "gif", "input": "x"}]}):
+        try:
+            export.validate_spec(bad)
+            raise AssertionError("bad spec accepted: %r" % bad)
+        except ValueError:
+            pass
+
+
+@check("export renders real mp4/gif when ffmpeg present")
+def check_export_render():
+    from engine import export
+    ff = export.find_ffmpeg()
+    if not ff:
+        PASS.append("export_render_skipped_no_ffmpeg")
+        print("  skip (no ffmpeg binary - run setup_studio.ps1)")
+        return
+    tmp = tempfile.mkdtemp(prefix="rs-exp-")
+    try:
+        # synthesize three colorful test frames via lavfi, no deps
+        frames = []
+        for i, c in enumerate(("red", "green", "blue")):
+            f = os.path.join(tmp, "f%d.png" % i)
+            subprocess.run([ff, "-y", "-f", "lavfi", "-i",
+                            "color=c=%s:s=320x240:d=0.1" % c,
+                            "-frames:v", "1", f],
+                           capture_output=True, timeout=60,
+                           check=True)
+            frames.append(f)
+        spec = {"steps": [
+            {"type": "slideshow", "images": frames, "output": "reel.mp4",
+             "per_image": 1.0, "crossfade": 0.25, "size": "320x240",
+             "fps": 24},
+            {"type": "gif", "input": "reel.mp4", "output": "reel.gif",
+             "fps": 10, "width": 160},
+        ]}
+        made = export.render(spec, tmp)
+        assert len(made) == 2, made
+        assert os.path.getsize(made[0]) > 2000, "mp4 suspiciously small"
+        assert os.path.getsize(made[1]) > 500, "gif suspiciously small"
+    finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 

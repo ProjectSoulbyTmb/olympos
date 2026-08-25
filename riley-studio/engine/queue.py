@@ -170,6 +170,13 @@ class JobQueue(object):
         kind = rec["kind"]
         params = dict(rec["params"])
         outdir = os.path.join(self.out_root, jid)
+        if kind in ("export_mp4", "export_gif"):
+            from . import export
+            spec = {"steps": params.get("steps", [])}
+            return export.render(spec, outdir,
+                                 repo_root=os.path.dirname(
+                                     os.path.dirname(
+                                         os.path.abspath(__file__))))
         graph = self._build_graph(kind, params)
         prompt_id = self._submit(graph, base_url=self.comfy_base)
         entry = self._poll(prompt_id, base_url=self.comfy_base,

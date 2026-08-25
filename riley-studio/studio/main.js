@@ -177,6 +177,20 @@ ipcMain.handle("api:post", async (_e, p, body) => {
 ipcMain.handle("file:url", (_e, rel) =>
   `${BASE}/api/file?p=${encodeURIComponent(rel)}`);
 
+ipcMain.handle("file:saveDataUrl", async (_e, { name, dataUrl }) => {
+  const m = /^data:(image\/(png|jpeg));base64,(.+)$/.exec(
+    String(dataUrl || ""));
+  if (!m) return { ok: false, error: "not a base64 image data url" };
+  const r = await dialog.showSaveDialog(wins.canvas || undefined, {
+    defaultPath: name || "export.png",
+    filters: [{ name: "Image",
+                extensions: [m[2] === "jpeg" ? "jpg" : "png"] }],
+  });
+  if (r.canceled || !r.filePath) return { ok: false, cancelled: true };
+  fs.writeFileSync(r.filePath, Buffer.from(m[3], "base64"));
+  return { ok: true, path: r.filePath };
+});
+
 ipcMain.handle("project:save", async (_e, { name, data }) => {
   const r = await dialog.showSaveDialog(wins.canvas || undefined, {
     defaultPath: name || "untitled.rsproj",

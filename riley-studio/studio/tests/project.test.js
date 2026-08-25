@@ -39,6 +39,12 @@ test("parse rejects garbage and bad shapes", () => {
   assert.throws(() =>
     project.parse(JSON.stringify({ width: 400, height: 400,
                                    layers: [{ type: "image" }] })), /src/);
+  // video layers are first-class and carry an optional clip duration
+  const ok = project.parse(JSON.stringify({
+    width: 400, height: 400,
+    layers: [{ type: "video", src: "http://127.0.0.1/x.webm",
+               dur: 99 }] }));
+  assert.equal(ok.layers[0].dur, 30); // clamped
 });
 
 test("normalize clamps hostile values instead of throwing", () => {
