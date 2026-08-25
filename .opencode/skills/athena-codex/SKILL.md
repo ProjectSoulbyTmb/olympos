@@ -96,6 +96,15 @@ gates the logic. Known legacy violation: an older full checkout of
 this repo lives at OneDrive `Documents\Default Project` — treat it as
 frozen; never commit or clone from it.
 
+Tree repair (2026-08-25): `safeguards/tree_repair.py --fix` mechanically
+repairs stale locks / missing tracked files / generated dirt /
+patch-duplicate auto/* branches (per-root hash-chained ledger in
+data/); interrupted merge-rebase states and split-brain repos are
+report-only. Gate: `verify_tree_repair.py`. Completed-stranded-work
+record: hades operator authority (13/13), artemis organ (16/16),
+relay mind-mirror (12/12), mind organ (GREEN) all shipped 2026-08-25
+via PRs #73-#77.
+
 ## 3. The five guarantees (each has an owner and a test)
 
 1. Deterministic replay — same seed => byte-identical session (norn.replay)

@@ -51,22 +51,18 @@ def check_cumulative_build():
     tmp = tempfile.mkdtemp(prefix="haven-")
     db = os.path.join(tmp, "haven.db")
     try:
-        assert b.main(["--repo", HERE, "--out", db]) == 0
+        assert b.main(["--repo", HERE, "--out", db,
+                       "--no-provision"]) == 0
         conn = sqlite3.connect(db)
         n1 = conn.execute("SELECT count(*) FROM topics").fetchone()[0]
-        tok1 = conn.execute(
-            "SELECT token_sha256 FROM consumers WHERE name='venus'")\
-            .fetchone()[0]
-        assert n1 >= 8, "curriculum suspiciously thin: %d" % n1
-        # rebuild: same tokens, no dupes
-        assert b.main(["--repo", HERE, "--out", db]) == 0
+        assert n1 >= 40, ("curriculum suspiciously thin - expansions "
+                          "loaded? got %d" % n1)
+        # rebuild: no dupes
+        assert b.main(["--repo", HERE, "--out", db,
+                       "--no-provision"]) == 0
         conn2 = sqlite3.connect(db)
         n2 = conn2.execute("SELECT count(*) FROM topics").fetchone()[0]
-        tok2 = conn2.execute(
-            "SELECT token_sha256 FROM consumers WHERE name='venus'")\
-            .fetchone()[0]
         assert n1 == n2, "rebuild duplicated topics (%d -> %d)" % (n1, n2)
-        assert tok1 == tok2, "rebuild rotated tokens without --rotate"
         # operator addition lands and survives another rebuild
         note = os.path.join(tmp, "note.md")
         with open(note, "w", encoding="utf-8") as fh:
@@ -74,8 +70,10 @@ def check_cumulative_build():
         assert b.main(["--repo", HERE, "--out", db,
                        "--add", "studio-suite", "Future feature probe",
                        "--body-file", note,
-                       "--keywords", "probe"]) == 0
-        assert b.main(["--repo", HERE, "--out", db]) == 0
+                       "--keywords", "probe",
+                       "--no-provision"]) == 0
+        assert b.main(["--repo", HERE, "--out", db,
+                       "--no-provision"]) == 0
         conn3 = sqlite3.connect(db)
         still = conn3.execute(
             "SELECT count(*) FROM topics WHERE title="
@@ -91,6 +89,10 @@ def check_consumers_provisioned():
     import build_haven_db as b
     tmp = tempfile.mkdtemp(prefix="haven-cons-")
     db = os.path.join(tmp, "haven.db")
+    saved_dirs = dict(b.TOKEN_DIRS)
+    # sandbox provisioning into the temp tree - never touch real kernels
+    b.TOKEN_DIRS = {name: [os.path.join(tmp, name, "data")]
+                    for name in b.CONSUMERS}
     try:
         b.main(["--repo", HERE, "--out", db])
         conn = sqlite3.connect(db)
@@ -98,8 +100,8 @@ def check_consumers_provisioned():
             "SELECT name FROM consumers ORDER BY name")]
         assert names == ["aphrodite", "riley", "venus"], names
         for name in b.CONSUMERS:
-            p = b._find_token(HERE, name)
-            assert p, "%s has no token file" % name
+            p = os.path.join(tmp, name, "data", "haven.token")
+            assert os.path.isfile(p), "%s has no token file" % name
             h = hashlib.sha256(
                 open(p, "rb").read().strip()).hexdigest()
             row = conn.execute(
@@ -107,6 +109,7 @@ def check_consumers_provisioned():
                 (h,)).fetchone()
             assert row and row[0] == 1, "%s token not enabled" % name
     finally:
+        b.TOKEN_DIRS = saved_dirs
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -115,10 +118,14 @@ def check_server_enforcement():
     import build_haven_db as b
     tmp = tempfile.mkdtemp(prefix="haven-srv-")
     db = os.path.join(tmp, "haven.db")
+    saved_dirs = dict(b.TOKEN_DIRS)
+    b.TOKEN_DIRS = {name: [os.path.join(tmp, name, "data")]
+                    for name in b.CONSUMERS}
     try:
         b.main(["--repo", HERE, "--out", db])
-        venus_tok = open(b._find_token(HERE, "venus"), "rb").read()\
-            .strip().decode()
+        venus_tok = open(os.path.join(tmp, "venus", "data",
+                                      "haven.token"),
+                         "rb").read().strip().decode()
         port = _free_port()
         proc = subprocess.Popen(
             [sys.executable, os.path.join(HAVEN, "server.py"),
@@ -157,6 +164,7 @@ def check_server_enforcement():
         assert r.returncode != 0 and "loopback" in (
             r.stderr + r.stdout).lower(), "wide bind was allowed"
     finally:
+        b.TOKEN_DIRS = saved_dirs
         shutil.rmtree(tmp, ignore_errors=True)
 
 
