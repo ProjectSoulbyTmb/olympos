@@ -53,6 +53,49 @@ FLOOD_UNREAD = 1000                     # unread above this == flooded
 ROTATE_BYTES = 5 * 1024 * 1024      # topic live-segment size cap
 KEEP_SEGMENTS = 3                   # rotated archives kept per topic
 
+# ------------------------------------------------- topic catalogue
+# Single source for cross-organ wiring (INTEGRATION.md §6): every new
+# lane declares its topic + kind here and in the catalogue table.
+# Pre-catalogue lanes that already flow on this bus keep their literal
+# names; constants below cover the catalogue contract itself.
+
+TOPIC_INCIDENTS = "incidents"       # sentinel/pulse/zeus -> gaia/hub
+TOPIC_VITALS = "vitals"             # gaia vitals samples (payload.organ)
+TOPIC_GRANTS = "grants"             # thoth grants (alias seen: rights)
+TOPIC_BUILD_REQUEST = "build.request"
+TOPIC_BUILD_STAGE = "build.stage"
+TOPIC_ARTIFACTS_SEALED = "artifacts.sealed"
+TOPIC_POLICY_UPDATE = "policy.update"
+TOPIC_LLM = "llm"
+TOPIC_UPDATES = "updates"           # relay fleet.* outcomes -> hub/operator
+
+KIND_INCIDENT = "incident"
+KIND_VITAL = "vital"
+KIND_GRANT = "grant.grant"
+KIND_GRANT_REVOKE = "grant.revoke"
+KIND_GRANT_ESCALATE = "grant.escalate"
+KIND_BUILD_DESCRIBE = "build.describe"
+KIND_BUILD_DESIGN = "build.design"
+KIND_BUILD_CODE = "build.code"
+KIND_BUILD_VERIFY = "build.verify"
+KIND_BUILD_ITERATE = "build.iterate"
+KIND_PROVENANCE_SEAL = "provenance.seal"
+KIND_POLICY_RELOAD = "policy.reload"
+KIND_LLM_CALL = "llm.call"
+KIND_LLM_ERROR = "llm.error"
+KIND_FLEET_TICK = "fleet.tick"
+KIND_FLEET_BUILD = "fleet.build"
+KIND_FLEET_REPAIR = "fleet.repair"
+KIND_FLEET_RENDER = "fleet.render"
+KIND_FLEET_RENDER_DONE = "fleet.render-done"
+
+
+def publish_vital(organ, sample, frm=None, root=None):
+    """Convenience: one vitals line per organ on the shared topic."""
+    return broadcast(TOPIC_VITALS, KIND_VITAL, {"organ": organ,
+                                                **sample},
+                     frm=frm or organ, root=root)
+
 
 # ---------------------------------------------------------------- helpers
 

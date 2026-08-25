@@ -13,7 +13,25 @@
         "python",
         "zeus/verify_zeus.py"
       ],
-      "profile": "admin"
+      "profile": "admin",
+      "publishes": [
+        "zeus-events"
+      ]
+    },
+    {
+      "name": "artemis",
+      "kind": "protection",
+      "engine": "error-hunt-kernel",
+      "port": null,
+      "sdk": null,
+      "path": "artemis/",
+      "tier": 1,
+      "lang": "python",
+      "verify": [
+        "python",
+        "artemis/verify_artemis.py"
+      ],
+      "profile": "watcher"
     },
     {
       "name": "vulcan",
@@ -28,7 +46,10 @@
         "python",
         "vulcan/verify_vulcan.py"
       ],
-      "profile": "operator"
+      "profile": "operator",
+      "publishes": [
+        "vulcan"
+      ]
     },
     {
       "name": "ptah",
@@ -57,7 +78,10 @@
         "python",
         "hades/verify_hades.py"
       ],
-      "profile": "operator"
+      "profile": "operator",
+      "publishes": [
+        "hades-alerts"
+      ]
     },
     {
       "name": "ratatosk",
@@ -85,7 +109,11 @@
         "python",
         "norn/verify_norn.py"
       ],
-      "profile": "watcher"
+      "profile": "watcher",
+      "publishes": [
+        "witness",
+        "rights"
+      ]
     },
     {
       "name": "hypnos",
@@ -99,7 +127,10 @@
         "python",
         "hypnos/verify_hypnos.py"
       ],
-      "profile": "watcher"
+      "profile": "watcher",
+      "publishes": [
+        "hypnos"
+      ]
     },
     {
       "name": "atlas",
@@ -143,7 +174,10 @@
         "python",
         "daedalus/verify_daedalus.py"
       ],
-      "profile": "operator"
+      "profile": "operator",
+      "publishes": [
+        "daedalus"
+      ]
     },
     {
       "name": "sindri",
@@ -278,7 +312,13 @@
         "python",
         "relay/verify_relay.py"
       ],
-      "profile": "watcher"
+      "profile": "watcher",
+      "publishes": [
+        "updates"
+      ],
+      "consumes": [
+        "daedalus"
+      ]
     },
     {
       "name": "hebe",
@@ -308,6 +348,93 @@
         "python",
         "knowledge/verify_knowledge.py"
       ],
+      "profile": "watcher"
+    },
+    {
+      "name": "persephone",
+      "kind": "guardian",
+      "engine": "offline-product-guardian",
+      "port": null,
+      "sdk": null,
+      "path": "persephone/persephone.py",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "persephone/verify_persephone.py"
+      ],
+      "profile": "watcher"
+    },
+    {
+      "name": "poseidon",
+      "kind": "automation",
+      "engine": "tide-kernel",
+      "port": null,
+      "sdk": null,
+      "path": "poseidon/kernel.py",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "poseidon/verify_poseidon.py"
+      ],
+      "profile": "watcher",
+      "publishes": [
+        "poseidon"
+      ]
+    },
+    {
+      "name": "kinema",
+      "kind": "media",
+      "engine": "ffmpeg-pipeline",
+      "port": null,
+      "sdk": null,
+      "path": "kinema/",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_kinema.py"
+      ],
+      "profile": "operator"
+    },
+    {
+      "name": "harmonia",
+      "kind": "review",
+      "engine": "media-review-hub",
+      "port": 43908,
+      "sdk": null,
+      "path": "harmonia/server.py",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_harmonia.py"
+      ],
+      "profile": "operator"
+    },
+    {
+      "name": "riley",
+      "kind": "studio",
+      "engine": "creative-design-kernel",
+      "port": 43907,
+      "sdk": null,
+      "path": "D:/riley/riley_server.py",
+      "tier": 3,
+      "lang": "python",
+      "verify": null,
+      "profile": "watcher"
+    },
+    {
+      "name": "aphrodite",
+      "kind": "review",
+      "engine": "library-curator",
+      "port": 43904,
+      "sdk": null,
+      "path": "D:/Aphrodite/server.py",
+      "tier": 3,
+      "lang": "python",
+      "verify": null,
       "profile": "watcher"
     }
   ]

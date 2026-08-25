@@ -243,6 +243,29 @@ class Hades:
             f.write(json.dumps(anchor, sort_keys=True, indent=1))
         self.audit.append({"kind": "seal", "files": len(manifest["files"]),
                            "products": manifest["products"]})
+        self._announce_seal(doc, anchor, manifest)
+
+    def _announce_seal(self, doc, anchor, manifest):
+        """Best-effort broadcast onto the bus (catalogue: artifacts.sealed
+        / provenance.seal). Sealing must never depend on the wire."""
+        try:
+            import sys
+            root = os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            from ratatosk.bus import Post, TOPIC_ARTIFACTS_SEALED, \
+                KIND_PROVENANCE_SEAL
+            Post().broadcast(TOPIC_ARTIFACTS_SEALED, KIND_PROVENANCE_SEAL, {
+                "seal_sha256": anchor["seal_sha256"],
+                "manifest_sha256": doc["manifest_sha256"],
+                "sealed_at": doc["sealed_at"],
+                "files": len(manifest["files"]),
+                "products": manifest["products"],
+            }, frm="hades")
+        except Exception as exc:                   # noqa: BLE001
+            print(f"[hades] seal announce skipped: "
+                  f"{type(exc).__name__}: {exc}", file=sys.stderr)
 
     def _load_seal(self):
         if not os.path.exists(self.seal_path):

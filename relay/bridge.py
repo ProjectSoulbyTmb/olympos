@@ -1,7 +1,7 @@
-"""RELAY - stable bridges between DAEDELUS, VENUS and the fleet.
+"""RELAY - stable bridges between DAEDELUS, VENUS and RILEY.
 
 One organ owns every crossing between the workshop (DAEDALUS), the
-operator's face (VENUS) and the self-repair machinery:
+operator's face (VENUS) and the studio (RILEY):
 
   outbound (fleet -> Venus)
     forward_daedalus() relays the workshop's build/build-failed topic
@@ -17,13 +17,21 @@ operator's face (VENUS) and the self-repair machinery:
     run a repair sweep, answer a status probe - files them under
     done/ or failed/, and broadcasts the outcome on `updates`.
 
+  work stream (workshop -> studio)
+    riley.stream() consumes nymph-hunter build verdicts under their own
+    cursor and queues a seeded proof-card render per retinue nymph in
+    the RILEY studio's loopback job queue (see riley_stream.py).
+
 Everything rides the ratatosk filesystem bus: no ports, no sockets,
-restart-safe. Envelope discipline is buskit's contract; the suite in
-verify_relay.py proves each seam including restart replay.
+restart-safe (the RILEY lane dials the studio's own loopback HTTP API
+- that port belongs to RILEY, not to the bus). Envelope discipline is
+buskit's contract; the suite in verify_relay.py proves each seam
+including restart replay.
 
 CLI:  python -m relay once | watch [--every S] | status |
       send --type build --blueprint jsonl-echo [--name web1] |
-      send --type repair [--note why]
+      send --type repair [--note why] |
+      riley [--status]
 """
 
 import json
@@ -35,6 +43,7 @@ import time
 from ratatosk.bus import Post
 
 from . import content
+from .riley_stream import RileyStream
 
 
 def _iso():
@@ -51,6 +60,8 @@ class Relay:
         # runner(spec_dict) -> (ok, detail): swappable for tests and
         # for callers that want builds executed in-process.
         self.runner = runner if runner is not None else _run_intent
+        # the studio work stream shares this post office (own cursor)
+        self.riley = RileyStream(post=self.post)
 
     # ---------------- outbound ----------------
 
@@ -237,10 +248,19 @@ class Relay:
     # ---------------- cycle ----------------
 
     def run_cycle(self):
-        return {"forwarded": self.forward_daedalus(),
-                "intents": self.drain_intents(),
-                "mind_intents": self.drain_mind_intents(),
-                "tick": self.tick()}
+        out = {"forwarded": self.forward_daedalus(),
+               "intents": self.drain_intents(),
+               "mind_intents": self.drain_mind_intents(),
+               "tick": self.tick()}
+        try:
+            out["riley"] = self.riley.stream()
+        except Exception as exc:         # noqa: BLE001 - stream must flow
+            out["riley"] = {"error": f"{type(exc).__name__}: {exc}"}
+        try:
+            out["riley_done"] = self.riley.completions()
+        except Exception as exc:         # noqa: BLE001 - lane never raises
+            out["riley_done"] = {"error": f"{type(exc).__name__}: {exc}"}
+        return out
 
 
 # ------------------------------------------------------------------ helpers

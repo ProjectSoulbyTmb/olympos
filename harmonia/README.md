@@ -12,13 +12,13 @@ into any other realm.
 ## Quickstart
 
 ```
-harmonia\launch_harmonia.bat "D:\new"     # serves http://127.0.0.1:43907
+harmonia\launch_harmonia.bat "D:\new"     # serves http://127.0.0.1:43908
 ```
 
 or manually:
 
 ```
-python harmonia\server.py --root "D:\new" --port 43907 --open
+python harmonia\server.py --root "D:\new" --port 43908 --open
 ```
 
 ## The normalization contract
@@ -49,7 +49,7 @@ byte-read-only — always.
 |---|---|---|
 | `--root DIR` | the single folder to view | current directory |
 | `--host HOST` | bind address | `127.0.0.1` (keep loopback) |
-| `--port N` | listen port (`0` = ephemeral) | `43907` |
+| `--port N` | listen port (`0` = ephemeral) | `43908` |
 | `--show-hidden` | include dot-hidden entries | off |
 | `--tools-dir DIR` | where ffmpeg/ffprobe live | auto-discovery |
 | `--open` | launch browser after binding | off |
@@ -100,11 +100,13 @@ graceful fallback for undecodable input. Exits non-zero on any failure.
 4. Content-blind listing; dot-files excluded unless `--show-hidden`.
 5. JSON contract `{"ok", "error", "data"}` on every response.
 
-## Port registration (pending operator approval)
+## Port registration
 
-`:43907` chosen deliberately: ptah=43903, aphrodite=43904,
-daedalus=43905, and `:43906` is the known rogue listener from cycle
-2026-08-24-1138. Registry row can mirror aphrodite's once approved.
+`:43908` (re-based 2026-08-24): `:43907` collided with the RILEY
+studio, which registered it first (persephone products.json + realms
+registry). Block map now: ptah=43903, aphrodite=43904, daedalus=43905,
+riley=43907, harmonia=43908; `:43906` remains a known unrelated
+listener.
 
 ## Roadmap
 
