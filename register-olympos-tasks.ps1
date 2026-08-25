@@ -4,6 +4,7 @@
 # self-verifying organism:
 #
 #   ZEUS    - 5s protection patrols (processes/integrity/churn)
+#   ARTEMIS - error-hunt kernel: signature sweeps + bounded repair
 #   HYPNOS  - silent task worker + continuous verify-gate builds
 #   GAIA    - fleet-health pulse scoring every organ, history kept
 #   POSEIDON - tide kernel: autonomous commit -> push workflow
@@ -75,6 +76,7 @@ if ($Unregister) { exit 0 }
 Write-Output ""
 Write-Output "autopilot armed. starting what is registered..."
 foreach ($t in ("Olympos ZEUS Guardian",
+                "Olympos ARTEMIS Huntress",
                 "Olympos HYPNOS Dreamworker",
                 "Olympos GAIA Pulse",
                 "Olympos POSEIDON Tide",

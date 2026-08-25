@@ -16,6 +16,21 @@
       "profile": "admin"
     },
     {
+      "name": "artemis",
+      "kind": "protection",
+      "engine": "error-hunt-kernel",
+      "port": null,
+      "sdk": null,
+      "path": "artemis/",
+      "tier": 1,
+      "lang": "python",
+      "verify": [
+        "python",
+        "artemis/verify_artemis.py"
+      ],
+      "profile": "watcher"
+    },
+    {
       "name": "vulcan",
       "kind": "automation",
       "engine": "building-sandbox",
