@@ -387,9 +387,16 @@ def main(argv=None):
           % (n, fresh, ", ".join(domains)))
     print("db: %s" % out)
     ok = True
-    for name, path in tokens.items():
-        print("token[%s]: %s" % (name, path or "PROVISION FAILED"))
-        ok = ok and bool(path)
+    if args.no_provision:
+        # Provisioning intentionally skipped (tests use temp dbs):
+        # token presence is informational here, never part of the verdict.
+        for name, path in tokens.items():
+            print("token[%s]: %s"
+                  % (name, path or "not found (--no-provision)"))
+    else:
+        for name, path in tokens.items():
+            print("token[%s]: %s" % (name, path or "PROVISION FAILED"))
+            ok = ok and bool(path)
     if args.list:
         for dom, t in conn.execute(
                 "SELECT domain,title FROM topics ORDER BY domain,title"):
