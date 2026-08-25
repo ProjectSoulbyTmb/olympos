@@ -38,7 +38,12 @@ VULCAN_DEFAULT_PROFILE = "operator"
 
 # Daedalus realm: the workshop. Reading blueprints/history is open to
 # watchers; submitting builds and draining lanes is operator work.
-DAEDALUS_INFO = frozenset({"status", "builds", "blueprints", "close"})
+# Planning station: plan_list/plan_show are read-only (watchers may
+# observe work orders); submit/approve/reject/commission/step_done/
+# quarantine and fleet_resize are operator verbs - sign-off and fleet
+# shape are never watcher-reachable.
+DAEDALUS_INFO = frozenset({"status", "builds", "blueprints", "close",
+                           "plan_list", "plan_show"})
 DAEDALUS_PROFILES = {
     "operator": None,
     "watcher": DAEDALUS_INFO,

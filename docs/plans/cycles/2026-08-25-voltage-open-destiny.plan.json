@@ -1,0 +1,19 @@
+{
+  "title": "VOLTAGE open-creation destiny - ADR-0003 package",
+  "intent": "Record the operator's declared end-state for PROJECT VOLTAGE: a fully enterprise-grade free open-source gaming and entertainment creation platform branded for free global use by everyone who wants to create. Amends only the 'publishing shelved' clause of ADR-0002; isolation contract, path jail and port block stand untouched. Publishing is a future gated milestone, not a now-action. License of record for the public release is Apache-2.0 plus NOTICE.",
+  "author": "operator via HERMES session 2026-08-25",
+  "steps": [
+    {
+      "kind": "manual",
+      "note": "Create docs/adr/0003-voltage-open-creation-destiny.md in house table format. Status: Accepted (operator sign-off 2026-08-25); Amends ADR-0002 publishing clause only. Decision body: declared end-state (enterprise-grade free open-source gaming and entertainment creation platform, free global use branding); timing = future intent, private sovereign build continues through V phases unchanged; license of record Apache-2.0 + NOTICE per ADR-0002 seed; ratifications already landed by PR #90 (root D:\\VOLTAGE, ports 44100-44199, mirror ProjectSoulbyTmb/voltage private until gate) - reference, do not restate as new decisions; publish gate checklist = V5 acceptance green plus soak, full mirror-history secrets audit (gitleaks), LICENSE/NOTICE verified in tree, branding kit, governance docs (README landing, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY), then flip mirror public and announce. Consequences: one-way push means private history becomes public at gate - pre-push secrets scan stays hard from day one; community maintenance accepted post-publish; zero boundary changes today. Follow-up ledger: mirror this ADR into D:\\VOLTAGE/docs via voltage lanes only, seed LICENSE/NOTICE at D:\\VOLTAGE root, configure missing mirror remote before V4 arm."
+    },
+    {
+      "kind": "manual",
+      "note": "Edit docs/adr/0002-project-voltage.md status cell to add: 'Amended by ADR-0003 (2026-08-25): publishing moved from shelved to declared-open destiny; isolation contract and all other clauses stand.' Keep every other clause byte-identical."
+    },
+    {
+      "kind": "manual",
+      "note": "Edit docs/plans/project-voltage-roadmap.md: title becomes V0-V6, companion line gains ADR-0003 reference, append gated phase 'V6 - Open publish (gated: V5 + ADR-0003 gate)' with checkboxes mirroring the ADR-0003 publish-gate checklist. Existing V0-V5 items untouched."
+    }
+  ]
+}

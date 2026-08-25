@@ -127,8 +127,56 @@ class SubFleet:
     """Pool of self-building lanes; affinity dispatch + health."""
 
     def __init__(self, size, hypervisor):
+        self.hv = hypervisor
         self.lanes = [Lane(f"L{i+1}", hypervisor)
                       for i in range(max(1, int(size)))]
+        self._retiring = set()      # names draining out after a shrink
+
+    def resize(self, size):
+        """Live fleet resizing.
+
+        Grow appends lanes immediately (subject to the ATLAS hypervisor
+        guest ceiling - fails loud past it). Shrink retires IDLE excess
+        lanes on the spot; busy excess lanes are flagged and leave only
+        after their current job drains. Returns a report dict.
+        """
+        from atlas import content as ac
+        want = max(1, int(size))
+        if want > ac.MAX_GUESTS:
+            raise ValueError(
+                f"resize refused: {want} lanes exceeds the ATLAS "
+                f"hypervisor ceiling ({ac.MAX_GUESTS} guests)")
+        report = {"added": [], "retired": [], "pending": []}
+        while len(self.lanes) < want:
+            lane = Lane(f"L{len(self.lanes) + 1}", self.hv)
+            self.lanes.append(lane)
+            report["added"].append(lane.name)
+        while len(self.lanes) > want:
+            # retire from the tail: newest lanes first
+            lane = self.lanes[-1]
+            if lane.job is not None:
+                self._retiring.add(lane.name)
+                report["pending"].append(lane.name)
+                break               # keep order stable until it drains
+            self.lanes.pop()
+            self._retiring.discard(lane.name)
+            try:
+                self.hv.stop(lane.guest)
+            except Exception:       # noqa: BLE001 - already gone
+                pass
+            report["retired"].append(lane.name)
+        return report
+
+    def reap_retired(self):
+        """Drop shrink-flagged lanes once their job has drained."""
+        for lane in list(self.lanes):
+            if lane.name in self._retiring and lane.job is None:
+                self._retiring.discard(lane.name)
+                self.lanes.remove(lane)
+                try:
+                    self.hv.stop(lane.guest)
+                except Exception:   # noqa: BLE001 - already gone
+                    pass
 
     def acquire(self, job=None):
         """Pick an idle lane for this job, or None when all are busy /
@@ -137,7 +185,8 @@ class SubFleet:
         Preference order: a lane already warm for the job's blueprint,
         then the longest success streak, then fewest lifetime failures.
         """
-        idle = [l for l in self.lanes if l.available()]
+        idle = [l for l in self.lanes
+                if l.available() and l.name not in self._retiring]
         if not idle:
             return None
 

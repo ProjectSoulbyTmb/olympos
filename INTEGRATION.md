@@ -229,6 +229,7 @@ Organs flush cursors + heartbeats, close journals (witness rotates at
 | `policy.update` | THOTH | all | policy.reload |
 | `llm` | builder brain (ptah) | hub, witness | llm.call / llm.error |
 | `updates` | relay | Venus hub, GAIA, operator | fleet.tick / fleet.build / fleet.repair / fleet.render / fleet.render-done |
+| `daedalus` | DAEDELUS workshop + planning station | relay, hub, operator | build / build-failed / fleet.plan (2026-08-25: catalogue formalized; `KIND_FLEET_PLAN` on every plan state transition) |
 
 Kind constants live in `ratatosk/bus.py` (`TOPIC_*`, `KIND_*`) as the
 single importable source.
