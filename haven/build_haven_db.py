@@ -237,6 +237,36 @@ def build_corpus():
     except (OSError, ValueError):
         pass
 
+    # ---- operator-taught cards (haven/teach/*.md) ----
+    # File format: first line "# Title", optional second line
+    # "keywords: a, b, c", remainder is the body markdown. The domain
+    # comes from the filename prefix: <domain>--<slug>.md
+    teach_dir = os.path.join(HERE, "teach")
+    if os.path.isdir(teach_dir):
+        for fn in sorted(os.listdir(teach_dir)):
+            if not fn.endswith(".md") or "--" not in fn:
+                continue
+            domain = fn[:-3].split("--", 1)[0].strip()
+            rel = os.path.join("haven", "teach", fn)
+            try:
+                raw = _read(REPO[0], rel)
+            except OSError:
+                continue
+            lines = raw.splitlines()
+            title = fn[:-3].split("--", 1)[1].replace("-", " ").strip()
+            kw = ""
+            body_start = 0
+            if lines and lines[0].startswith("# "):
+                title = lines[0][2:].strip()
+                body_start = 1
+                if len(lines) > 1 and lines[1].lower().startswith(
+                        "keywords:"):
+                    kw = lines[1].split(":", 1)[1].strip()
+                    body_start = 2
+            if domain and title and body_start < len(lines):
+                add(domain, title,
+                    "\n".join(lines[body_start:]).strip(), kw, rel)
+
     # ---- full technological-expansion curriculum (haven/expansions.py) ----
     from expansions import EXPANSIONS
     for e in EXPANSIONS:

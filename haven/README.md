@@ -47,10 +47,17 @@ Code-side: extend `build_corpus()` in `build_haven_db.py` — cards carry
 `source_path` + `source_sha256`, so the verify gate flags drift whenever
 a source file changes underneath the curriculum.
 
-## Curriculum today (47 topics · 19 domains)
+Taught cards: drop a markdown file in `haven\teach\` named
+`<domain>--<slug>.md` (first line `# Title`, optional second line
+`keywords: ...`, rest is the body). Every rebuild upserts them
+automatically, with the same source-drift hashing as code-side cards.
+
+## Curriculum today (55 topics · 21 domains)
 
 | Domain | Contents |
 |---|---|
+| `library-d-new` | D:\new census (8.9k files · 277.8 GB), ingest pipeline & catalog |
+| `media-tools` | APHRODITE viewer, RILEY render passes, KINEMA studio, HARMONIA, scanner query recipes, video-audit & duplicate policy |
 | `studio-suite` | riley-studio engine API, generation kinds, model tiers & pulls |
 | `generation-control` | ControlNet deep-dive, T2I-Adapter, IP-Adapter/FaceID/PuLID, regional prompting |
 | `generation-consistency` | LoRA law, embeddings, cross-shot character/product consistency toolkit |
