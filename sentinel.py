@@ -39,22 +39,26 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def ledger(kind, name, detail):
+def ledger(kind, name, detail, severity=None):
     os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
     # v2: every line is a buskit envelope on the 'incidents' topic
     # (INTEGRATION.md 4.1 / acceptance A8). Legacy v1 quadruple lines
     # already on disk stay readable; verify_system lints both.
+    payload = {"gate_kind": str(kind), "name": str(name),
+               "detail": str(detail)[:400]}
+    if severity:
+        payload["severity"] = severity
     try:
         from buskit import envelope
         entry = envelope.make(
-            "incident", "sentinel",
-            {"gate_kind": str(kind), "name": str(name),
-             "detail": str(detail)[:400]},
+            "incident", "sentinel", payload,
             topic="incidents", rights="watcher")
         line = envelope.dump(entry)
     except Exception:                    # noqa: BLE001 - never lose an incident
         entry = {"ts": stamp(), "kind": kind, "name": name,
                  "detail": str(detail)[:400]}
+        if severity:
+            entry["severity"] = severity
         line = json.dumps(entry)
     with open(LEDGER, "a", encoding="utf-8") as fh:
         fh.write(line + "\n")
@@ -62,8 +66,28 @@ def ledger(kind, name, detail):
 
 # ---------------------------------------------------------------- doctor
 
+def _registry_port_tiers():
+    """{port: tier} for every realm declaring one; empty on parse
+    failure so a broken manifest can never blind the probe."""
+    try:
+        import realms
+        out = {}
+        for realm in realms.all_realms():
+            port = realm.get("port")
+            if isinstance(port, int) and port > 0:
+                out[port] = int(realm.get("tier") or 1)
+        return out
+    except Exception:                    # noqa: BLE001 - degrade to defaults
+        return {}
+
+
 def doctor():
-    """Environment checks. Returns (ok, findings)."""
+    """Environment checks. Returns (ok, findings).
+
+    Tier-aware (H0a): a busy T3 satellite/companion port is recorded
+    informationally - a running companion is normal life, not an
+    alarm. T1/T2 owned ports must still be free at rest.
+    """
     findings = []
 
     def need(name, ok, detail="", fix=None):
@@ -74,12 +98,19 @@ def doctor():
          sys.version.split()[0])
     node = shutil.which("node")
     need("node (venus/thoth)", node is not None, node or "not on PATH")
-    for port in (43901, 43903):
+    for port in sorted({43901, 43903} | set(_registry_port_tiers())):
+        tier = _registry_port_tiers().get(port, 1)
         s = socketQuiet()
         busy = s.connect_ex(("127.0.0.1", port)) == 0
         s.close()
-        need(f"port {port} free at rest", not busy,
-             "in use - realm still running?" if busy else "")
+        if not busy:
+            need(f"port {port} free at rest", True)
+        elif tier >= 3:
+            need(f"port {port} (T{tier}) companion running",
+                 True, "informational - satellite is alive")
+        else:
+            need(f"port {port} free at rest", False,
+                 "in use - realm still running?")
 
     ok = all(f[1] for f in findings)
     for name, good, detail, fix in findings:
@@ -115,7 +146,7 @@ REMEDIATORS = [
 
 # ----------------------------------------------------------------- gates
 
-def gate(name, cmd, cwd=None, env_extra=None):
+def gate(name, cmd, cwd=None, env_extra=None, tier=1):
     env = dict(os.environ)
     if env_extra:
         env.update(env_extra)
@@ -127,13 +158,14 @@ def gate(name, cmd, cwd=None, env_extra=None):
         # A missing/unspawnable executable is gate data, not a
         # sentinel crash: record it and keep the sweep alive.
         return {"name": name, "ok": False, "exit": -1,
+                "tier": tier,
                 "secs": round(time.time() - t0, 1),
                 "tail": f"OSError spawning {cmd[0]!r}: {exc}"}
     dt = round(time.time() - t0, 1)
     tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-3:])
     ok = proc.returncode == 0
     return {"name": name, "ok": ok, "exit": proc.returncode,
-            "secs": dt, "tail": tail}
+            "tier": tier, "secs": dt, "tail": tail}
 
 
 def gate_defs():
@@ -166,42 +198,58 @@ def gate_defs():
         if realm.get("lang") == "node" and \
                 not os.path.exists(os.path.join(cwd, "node_modules")):
             continue  # same courtesy as the venus gate below
-        defs.append((f"{realm['name']} suite", _resolve(raw), cwd, None))
+        tier = int(realm.get("tier") or 1)
+        defs.append((f"{realm['name']} suite", _resolve(raw), cwd, None,
+                     tier))
 
+    # Workspace-infrastructure gates: blocking (tier 1). godot-template
+    # is intentionally NOT duplicated here - its registry row (tier 3)
+    # owns it as an informational gate since the H0a routing landed.
     defs += [
-        ("buskit contract", [PY, "-u", "verify_buskit.py"], HERE, None),
-        ("scope guard", [PY, "-u", "verify_scope.py"], HERE, None),
-        ("sindri forge", [PY, "-u", "verify_sindri.py"], HERE, None),
+        ("buskit contract", [PY, "-u", "verify_buskit.py"], HERE, None, 1),
+        ("scope guard", [PY, "-u", "verify_scope.py"], HERE, None, 1),
+        ("sindri forge", [PY, "-u", "verify_sindri.py"], HERE, None, 1),
         ("forseti arbitration", [PY, "-u", "verify_forseti.py"],
-         HERE, None),
-        ("secrets hygiene", [PY, "-u", "verify_secrets.py"], HERE, None),
-        ("coverage floor", [PY, "-u", "verify_coverage.py"], HERE, None),
-        ("godot template", [PY, "-u",
-                            os.path.join("templates",
-                                         "verify_template.py")],
-         HERE, None),
-        ("system seam", [PY, "-u", "verify_system.py"], HERE, None),
+         HERE, None, 1),
+        ("secrets hygiene", [PY, "-u", "verify_secrets.py"], HERE, None,
+         1),
+        ("coverage floor", [PY, "-u", "verify_coverage.py"], HERE, None,
+         1),
+        ("system seam", [PY, "-u", "verify_system.py"], HERE, None, 1),
     ]
     if shutil.which("node") and \
             os.path.exists(os.path.join(HERE, "assistant",
                                         "test-heart.js")):
         defs.append(("venus heart",
                      ["node", os.path.join("assistant", "test-heart.js")],
-                     HERE, None))
+                     HERE, None, 1))
+    if os.environ.get("SENTINEL_DRILL_T3"):
+        # H0a dry-run drill: a guaranteed-red tier-3 gate proves
+        # informational routing without touching any real suite.
+        defs.append(("drill-t3 informational",
+                     [PY, "-c", "import sys; sys.exit(7)"], HERE, None, 3))
     return defs
 
 
 def run_gates():
     results = []
-    for name, cmd, cwd, env_extra in gate_defs():
+    for name, cmd, cwd, env_extra, tier in gate_defs():
         log(f"gate: {name} ...")
-        res = gate(name, cmd, cwd, env_extra)
+        res = gate(name, cmd, cwd, env_extra, tier=tier)
         results.append(res)
-        log(f"gate: {name} -> {'PASS' if res['ok'] else 'FAIL'} "
-            f"({res['secs']}s)")
-        ledger("gate", name,
-               "pass" if res["ok"] else f"FAIL exit={res['exit']}: "
-                                        f"{res['tail'][-200:]}")
+        if res["ok"]:
+            log(f"gate: {name} -> PASS ({res['secs']}s)")
+            ledger("gate", name, "pass")
+        elif tier >= 3:
+            log(f"gate: {name} -> FAIL (informational, T{tier}) "
+                f"({res['secs']}s)")
+            ledger("gate", name,
+                   f"FAIL exit={res['exit']}: {res['tail'][-200:]}",
+                   severity="informational")
+        else:
+            log(f"gate: {name} -> FAIL ({res['secs']}s)")
+            ledger("gate", name,
+                   f"FAIL exit={res['exit']}: {res['tail'][-200:]}")
     return results
 
 
@@ -220,19 +268,18 @@ def pass_gates():
     # one remediated retry for anything red - transient drift often
     # clears once artifacts are quarantined; retries reuse the exact
     # command, cwd and env of the original gate definition.
-    defs = {name: (cmd, cwd, env_extra)
-            for name, cmd, cwd, env_extra in gate_defs()}
+    defs = {name: (cmd, cwd, env_extra, tier)
+            for name, cmd, cwd, env_extra, tier in gate_defs()}
     retried = []
     for res in [r for r in results if not r["ok"]]:
         log(f"retry after remediation: {res['name']}")
         for name, fn in REMEDIATORS:
             fn()
-        cmd, cwd, env_extra = defs.get(res["name"],
-                                       ([PY, "-u",
-                                         os.path.join("zeus",
-                                                      "verify_zeus.py")],
-                                        HERE, None))
-        retried.append(gate(res["name"], cmd, cwd, env_extra))
+        cmd, cwd, env_extra, tier = defs.get(
+            res["name"],
+            ([PY, "-u", os.path.join("zeus", "verify_zeus.py")],
+             HERE, None, 1))
+        retried.append(gate(res["name"], cmd, cwd, env_extra, tier=tier))
     return [r for r in results if r["ok"]] + retried
 
 
@@ -244,8 +291,9 @@ def main():
     opts = ap.parse_args()
 
     if opts.list:
-        for name, _cmd, _cwd, _env in gate_defs():
-            print(name)
+        for name, _cmd, _cwd, _env, tier in gate_defs():
+            print(f"{name}  [T{tier} informational]"
+                  if tier >= 3 else name)
         print("* gaia suite runs when node_modules is present;")
         print("* venus heart runs when node is present and "
               "assistant/ is checked out")
@@ -257,14 +305,24 @@ def main():
     while True:
         remediate_all()
         results = pass_gates()
-        total = len(results)
-        passed = sum(1 for r in results if r["ok"])
-        failed = [r["name"] for r in results if not r["ok"]]
+        blocking = [r for r in results if r.get("tier", 1) < 3]
+        t3 = [r for r in results if r.get("tier", 1) >= 3]
+        t3_red = [r["name"] for r in t3 if not r["ok"]]
+        total = len(blocking)
+        passed = sum(1 for r in blocking if r["ok"])
+        failed = [r["name"] for r in blocking if not r["ok"]]
         log(f"summary: {passed}/{total} gates green"
             + (f" - failing: {', '.join(failed)}" if failed else ""))
+        extra = ""
+        if t3:
+            extra += (f" | T3 informational: "
+                      f"{len(t3) - len(t3_red)}/{len(t3)} green")
+            if t3_red:
+                extra += f" (red, non-blocking: {', '.join(t3_red)})"
+        log("summary" + extra)
         ledger("summary", f"{passed}/{total}",
-               "all green" if not failed else "failing: "
-               + ", ".join(failed))
+               ("all green" if not failed else "failing: "
+                + ", ".join(failed)) + extra)
         if not opts.watch:
             return 0 if not failed else 1
         time.sleep(max(30, opts.watch))
