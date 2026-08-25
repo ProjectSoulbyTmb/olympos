@@ -566,6 +566,12 @@ try:
 except ImportError:  # pragma: no cover - optional target
     pass
 
+try:
+    from daedalus.blueprint_nymph import BLUEPRINT as _NYMPH_BP
+    BLUEPRINTS["nymph-hunter"] = dict(_NYMPH_BP)
+except ImportError:  # pragma: no cover - optional target
+    pass
+
 
 def blueprint_names():
     return sorted(BLUEPRINTS)
