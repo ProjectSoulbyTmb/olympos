@@ -243,6 +243,48 @@ def build_corpus():
         add(e["domain"], e["title"], e["body_md"], e.get("keywords", ""),
             e.get("source"))
 
+    # ---- self-canon fingerprints (fully synthetic house aesthetic) ----
+    fp_rel = os.path.join("haven", "canon", "fingerprint.json")
+    try:
+        fp = json.loads(_read(REPO[0], fp_rel))
+        fams = fp.get("families", {})
+        for fam, pieces in sorted(fams.items()):
+            p = pieces[0]
+            pal = ", ".join("%s (%d%%)" % (c["hex"],
+                                           round(c["share"] * 100))
+                            for c in p["palette"])
+            body = (
+                "Synthetic style profile - %s.\n"
+                "Provenance: %s\nModel: %s · seed %s · %dx%d.\n"
+                "Prompt recipe: %s\n"
+                "Fingerprint: brightness %.2f, contrast %.2f, "
+                "saturation %.2f, warmth %+.2f (0=neutral).\n"
+                "Dominant palette: %s.\n"
+                "Use as creative reference for prompts in this mood; "
+                "reuse the seed to revisit the exact piece."
+                % (fam.replace("-", " ").title(),
+                   "generated locally by riley-studio engine; no "
+                   "external imagery",
+                   fp.get("model_key", "sd15"), p["seed"],
+                   p["width"], p["height"], p["prompt"],
+                   p["brightness"], p["contrast"], p["saturation"],
+                   p["warmth"], pal))
+            add("self-canon", "Self-canon vol.1 - %s" % fam,
+                body,
+                "style palette %s aesthetic fingerprint" % fam,
+                fp_rel)
+        add("self-canon", "Self-canon provenance statement",
+            "The self-canon corpus is 100% synthetic: every reference "
+            "image was generated locally by the riley-studio engine "
+            "(quantized sd15 tier) from fixed seeds and curated "
+            "prompts. No external imagery was ingested at any point; "
+            "fingerprints derive exclusively from these generated "
+            "pieces. Seeds and recipes live in haven/canon/*/"
+            "metadata.json for exact replay.",
+            "provenance synthetic canon ethics origin")
+    except (OSError, ValueError):
+        pass  # canon not generated yet - optional curriculum
+
     return c
 
 
