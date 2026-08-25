@@ -10,18 +10,24 @@ Run:  python poseidon/verify_poseidon.py
 Exit: 0 green, 1 failures.
 """
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+from poseidon import heal, kernel as _pk   # noqa: E402
 from poseidon.kernel import (ACTIVE_DELAY_S, FAIL_BACKOFF_BASE_S,
                              FAIL_LIMIT, QUARANTINE_COOLDOWN_S,
                              TideEngine)  # noqa: E402
+
+# gate speed: healing backoffs must not pace the suite
+_pk.RETRY_BACKOFF_S = 0.05
 
 CHECKS = []
 FAILS = []
@@ -356,6 +362,228 @@ def fleet_sync_is_parallel_and_lazy():
         rows = fleet.status(eng)
         behind = [n for n, r in rows.items() if r.get("behind_main")]
         assert not behind, "sync must absorb origin/main everywhere"
+    finally:
+        fx.cleanup()
+
+
+# ------------------------------------------------------ healing gate
+
+@check
+def heal_rebuilds_a_corrupt_berth_and_the_tide_still_sails():
+    fx = Fixture()
+    try:
+        eng = fx.engine()
+        eng.ensure_worktree()
+        stub = os.path.join(eng.worktree, ".git")
+        os.unlink(stub)   # hidden file: Windows forbids in-place rewrite
+        with open(stub, "w") as fh:
+            fh.write("gitdir: nowhere\n")  # crash-mangled berth
+        assert heal.wt_state(eng) == "corrupt"
+        applied = []
+        assert heal.fix_berth(eng, applied) is True
+        assert "berth-corrupt-rebuilt" in applied, applied
+        out = git(eng.worktree, "rev-parse",
+                  "--is-inside-work-tree")
+        assert out == "true", "rebuilt berth is not a worktree"
+        # the automated tide flows through the healed berth untouched
+        fx.write("file.txt", "line-1 post-heal\nline-2\n")
+        rep = eng.once()
+        assert rep["verdict"] == "shipped", rep
+    finally:
+        fx.cleanup()
+
+
+@check
+def ledger_torn_tail_trimmed_but_deeper_rot_left_alone():
+    fx = Fixture()
+    try:
+        eng = fx.engine()
+        os.makedirs(eng.data_dir, exist_ok=True)
+        good_row = json.dumps({"verdict": "shipped", "seq": 1})
+        with open(eng.ledger_path, "w", encoding="utf-8") as fh:
+            fh.write(good_row + "\n" + '{"verdict": "shi')
+        assert heal.repair_ledger_tail(eng.ledger_path) is True
+        with open(eng.ledger_path, encoding="utf-8") as fh:
+            assert fh.read() == good_row + "\n"
+        # mid-file garbage under an intact tail: hands off entirely
+        with open(eng.ledger_path, "w", encoding="utf-8") as fh:
+            fh.write('{"a": 1}\nGARBAGE\n{"b": 2}\n')
+        before = open(eng.ledger_path, encoding="utf-8").read()
+        assert heal.repair_ledger_tail(eng.ledger_path) is False
+        assert open(eng.ledger_path,
+                    encoding="utf-8").read() == before
+    finally:
+        fx.cleanup()
+
+
+@check
+def orphaned_temp_indexes_swept_fresh_ones_kept():
+    fx = Fixture()
+    try:
+        eng = fx.engine()
+        os.makedirs(eng.data_dir, exist_ok=True)
+        old = os.path.join(eng.data_dir, "idx-111")
+        fresh = os.path.join(eng.data_dir, "idx-222")
+        for p in (old, fresh):
+            with open(p, "w") as fh:
+                fh.write("")
+        ancient = time.time() - 2 * 3600
+        os.utime(old, (ancient, ancient))
+        applied = []
+        heal.sweep_indexes(eng, applied)
+        assert any(a.startswith("idx-swept") for a in applied), applied
+        assert not os.path.exists(old)
+        assert os.path.exists(fresh), \
+            "a live sibling's index must never be swept"
+    finally:
+        fx.cleanup()
+
+
+@check
+def quarantine_reopens_when_probes_run_green_holds_when_red():
+    fx = Fixture()
+    try:
+        eng = fx.engine()
+        fx.write("file.txt", "line-1 after-the-storm\nline-2\n")
+        st = {"seq": 0, "failures": FAIL_LIMIT,
+              "quarantine_until": time.time() + 900,
+              "reason": "simulated outage"}
+        eng._save_state(st)
+        # red water: origin unreachable -> breaker stays honest
+        git(fx.root, "remote", "set-url", "origin",
+            os.path.join(fx.base, "no-such-origin"))
+        rep = eng.once()
+        assert rep["verdict"] == "quarantined", rep
+        assert rep["heal"]["quarantine_probes"]["origin"] is False
+        # green water again -> the lane reopens early and ships
+        git(fx.root, "remote", "set-url", "origin",
+            os.path.join(fx.base, "origin.git"))
+        rep = eng.once()
+        assert rep["verdict"] == "shipped", rep
+        assert any(a.startswith("quarantine-cleared")
+                   for a in rep["heal"]["applied"]), rep["heal"]
+        st = eng._load_state()
+        assert st["failures"] == 0 and not eng.quarantined(st)
+    finally:
+        fx.cleanup()
+
+
+@check
+def push_non_fast_forward_adopts_and_replays_never_force():
+    fx = Fixture()
+    try:
+        eng = fx.engine(mode="squash")
+        calls = []
+
+        def fake_gh(*args):
+            calls.append(tuple(args[:2]))
+            if args[0] == "pr":
+                if args[1] == "list":
+                    return ""
+                if args[1] == "create":
+                    return "9"
+                if args[1] == "merge":
+                    fx.squash_on_origin()
+                    return ""
+            raise AssertionError("unexpected gh call %s" % (args,))
+        eng._gh = fake_gh
+        fx.write("file.txt", "line-1 tide-one\nline-2\n")
+        rep1 = eng.once()
+        assert rep1["verdict"] == "shipped" and rep1["settled"], rep1
+        # after the squash merge deleted our remote branch, crash
+        # residue resurrects it with a commit we never had
+        rival = os.path.join(fx.base, "residue")
+        git(fx.base, "clone", "origin.git", "residue")
+        git(rival, "checkout", "-b", "auto/poseidon", "origin/main")
+        with open(os.path.join(rival, "residue.txt"), "w") as fh:
+            fh.write("crash residue cargo\n")
+        git(rival, "add", "-A")
+        git(rival, "commit", "-m", "residue lands remotely")
+        git(rival, "push", "origin", "auto/poseidon")
+        # next tide: push is refused non-fast-forward, then self-heals
+        fx.write("file.txt", "line-1 tide-two\nline-2\n")
+        rep2 = eng.once()
+        assert rep2["verdict"] == "shipped" and rep2["settled"], rep2
+        assert any(a.startswith("push-nonff")
+                   for a in rep2["heal"]["applied"]), rep2["heal"]
+        # the settled mirror carries both: replayed cargo AND the
+        # adopted branch's extra file - adoption, never destruction
+        assert fx.read("file.txt") == "line-1 tide-two\nline-2\n"
+        assert os.path.exists(os.path.join(fx.root, "residue.txt")), \
+            "adoption lost origin-side cargo"
+        assert eng.drift() == {"tracked": [], "untracked": []}, \
+            "settled root must be clean"
+    finally:
+        fx.cleanup()
+
+
+@check
+def transient_gh_failures_retry_once_then_ship():
+    fx = Fixture()
+    try:
+        fx.write("file.txt", "line-1 flaky-wire\nline-2\n")
+        eng = fx.engine(mode="squash")
+        calls = []
+
+        def flaky_call(*args):
+            calls.append(tuple(args[:2]))
+            if len(calls) == 1:
+                raise RuntimeError(
+                    "gh list failed: connection reset by peer")
+            if args[0] == "pr":
+                if args[1] == "list":
+                    return ""
+                if args[1] == "create":
+                    return "7"
+                if args[1] == "merge":
+                    fx.squash_on_origin()
+                    return ""
+            raise AssertionError("unexpected gh call %s" % (args,))
+        eng._gh_call = flaky_call              # real _gh wraps this
+        rep = eng.once()
+        assert rep["verdict"] == "shipped" and rep["settled"], rep
+        assert calls[:2] == [("pr", "list"), ("pr", "list")], calls
+        assert ("pr", "merge") in calls
+    finally:
+        fx.cleanup()
+
+
+@check
+def diagnose_reports_mirror_violation_without_touching_it():
+    fx = Fixture()
+    try:
+        eng = fx.engine()
+        # someone commits on main at the root - doctrine violation;
+        # healing reports it but NEVER resets (quarantine, never destroy)
+        fx.write("file.txt", "line-1 local-only-commit\nline-2\n")
+        git(fx.root, "commit", "-am", "forbidden local main commit")
+        head_before = git(fx.root, "rev-parse", "HEAD")
+        diag = heal.diagnose(eng)
+        row = [f for f in diag["findings"]
+               if f["id"] == "mirror-synced"][0]
+        assert row["ok"] is False, row
+        assert "ahead=1" in row["detail"], row
+        rep = heal.repair(eng, apply=True)
+        assert git(fx.root, "rev-parse", "HEAD") == head_before, \
+            "healing reset the mirror - that is destruction"
+        row = [f for f in rep["findings"]
+               if f["id"] == "mirror-synced"][0]
+        assert row["ok"] is False and rep["healthy"] is False, rep
+    finally:
+        fx.cleanup()
+
+
+@check
+def deep_diagnosis_runs_object_database_fsck_clean():
+    fx = Fixture()
+    try:
+        eng = fx.engine()
+        rep = heal.repair(eng, apply=True, deep=True)
+        assert "berth-missing-created" in rep["applied"], rep
+        row = [f for f in rep["findings"]
+               if f["id"] == "object-db"][0]
+        assert row["ok"] is True, row
+        assert rep["healthy"] is True, rep
     finally:
         fx.cleanup()
 
