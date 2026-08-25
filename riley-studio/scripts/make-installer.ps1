@@ -2,7 +2,7 @@
 # Run scripts/build.ps1 (which runs `npm run package` first).
 
 $ErrorActionPreference = "Stop"
-$suite = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$suite = Split-Path -Parent $PSScriptRoot   # riley-studio/
 $bundle = Join-Path $suite "studio\release\RileyStudio-win32-x64"
 $dist = Join-Path $suite "dist"
 

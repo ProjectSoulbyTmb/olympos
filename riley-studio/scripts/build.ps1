@@ -7,13 +7,12 @@
 param([switch]$SkipStabilize)
 
 $ErrorActionPreference = "Stop"
-$here = Split-Path -Parent $PSScriptRoot
-$suite = Split-Path -Parent $here
+$suite = Split-Path -Parent $PSScriptRoot   # riley-studio/
 $repo = Split-Path -Parent $suite
 
 if (-not $SkipStabilize) {
     & powershell -NoProfile -ExecutionPolicy Bypass `
-        -File (Join-Path $here "stabilize.ps1")
+        -File (Join-Path $PSScriptRoot "stabilize.ps1")
     if ($LASTEXITCODE -ne 0) {
         throw "stabilize failed - fix before packaging" }
 }
@@ -24,7 +23,7 @@ if ($LASTEXITCODE -ne 0) { throw "electron-packager failed" }
 
 Write-Output "[build] installer artifact ..."
 & powershell -NoProfile -ExecutionPolicy Bypass `
-    -File (Join-Path $here "make-installer.ps1")
+    -File (Join-Path $PSScriptRoot "make-installer.ps1")
 if ($LASTEXITCODE -ne 0) { throw "installer step failed" }
 
 Write-Output "[build] done."
