@@ -204,6 +204,16 @@
       </div>
     </div>
     <h3>Canvas</h3>
+    <div class="row"><label>Preset
+      <select id="cPreset">
+        <option value="">custom…</option>
+        <option value="1080x1080">Instagram post · 1080²</option>
+        <option value="1080x1920">Story / Reel · 1080×1920</option>
+        <option value="1200x628">Link card · 1200×628</option>
+        <option value="1000x1500">Pin · 1000×1500</option>
+        <option value="1920x1080">HD frame · 1920×1080</option>
+        <option value="1600x1000">Studio default · 1600×1000</option>
+      </select></label></div>
     <div class="row">
       <label>Width <input id="cW" type="number" value="1600"></label>
       <label>Height <input id="cH" type="number" value="1000"></label>
@@ -211,6 +221,12 @@
     <div class="row">
       <label>Background <input id="cBg" type="color" value="#14121c">
       </label>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button id="bUpscale" class="ghost" style="display:none">
+        Upscale ×2</button>
+      <button id="bAnimate" class="ghost" style="display:none">
+        Animate (LTX)</button>
     </div>
   </aside>
 

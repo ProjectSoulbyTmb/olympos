@@ -8,8 +8,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
-    "smoke": "node -e \"process.env.RILEY_STUDIO_SMOKE='1';require('child_process').spawnSync(process.execPath,['.'],{stdio:'inherit',env:process.env});\"",
-    "test": "node --test \"tests/**/*.test.js\""
+    "test": "node --test \"tests/**/*.test.js\"",
+    "package": "electron-packager . RileyStudio --platform=win32 --arch=x64 --out=release --overwrite --asar=false --ignore=\"^/release\" --ignore=\"^/node_modules/electron($|/)\""
   },
   "dependencies": {
     "electron": "^43.4.1"
