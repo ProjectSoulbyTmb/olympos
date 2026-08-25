@@ -12,6 +12,18 @@ Run from the workspace root:
     python hades/cli.py audit [--tail N]       validate the hash-chained log
     python hades/cli.py watch --interval 300   live sentinel loop
 
+Operator password gate (one unlock per day covers every gated verb):
+
+    python hades/cli.py passwd                 enroll/rotate the password
+    python hades/cli.py unlock                 password -> session (12h default)
+    python hades/cli.py lock                   end the session now
+    gated verbs: seal verify scan ghosts watermark detect watch
+    open verbs : status audit authorize mint override passwd unlock lock
+
+Non-interactive: HADES_PASSWORD supplies the new/current password,
+HADES_OLD_PASSWORD the current one during rotation. Nothing is stored
+but a salted PBKDF2 hash - never the password itself.
+
 Operator override authority (only the enrolled operator can use these):
 
     python hades/cli.py authorize --confirm    enroll/rotate THIS machine's secret
@@ -28,10 +40,12 @@ Privileged ops:
     raw     call=<method> args={json} uncensored grammar: any public kernel
                                       method, arbitrary arguments
 
-Exit codes: 0 clean, 1 violations/hits, 2 error, 3 DENIED (authority).
+Exit codes: 0 clean, 1 violations/hits, 2 error, 3 DENIED (authority),
+4 LOCKED (no active auth session).
 """
 
 import argparse
+import getpass
 import json
 import os
 import sys
@@ -41,10 +55,16 @@ if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from hades import authority
+from hades.auth import AuthError, AuthStore
 from hades.kernel import ROOT, Hades, HadesError, TamperError
 
 
 DENIED = 3                                  # authority refusal exit code
+LOCKED = 4                                  # no active session exit code
+
+# verbs that require a live operator session
+GATED = ("seal", "verify", "scan", "ghosts", "watermark", "detect",
+         "watch")
 
 
 def _print_report(rep):
@@ -63,6 +83,7 @@ def _print_report(rep):
 
 def cmd_status(args):
     st = _hades(args).status()
+    st.update(AuthStore(_hades(args).state_dir).public_state())
     print(json.dumps(st, indent=1, sort_keys=True))
     return 0 if st.get("chain_ok") else 2
 
@@ -214,6 +235,97 @@ def _hades(args):
     return Hades(root=args.root)
 
 
+# ---------------- operator password gate ----------------
+
+def _gate(args, verb):
+    """Fail-closed session check for gated verbs. Returns 0 to proceed,
+    LOCKED when the operator has not unlocked, 2 on unusable setup."""
+    st = AuthStore(_hades(args).state_dir)
+    state = st.status()
+    if state == "corrupt":
+        print("LOCKED: auth state corrupt - restore or delete "
+              "hades/state/auth.json, then run: python hades/cli.py passwd",
+              file=sys.stderr)
+        return LOCKED
+    if state == "missing":
+        print("hades: no password enrolled - run: "
+              "python hades/cli.py passwd", file=sys.stderr)
+        return 2
+    if st.session_valid():
+        return 0
+    _hades(args).audit.append({"kind": "auth_denied", "verb": verb})
+    try:
+        from hades.auth import announce
+        announce({"kind": "auth_denied", "verb": verb})
+    except Exception:
+        pass
+    print("LOCKED: no active session - run: python hades/cli.py unlock",
+          file=sys.stderr)
+    return LOCKED
+
+
+def _pw_from_env_or_prompt(prompt):
+    pw = os.environ.get("HADES_PASSWORD")
+    return pw if pw is not None else getpass.getpass(prompt)
+
+
+def cmd_passwd(args):
+    st = AuthStore(_hades(args).state_dir)
+    state = st.status()
+    if state == "corrupt":
+        print("error: auth state corrupt - delete "
+              "hades/state/auth.json and re-run passwd", file=sys.stderr)
+        return 2
+    old = os.environ.get("HADES_OLD_PASSWORD")
+    if state == "ok" and old is None:
+        old = getpass.getpass("current password: ")
+    new = _pw_from_env_or_prompt("new password: ")
+    confirm = new if os.environ.get("HADES_PASSWORD") is not None \
+        else getpass.getpass("confirm: ")
+    if new != confirm:
+        print("error: passwords do not match", file=sys.stderr)
+        return 2
+    try:
+        rotated = st.set_password(new, old=old)
+    except AuthError as e:
+        print("error: %s" % e, file=sys.stderr)
+        return 1
+    _hades(args).audit.append(
+        {"kind": "auth_rotate" if rotated else "auth_set"})
+    print("password %s - stored as salted PBKDF2 hash only"
+          % ("rotated" if rotated else "enrolled"))
+    print("unlock with: python hades/cli.py unlock")
+    return 0
+
+
+def cmd_unlock(args):
+    st = AuthStore(_hades(args).state_dir)
+    pw = _pw_from_env_or_prompt("password: ")
+    try:
+        sess = st.attempt_unlock(pw)
+    except AuthError as e:
+        print("DENIED: %s" % e, file=sys.stderr)
+        return DENIED if "backoff" in str(e) or "wait" in str(e) else 2
+    if sess is None:
+        _hades(args).audit.append({"kind": "auth_fail"})
+        print("wrong password", file=sys.stderr)
+        return 1
+    _hades(args).audit.append({"kind": "auth_unlock",
+                               "expires_at": sess["expires_at"]})
+    print("unlocked until %s (%d h window) - all gated verbs open"
+          % (sess["expires_at"], st.ttl_s // 3600))
+    return 0
+
+
+def cmd_lock(args):
+    st = AuthStore(_hades(args).state_dir)
+    was = st.session_valid()
+    st.lock()
+    _hades(args).audit.append({"kind": "auth_lock"})
+    print("locked (%s)" % ("session revoked" if was else "already closed"))
+    return 0
+
+
 # ---------------- operator override authority ----------------
 
 def cmd_authorize(args):
@@ -360,6 +472,18 @@ def build_parser():
     s.add_argument("--interval", type=int, default=300)
     s.set_defaults(fn=cmd_watch)
 
+    # ---- operator password gate ----
+    s = sub.add_parser("passwd",
+                       help="enroll/rotate the operator password")
+    s.set_defaults(fn=cmd_passwd)
+
+    s = sub.add_parser("unlock",
+                       help="password -> session covering all gated verbs")
+    s.set_defaults(fn=cmd_unlock)
+
+    s = sub.add_parser("lock", help="revoke the active session now")
+    s.set_defaults(fn=cmd_lock)
+
     # ---- operator override authority ----
     s = sub.add_parser("authorize",
                        help="enroll/rotate THIS machine's operator secret")
@@ -390,6 +514,11 @@ def main(argv=None):
     if not getattr(args, "fn", None):
         build_parser().print_help()
         return 2
+    verb = getattr(args, "verb", "")
+    if verb in GATED:
+        rc = _gate(args, verb)
+        if rc:
+            return rc
     try:
         return args.fn(args)
     except TamperError as e:
