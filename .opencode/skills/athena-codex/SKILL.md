@@ -64,6 +64,17 @@ members) puts the organ under sentinel gate derivation.
 every `knowledge/verify_*.py` automatically. First product DB:
 webstudio/ (25 WS-### entries + 7 topic files).
 
+Wiring pass (2026-08-24 late): registry v2 now carries 28 members -
+satellites riley `:43907` (`D:/riley`) and aphrodite `:43904`
+(`D:/Aphrodite`) declared without in-repo gates; harmonia re-based to
+`:43908` after colliding with the live RILEY studio. Kind constants
+(`TOPIC_*`/`KIND_*`) live in `ratatosk/bus.py`. Live wires: Hades
+broadcasts `provenance.seal` on every seal (`artifacts.sealed`), GAIA
+publishes per-member samples on `vitals`, relay announces
+`fleet.render-done` for studio jobs finished outside its order stream.
+INTEGRATION §6 documents as-built pre-catalogue lanes (gates, witness,
+rights, hades-alerts, zeus-events, vulcan, daedalus, hypnos, poseidon).
+
 Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
 ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
 `43590/43591` are retired; any listener there is a squatter finding.
