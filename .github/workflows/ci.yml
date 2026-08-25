@@ -42,14 +42,12 @@ jobs:
 
   ecosystem:
     runs-on: [self-hosted, Windows]
+    # System toolchain (local-first doctrine): python 3.12 + node/npm are
+    # provisioned on the runner host via D:\actions-runner\.env PATH.
+    # Hosted setup-* actions are omitted - setup-python's HKLM registry
+    # cleanup requires admin, which the self-hosted account does not have.
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
       - name: Static gates (syntax, dupdefs, JSON, merge markers, secrets)
         run: python safeguards/check.py --all --strict
       - name: GAIA kernel tests
