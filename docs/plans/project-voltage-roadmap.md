@@ -1,9 +1,18 @@
-# PROJECT VOLTAGE — Private Sovereign OS Roadmap (V0–V5)
+# PROJECT VOLTAGE — Private Sovereign OS Roadmap (V0–V12, two tracks)
 
-Companion to `docs/adr/0002-project-voltage.md` (decision of record).
-Execution doctrine: paper-first per FLOW protocol; each phase gates the
-next; bootstrap (V2) additionally requires the Olympos W0 precondition
-(rebase complete + one full green CI push-run on main).
+Companion to `docs/adr/0002-project-voltage.md` (decision of record)
+and `docs/adr/0003-volt-bare-metal-thoth-kernel.md` (THOTH kernel of
+record). Two tracks, independently gated:
+
+- **Track A (V0–V5)** — sovereign foundation: the organ fleet on the
+  Windows host; becomes the factory + control plane for everything
+  Track B builds.
+- **Track B (V6–V12)** — the metal ladder: THOTH kernel and the
+  userland that makes VOLT a fully usable operating system.
+
+Execution doctrine: paper-first per FLOW protocol; each phase gates
+the next; bootstrap (V2) additionally requires the Olympos W0
+precondition (rebase complete + one full green CI push-run on main).
 
 ## Phases
 
@@ -56,6 +65,82 @@ next; bootstrap (V2) additionally requires the Olympos W0 precondition
       divergence is documented policy.
 - Acceptance: one full week of unattended side-by-side operation with
   zero cross-fleet incidents in either ledger.
+
+---
+
+# Track B — The metal ladder (V6–V12, THOTH kernel)
+
+Per `docs/adr/0003-volt-bare-metal-thoth-kernel.md`: THOTH is the
+kernel of record; VOLTAGE is the OS. Track A above remains the factory
+and control plane that builds, tests and operates everything below.
+Kernel code lives at `D:\VOLTAGE\kernel\thoth\` post-V2; before that,
+paper only. ADR-0003 open items gate their phases: language → V6,
+reference hardware → V7 exit, filesystem → V9, Eidovara port strategy
+→ V10.
+
+### V6 — THOTH paper architecture (first metal phase)
+- [ ] Close the kernel-language decision (Rust recommended, C
+      acceptable) — ADR-0004 or amendment to ADR-0003.
+- [ ] Subsystem spec derived from the ADR-0003 doctrine map: grants,
+      routing, scribe, stabilizer + scheduler, memory, drivers, init.
+- [ ] Toolchain + repo skeleton decision for `kernel/thoth` (CI builds
+      artifacts from day one, even before anything boots).
+- Gate: language closed; subsystem paper reviewed by operator.
+
+### V7 — Hello metal
+- [ ] UEFI boot under QEMU/OVMF: a THOTH image reaches framebuffer
+      output (boot logo / text).
+- [ ] CI builds a bootable ISO and runs a QEMU smoke gate per commit.
+- [ ] Reference hardware target named and provisioned (ADR-0003 open
+      item #2 closes).
+- Gate: `voltage-thoth-smoke` green in CI; ISO boots verified headless.
+
+### V8 — Kernel core
+- [ ] Physical/virtual memory manager; region allocators.
+- [ ] Scheduler with THOTH-grant-aware priorities (capability classes
+      from day one; norn lineage).
+- [ ] IPC: ratatosk envelope semantics reborn as kernel message
+      passing (buskit contracts as the wire format).
+- [ ] virtio driver set under QEMU (block, net, console).
+- Gate: two processes exchange kernel IPC under memory pressure
+  without corruption; stabilizer-lineage watchdog recovers a killed
+  process automatically.
+
+### V9 — Userland genesis
+- [ ] Filesystem format chosen (ADR-0003 open item #3) + implemented;
+      crash-consistent journal or CoW.
+- [ ] Init (PID 1) with supervised-restart doctrine (doctor lineage).
+- [ ] Text shell + process model; per-process capability rights
+      enforced by the grants subsystem — least privilege native, not
+      bolted on.
+- Gate: power-on to shell; files survive hard reset; a rogue process
+  cannot read outside its grant.
+
+### V10 — Desktop seed (Eidovara surface, rebuilt natively)
+- [ ] Framebuffer compositor + window server; keyboard/mouse input
+      stack (touch later).
+- [ ] Native Eidovara-lineage app model: manifests, launch,
+      install/uninstall (daedalus/sindri templates lineage).
+- [ ] Themes + assistant-layer conventions ported as design, not code;
+      ADR-0003 open item #4 (port strategy detail) closes here.
+- Gate: launcher opens/switches/closes apps; live theme switch; zero
+      Electron assumptions anywhere in the tree.
+
+### V11 — Drivers + installer
+- [ ] Driver breadth on the reference machine: NVMe/AHCI, xHCI/USB,
+      NIC, GPU modesetting.
+- [ ] Self-installer writes THOTH/VOLTAGE to disk; release discipline
+      inherited from Eidovara (checksums, provenance, recovery path).
+- Gate: reference machine boots from its own installed disk; reinstall
+      from media works; bad-update rollback proven once.
+
+### V12 — Daily driver on metal
+- [ ] Operator uses VOLT-on-THOTH as a primary working environment.
+- [ ] Update lane live (tide-kernel discipline applied to OS images);
+      incident ledger clean.
+- Acceptance: target four weeks of real use on metal with zero
+  data-loss incidents and every failure recovered by the stabilizer
+  path, not by hand.
 
 ## Isolation contract summary
 

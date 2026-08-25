@@ -161,7 +161,22 @@ tag-driven releases).
   no_validation/lost_template exercise gate bite and retry convergence;
   fault injection exposed a stale port.txt race in re-gate passes -
   fixed via pre-boot removal in the woven gate. Root gate
-  `verify_deskmate.py` wired into doctor; auto-discovered by CI.
+  `  verify_deskmate.py` wired into doctor; auto-discovered by CI.
   1964f36 (daedalus: deskmate blueprint - local design-desk service for VENUS (card template/validate/scaffold) + stale-port gate fix)
+
+- 2026-08-25: **VOLT north star extended; THOTH named the metal
+  kernel (ADR-0003).** The operator ordered PROJECT VOLTAGE to become
+  a fully usable operating system on its own bare-metal kernel, and
+  bound the THOTH name to it: VOLTAGE is the OS, THOTH is the kernel;
+  thoth-private doctrine (grants/safety, knowledge routing, scribe,
+  stabilizer) graduates into kernel subsystems - concepts port, code
+  does not. Eidovara seeds the desktop product surface as design
+  (Electron itself cannot run on early metal; native rebuild ladder).
+  Roadmap gains Track B (V6-V12: paper architecture, hello metal,
+  kernel core, userland genesis, desktop seed, drivers+installer,
+  daily driver); Track A (V1-V5) unchanged and now doubles as the
+  factory/CI for the kernel. Kernel language (Rust recommended),
+  reference hardware, filesystem format and port-strategy details are
+  open items gating V6/V7/V9/V10 respectively.
 
 
