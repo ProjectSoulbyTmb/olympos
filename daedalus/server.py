@@ -1,7 +1,11 @@
 """DAEDALUS authoritative server - the workshop's wire face.
 
 JSON-lines on 127.0.0.1:43905. NORN rights: watchers observe builds,
-operators submit and steer them.
+operators submit and steer them. The registered port is truth: when
+:43905 is captured the bind fails loudly instead of drifting to a
+neighbor port (ADR-0002 §3.4). Callers may declare a ``who`` string;
+it leads every attested argument vector so witness lines carry
+provenance (guarantee #2).
 """
 
 import os
@@ -38,6 +42,7 @@ class DaedalusServer:
         self.ws = workshop or Workshop()
         self.sessions = {}
         self.profiles = {}
+        self.whos = {}
         self._lock = threading.Lock()
         self._next_conn = 0
         self._sock = None
@@ -66,19 +71,17 @@ class DaedalusServer:
         self._thread.start()
 
     def _bind(self):
-        last_err = None
-        for _ in range(10):
-            try:
-                self._sock = socket.socket(socket.AF_INET,
-                                           socket.SOCK_STREAM)
-                self._sock.bind((self.host, self.port))
-                break
-            except OSError as exc:
-                last_err = exc
-                self._sock.close()
-                self.port += 1
-        else:
-            raise OSError(f"no free port: {last_err}")
+        # ADR-0002 §3.4: the registry port is truth. A squatter on
+        # :43905 is a doctor/sentinel finding - drifting to :43906
+        # would silently break every client and the health model.
+        try:
+            self._sock = socket.socket(socket.AF_INET,
+                                       socket.SOCK_STREAM)
+            self._sock.bind((self.host, self.port))
+        except OSError as exc:
+            raise OSError(
+                f"workshop port {self.port} unavailable ({exc}); "
+                "remediate the squatter, never drift ports") from exc
         self._sock.listen(8)
         self._sock.settimeout(0.5)
         self.host, self.port = self._sock.getsockname()[:2]
@@ -101,6 +104,7 @@ class DaedalusServer:
                 self.profiles[cid] = (
                     getattr(rights, "DAEDALUS_DEFAULT_PROFILE",
                             "operator") if rights else "operator")
+                self.whos[cid] = None
             threading.Thread(target=self._client_loop,
                              args=(conn, cid), daemon=True).start()
 
@@ -127,6 +131,15 @@ class DaedalusServer:
                 if not isinstance(msg, dict) or "cmd" not in msg:
                     self._send(conn, error="missing cmd")
                     continue
+                who = msg.get("who")
+                if who is not None:
+                    if not isinstance(who, str) \
+                            or not who.strip():
+                        self._send(conn, error="who must be a "
+                                               "non-empty string")
+                        continue
+                    with self._lock:
+                        self.whos[cid] = who.strip()[:64]
                 resp = self.handle(msg.get("cmd"),
                                    msg.get("args") or {}, cid=cid)
                 self._send(conn, **resp)
@@ -142,6 +155,14 @@ class DaedalusServer:
             with self._lock:
                 self.sessions.pop(cid, None)
                 self.profiles.pop(cid, None)
+                self.whos.pop(cid, None)
+
+    def _witness_args(self, cid, values):
+        """Caller identity leads the attested argument vector, so two
+        callers running the same verb leave different evidence."""
+        with self._lock:
+            who = self.whos.get(cid)
+        return [who or "anonymous"] + list(values)
 
     def handle(self, cmd, args, cid=None):
         cmd = str(cmd)
@@ -169,7 +190,9 @@ class DaedalusServer:
             error = f"internal error: {exc!r}"
         if mutating and self.witness is not None:
             try:
-                self.witness.record(cmd, list(args.values()),
+                self.witness.record(cmd,
+                                    self._witness_args(
+                                        cid, list(args.values())),
                                     ok=error is None, error=error)
             except Exception:             # noqa: BLE001
                 pass
