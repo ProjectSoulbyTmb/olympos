@@ -67,6 +67,13 @@ def ensure_unarmed(fn):
 
 # ------------------------------------------------------------- side A
 
+def _neutral_probe():
+    """A path that is neither foreign nor jail-relevant, on every
+    fleet, without creating anything. ~ lives on the system drive;
+    judgment is string-based so existence is not required."""
+    return os.path.join(os.path.expanduser("~"), "boundary-probe")
+
+
 @check
 @ensure_unarmed
 def foreign_detection_exact_and_siblings():
@@ -79,7 +86,8 @@ def foreign_detection_exact_and_siblings():
         "normalized escapes must still judge correctly"
     # sibling-prefix trap: VOLTAGEx is NOT inside VOLTAGE
     assert not boundary.is_foreign(FOREIGN + "x\\innocent")
-    assert not boundary.is_foreign(HERE)             # our own repo
+    # a neutral probe passes no matter which checkout runs this suite
+    assert not boundary.is_foreign(_neutral_probe())
 
 
 @check
@@ -94,8 +102,9 @@ def refuse_foreign_fails_loud():
         assert FOREIGN.lower() in str(exc).lower()
     else:
         raise AssertionError("foreign touch must fail loud")
-    # non-foreign passes untouched
-    boundary.refuse_foreign(HERE, op="write")
+    # non-foreign passes untouched (synthetic neutral probe - never
+    # 'this checkout', which is foreign-adjacent inside VOLTAGE)
+    boundary.refuse_foreign(_neutral_probe(), op="write")
 
 
 # ------------------------------------------------------------- side B
@@ -226,11 +235,22 @@ def ratatosk_post_refuses_foreign_root():
 
 @check
 def ratatosk_post_accepts_local_root():
-    """Positive control: ordinary lanes keep working unchanged."""
-    with tempfile.TemporaryDirectory(prefix="boundary-ok-") as outer:
+    """Positive control: ordinary lanes keep working unchanged.
+
+    Posture-inherited: inside VOLTAGE the fixture root must live
+    under the armed jail (data/tmp), on Olympos a plain temp dir is
+    neutral - either way the Post must construct and register."""
+    armed = os.environ.get(boundary.JAIL_ENV, "").strip()
+    if armed:
+        outer = os.path.join(armed, "data", "tmp",
+                             "boundary-ok-fixture")
+        env_root = armed
+    else:
+        outer = tempfile.mkdtemp(prefix="boundary-ok-")
+        env_root = None
+    try:
         script = "\n".join([
             "import os, sys",
-            "os.environ.pop('VOLTAGE_ROOT', None)",
             "sys.path.insert(0, '.')",
             "import ratatosk.bus as bus",
             "p = bus.Post(root=os.path.join(r'" + outer +
@@ -239,12 +259,24 @@ def ratatosk_post_accepts_local_root():
             "print('ok')",
         ])
         env = dict(os.environ)
-        env.pop("VOLTAGE_ROOT", None)
+        if env_root:
+            env[boundary.JAIL_ENV] = env_root
+        else:
+            env.pop(boundary.JAIL_ENV, None)
+            # neutralize an armed parent shell inside the child
+            script = "\n".join([
+                "import os",
+                "os.environ.pop('VOLTAGE_ROOT', None)",
+                script,
+            ])
         r = subprocess.run([sys.executable, "-c", script], cwd=HERE,
                            capture_output=True, text=True, timeout=60,
                            env=env)
         assert r.returncode == 0 and "ok" in r.stdout, \
             r.stdout + r.stderr
+    finally:
+        if not armed:
+            shutil.rmtree(outer, ignore_errors=True)
 
 
 @check
@@ -291,7 +323,9 @@ def cli_exit_codes_and_policy():
 
     r = run("check", FOREIGN)
     assert r.returncode == 1 and "DENIED" in r.stdout, r.stdout
-    r = run("check", HERE)
+    # neutral synthetic probe, not the checkout: both fleet postures
+    # must allow a path that is neither foreign nor jail-relevant
+    r = run("check", _neutral_probe())
     assert r.returncode == 0 and "ALLOWED" in r.stdout, r.stdout
     r = run("policy")
     assert r.returncode == 0 and "OLYMPOS" in r.stdout \
