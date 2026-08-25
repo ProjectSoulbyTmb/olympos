@@ -68,6 +68,16 @@ Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
 ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
 `43590/43591` are retired; any listener there is a squatter finding.
 
+Repo homes (policy 2026-08-24, operator-set, in force until revoked):
+`D:\` is the ONLY localside repository home. Mint-point enforcement:
+`safeguards/repo_home_profile.ps1` shell shim refuses clone/init/
+worktree-add/submodule-add outside `D:\`; canonical authority is
+`safeguards/repo_home_guard.py` (`check`/`policy`/`audit` CLI — audit
+is an operator tool, deliberately not a CI gate); `verify_repo_home.py`
+gates the logic. Known legacy violation: an older full checkout of
+this repo lives at OneDrive `Documents\Default Project` — treat it as
+frozen; never commit or clone from it.
+
 ## 3. The five guarantees (each has an owner and a test)
 
 1. Deterministic replay — same seed => byte-identical session (norn.replay)

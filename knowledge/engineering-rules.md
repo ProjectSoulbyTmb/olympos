@@ -76,3 +76,9 @@ lesson id in `lessons.json`.
     shared worktrees; after push, compare `origin/<branch>` — a no-op
     push exits 0. Never merge a PR whose `gh pr diff` file list does
     not match the intended change exactly.
+22. **One localside repo home: `D:\`** (L033). Clone, init,
+    worktree-add and submodule-add destinations outside `D:\` are
+    refused mechanically — shell shim `safeguards/repo_home_profile.ps1`
+    plus canonical authority `safeguards/repo_home_guard.py`. A second
+    checkout of one remote is a split brain in incubation; audit for
+    strays with the guard CLI by hand, never as a CI gate.
