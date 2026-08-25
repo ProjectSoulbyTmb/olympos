@@ -39,6 +39,7 @@ try {
 finally { Pop-Location }
 
 foreach ($name in @("Olympos ZEUS Guardian",
+                    "Olympos ARTEMIS Huntress",
                     "Olympos HYPNOS Dreamworker",
                     "Olympos GAIA Pulse")) {
     try {

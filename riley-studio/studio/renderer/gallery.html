@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' http://127.0.0.1:* data:; media-src 'self' http://127.0.0.1:*; style-src 'self' 'unsafe-inline'">
+  <title>Riley Studio - Gallery</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    body { padding: 16px 18px; overflow-y: auto; }
+    h2 { margin: 0 0 4px; }
+    #grid {
+      display: grid; gap: 12px; margin-top: 14px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    .card {
+      background: var(--bg2); border: 1px solid var(--line);
+      border-radius: 10px; overflow: hidden;
+    }
+    .card img, .card video {
+      width: 100%; height: 160px; object-fit: cover; display: block;
+      background: #000;
+    }
+    .meta { display: flex; justify-content: space-between; gap: 8px;
+            padding: 7px 9px; font-size: 12px; color: var(--dim); }
+    .meta b { color: var(--ink); overflow: hidden; text-overflow:
+              ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <h2>Gallery</h2>
+  <div class="hint" id="note">loading…</div>
+  <div id="grid"></div>
+  <script src="gallery.js"></script>
+</body>
+</html>

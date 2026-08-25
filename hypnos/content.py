@@ -134,6 +134,18 @@ BUILD_GATES = [
     {"name": "knowledge",
      "argv": ["python", "knowledge/verify_knowledge.py"],
      "timeout_s": 300},
+    {"name": "persephone",
+     "argv": ["python", "persephone/verify_persephone.py"],
+     "timeout_s": 300},
+    {"name": "kinema",
+     "argv": ["python", "verify_kinema.py"],
+     "timeout_s": 600},
+    {"name": "riley-studio",
+     "argv": ["python", "verify_riley_studio.py"],
+     "timeout_s": 600},
+    {"name": "haven",
+     "argv": ["python", "verify_haven.py"],
+     "timeout_s": 300},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this
 BUILD_ON_IDLE = True           # the organism proves itself even quiet

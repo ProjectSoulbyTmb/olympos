@@ -92,11 +92,13 @@ def run_suite(name, spec, timeout_s):
         if exc.stdout:
             tail_src += "\n" + str(exc.stdout)[-2000:]
     secs = round(time.monotonic() - t0, 1)
-    lines = tail_src.splitlines()
-    tail = "\n".join(lines[-3:])
     # L030: a gate that detects failure but discards the failing output
     # turns every diagnosis into archaeology. Failed suites keep their
     # output (bounded) so the culprit check ships with the verdict.
+    # Inline tails carry 10 lines (was 3) so a red verdict names the
+    # failing check without opening the full artifact.
+    lines = tail_src.splitlines()
+    tail = "\n".join(lines[-10:])
     return {"suite": name, "ok": ok, "secs": secs, "tail": tail,
             "output": "" if ok else tail_src[-8000:]}
 

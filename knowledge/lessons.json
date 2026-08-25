@@ -406,6 +406,20 @@
         "resumability",
         "verification"
       ]
+    },
+    {
+      "id": "L033",
+      "title": "One localside repo home: D:\\ - enforce it at the clone door",
+      "category": "process",
+      "source": "operator directive 2026-08-24 + olympos split-brain incident: same remote checked out in both OneDrive Documents\\Default Project and D:\\THOTH; copies sat on different mains, lane branch auto/hermes carried squash-duplicates of already-merged PRs (#72 residue), origin refs were locked by stale .lock files, and a concurrent writer was found editing inside the hermes worktree",
+      "lesson": "A repository may exist in exactly ONE localside home - D:\\ on this machine, per operator policy - because every second checkout of a remote eventually becomes a divergence: unpushed commits strand on whichever copy is forgotten, squash-merged branches leave patch-duplicate residue that poisons cherry/rebase decisions, and agents reading 'the repo' disagree about disk truth. Policy without teeth decays, so enforcement is mechanical at the mint point: safeguards/repo_home_profile.ps1 intercepts git clone/init/worktree-add/submodule-add in the shell and refuses any destination outside D:\\, with safeguards/repo_home_guard.py as the canonical authority (check CLI for paths, audit CLI as an operator-only scanner - never a CI gate, since live-machine audits would pin gates red until legacy checkouts retire) and verify_repo_home.py gating the logic itself. Revocation is deliberately cheap: edit REPO_HOME or delete the profile line - policy changes belong to the operator, not to env drift.",
+      "tags": [
+        "git",
+        "worktrees",
+        "multi-agent",
+        "safeguards",
+        "policy"
+      ]
     }
   ]
 }

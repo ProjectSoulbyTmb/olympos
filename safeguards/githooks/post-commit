@@ -1,0 +1,7 @@
+#!/bin/sh
+# Mirror convergence gate - keeps the D:\Default Project execution copy
+# byte-equal to committed state on every commit. Post-commit hooks
+# cannot fail a commit, and mirror_sync --hook never raises anyway.
+# See mirror_sync.py (lesson L035's cousin: stale execution copies are
+# how silent drift ships).
+python "$(git rev-parse --show-toplevel)/mirror_sync.py" --hook || true

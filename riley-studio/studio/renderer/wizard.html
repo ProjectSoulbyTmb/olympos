@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Riley Studio - Setup</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    body { padding: 22px 26px; }
+    h2 { margin-top: 0; }
+    pre {
+      background: var(--bg2); border: 1px solid var(--line);
+      border-radius: 8px; padding: 12px; white-space: pre-wrap;
+      user-select: text; font-size: 12px; color: var(--accent2);
+    }
+  </style>
+</head>
+<body>
+  <h2>First-run setup</h2>
+  <div class="hint">Riley Studio runs everything on this machine. Three
+  one-time steps:</div>
+  <ol class="hint" style="line-height:1.9">
+    <li><b style="color:var(--ink)">Core tools</b> —
+      <pre>powershell -ExecutionPolicy Bypass -File riley-studio\setup_studio.ps1</pre></li>
+    <li><b style="color:var(--ink)">AI backend (ComfyUI + quant loaders)</b> —
+      <pre>... setup_studio.ps1 -Ai        (NVIDIA GPU)
+... setup_studio.ps1 -Ai -CpuOnly</pre></li>
+    <li><b style="color:var(--ink)">Model weights</b> — open the Models
+      window and pull a tier. Start with <b style="color:var(--ink)">sd15</b>.</li>
+  </ol>
+  <h3>Status</h3>
+  <pre id="st">checking…</pre>
+  <script src="wizard.js"></script>
+</body>
+</html>

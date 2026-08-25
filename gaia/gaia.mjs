@@ -373,8 +373,43 @@ export function savePulse(report) {
   }
 }
 
-export function trend(limit = 10, historyDir = HISTORY_DIR) {
-  let files = [];
+// ---------- ratatosk wire (catalogue: vitals topic, kind vital) ----------
+// GAIA is the one Node-side publisher on the python filesystem bus.
+// Envelope mirrors Post.broadcast output; seq lives in <topic>.seq next
+// to the journal. Fail-open: a broken wire lowers no score and never
+// blocks the pulse.
+
+export function publishVitals(report, busDir = path.join(
+    path.dirname(GAIA_ROOT), 'data', 'post', 'topics')) {
+  try {
+    fs.mkdirSync(busDir, { recursive: true });
+    const seqFile = path.join(busDir, 'vitals.seq');
+    const journal = path.join(busDir, 'vitals.jsonl');
+    let seq = 0;
+    try { seq = Number(fs.readFileSync(seqFile, 'utf8').trim()) || 0; } catch { /* first line */ }
+    let out = '';
+    for (const s of report.systems) {
+      seq += 1;
+      out += JSON.stringify({
+        v: 1, topic: 'vitals', seq, from: 'gaia', kind: 'vital',
+        ts: report.at, epoch: Date.now() / 1000,
+        payload: { organ: s.name, score: s.score ?? null,
+                   band: s.band ?? null },
+      }) + '\n';
+    }
+    if (out) {
+      fs.appendFileSync(journal, out);
+      const tmp = seqFile + '.tmp';
+      fs.writeFileSync(tmp, String(seq));
+      fs.renameSync(tmp, seqFile);
+    }
+    return seq;
+  } catch {
+    return null;                       // wire down; vitals stay truthful
+  }
+}
+
+export function trend(limit = 10, historyDir = HISTORY_DIR) {  let files = [];
   try {
     files = fs.readdirSync(historyDir)
       .filter(f => f.startsWith('pulse-2') && f.endsWith('.json'))
@@ -481,6 +516,7 @@ async function main() {
     const previous = readJson(path.join(HISTORY_DIR, 'pulse_latest.json'));
     const report = pulse({ withCi, previous });
     savePulse(report);
+    publishVitals(report);
     if (cmd === 'doctor') {
       console.log(asJson
         ? JSON.stringify(report.systems.map(s =>

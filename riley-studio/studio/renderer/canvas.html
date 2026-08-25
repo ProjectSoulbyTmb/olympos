@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' http://127.0.0.1:* data: file:; style-src 'self' 'unsafe-inline'">
+  <title>Riley Studio - Canvas</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    body { display: grid; grid-template-columns: 250px 1fr 250px;
+           grid-template-rows: 42px 1fr; height: 100vh; }
+    header {
+      grid-column: 1 / 4; display: flex; align-items: center;
+      gap: 10px; padding: 0 14px; background: var(--bg2);
+      border-bottom: 1px solid var(--line);
+    }
+    header .logo { font-weight: 700; letter-spacing: 1px; color:
+                   var(--accent2); }
+    header button { padding: 4px 10px; font-size: 12px; }
+    #rail {
+      background: var(--bg2); border-right: 1px solid var(--line);
+      overflow-y: auto; padding: 12px;
+    }
+    #inspector {
+      background: var(--bg2); border-left: 1px solid var(--line);
+      overflow-y: auto; padding: 12px;
+    }
+    #center { position: relative; overflow: hidden;
+              display: grid; grid-template-rows: 1fr auto; }
+    #stageWrap {
+      position: relative; margin: 18px; display: grid;
+      place-items: center;
+    }
+    #timeline {
+      height: 92px; border-top: 1px solid var(--line);
+      background: var(--bg2); display: flex; align-items: center;
+      gap: 10px; padding: 0 14px; overflow-x: auto;
+    }
+    .tl-label { font-size: 10px; letter-spacing: 2px;
+                color: var(--dim); }
+    #tlClips { display: flex; gap: 8px; align-items: center; }
+    .clip {
+      width: 110px; background: var(--bg3); border-radius: 6px;
+      border: 1px solid var(--line); overflow: hidden; cursor: pointer;
+      flex: none;
+    }
+    .clip.sel { border-color: var(--accent); }
+    .clip img, .clip video { width: 100%; height: 44px; object-fit:
+                             cover; display: block; }
+    .clip .cdur { display: flex; align-items: center; gap: 4px;
+                  padding: 3px 6px; font-size: 11px; color: var(--dim); }
+    .clip input { padding: 1px 4px; font-size: 11px; }
+    #stage {
+      position: relative; background: #14121c;
+      box-shadow: 0 6px 40px rgba(0,0,0,.55);
+      transform-origin: center center;
+    }
+    .layerEl { position: absolute; cursor: move; }
+    .layerEl.sel { outline: 2px solid var(--accent); }
+    .layerEl .handle {
+      width: 11px; height: 11px; border-radius: 50%;
+      background: var(--accent); border: 2px solid #fff;
+      position: absolute; right: -7px; bottom: -7px; display: none;
+      cursor: nwse-resize;
+    }
+    .layerEl.sel .handle { display: block; }
+    .layerEl img, .layerEl video { pointer-events: none; display: block;
+                                   width: 100%; height: 100%; }
+    .toolhead { display: flex; align-items: center; justify-content:
+                space-between; margin-top: 16px; }
+    .pill { font-size: 10px; padding: 1px 8px; border-radius: 9px;
+            border: 1px solid var(--line); color: var(--dim); }
+    .pill.on { color: var(--ok); border-color: var(--ok); }
+    .pill.err { color: var(--bad); border-color: var(--bad); }
+    .layrow {
+      display: flex; gap: 6px; align-items: center; padding: 5px 6px;
+      border-radius: 6px; cursor: pointer; border: 1px solid transparent;
+    }
+    .layrow:hover { background: var(--bg3); }
+    .layrow.sel { border-color: var(--accent); }
+    .layrow span { flex: 1; overflow: hidden; text-overflow: ellipsis;
+                   white-space: nowrap; font-size: 12px; }
+    .layrow button { padding: 1px 7px; font-size: 11px; }
+    #genStatus b { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo">RILEY STUDIO</span>
+    <button id="bNew">New</button>
+    <button id="bOpen">Open</button>
+    <button id="bSave">Save</button>
+    <span style="flex:1"></span>
+    <span id="enginePill" class="pill">engine…</span>
+    <button id="bGallery">Gallery</button>
+    <button id="bModels">Models</button>
+  </header>
+
+  <nav id="rail">
+    <h3>Generate</h3>
+    <div class="row"><label>Mode
+      <select id="gKind">
+        <option value="image" selected>Image</option>
+        <option value="video">Video (LTX)</option>
+      </select></label></div>
+    <div class="row"><label>Model
+      <select id="gModel"></select></label></div>
+    <div class="row"><label>Prompt
+      <textarea id="gPrompt" rows="3" placeholder="describe the shot…">
+      </textarea></label></div>
+    <div class="row"><label>Negative (optional)
+      <input id="gNeg" value=""></label></div>
+    <div class="row"><label>Size
+      <select id="gSize">
+        <option value="512x512">512 x 512 square</option>
+        <option value="512x768">512 x 768 portrait</option>
+        <option value="768x512" selected>768 x 512 landscape</option>
+        <option value="768x768">768 x 768 square</option>
+        <option value="1024x1024">1024 x 1024 large</option>
+      </select></label></div>
+    <div class="row" id="gLenRow" style="display:none"><label>Clip frames
+      (8n+1) <input id="gLen" type="number" value="97" min="9" max="241"
+                    step="8"></label></div>
+    <div class="row">
+      <label>Steps <input id="gSteps" type="number" value="20" min="1"
+                          max="60"></label>
+      <label>CFG <input id="gCfg" type="number" value="7" min="1"
+                        max="15" step="0.5"></label>
+    </div>
+    <div class="row">
+      <label>Seed <input id="gSeed" type="number" value="0"></label>
+      <label style="align-self:end"><input id="gRandSeed" type="checkbox"
+                                           checked> random</label>
+    </div>
+    <button id="bGenerate" class="primary">Generate</button>
+    <div id="genStatus" class="status"></div>
+
+    <h3>Add layer</h3>
+    <div class="row" style="margin-top:2px">
+      <button id="bTextLay" class="ghost">Text</button>
+      <button id="bRectLay" class="ghost">Shape</button>
+      <button id="bImageLay" class="ghost">Image…</button>
+    </div>
+    <div id="imgImport" style="display:none">
+      <div class="row"><label>path or URL
+        <input id="imgPath" placeholder="D:\pics\nova.png or https://…">
+      </label></div>
+      <button id="bImgAdd" class="primary" style="margin-top:6px">Add
+      </button>
+    </div>
+
+    <div class="toolhead"><h3 style="margin:0">Export</h3></div>
+    <div class="row" style="margin-top:2px">
+      <button id="bExpPng" class="ghost">PNG</button>
+      <button id="bExpJpg" class="ghost">JPG</button>
+    </div>
+    <div class="row" style="margin-top:2px">
+      <button id="bExpMp4" class="ghost">MP4 reel</button>
+      <button id="bExpGif" class="ghost">GIF</button>
+    </div>
+  </nav>
+
+  <main id="center">
+    <div id="stageWrap"><div id="stage"></div></div>
+    <div id="timeline">
+      <span class="tl-label">TIMELINE</span>
+      <div id="tlClips"></div>
+      <span id="tlTotal" class="hint"></span>
+    </div>
+  </main>
+
+  <aside id="inspector">
+    <h3>Layers</h3>
+    <div id="layerList"></div>
+    <div class="toolhead"><h3 style="margin:0">Properties</h3>
+      <span id="propName" class="hint">nothing selected</span></div>
+    <div id="props" style="display:none">
+      <div class="row">
+        <label>X <input id="pX" type="number"></label>
+        <label>Y <input id="pY" type="number"></label>
+      </div>
+      <div class="row">
+        <label>W <input id="pW" type="number"></label>
+        <label>H <input id="pH" type="number"></label>
+      </div>
+      <div class="row"><label>Rotation <span id="pRotV"></span>
+        <input id="pRot" type="range" min="0" max="359" value="0">
+      </label></div>
+      <div class="row"><label>Opacity <span id="pOpaV"></span>
+        <input id="pOpa" type="range" min="0" max="100" value="100">
+      </label></div>
+      <div id="textProps" style="display:none">
+        <div class="row"><label>Text
+          <textarea id="pText" rows="2"></textarea></label></div>
+        <div class="row">
+          <label>Size <input id="pFontSize" type="number" value="48"></label>
+          <label>Color <input id="pColor" type="color" value="#ffffff">
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <button id="bDup" class="ghost">Duplicate</button>
+        <button id="bDel" class="danger ghost">Delete</button>
+      </div>
+    </div>
+    <h3>Canvas</h3>
+    <div class="row"><label>Preset
+      <select id="cPreset">
+        <option value="">custom…</option>
+        <option value="1080x1080">Instagram post · 1080²</option>
+        <option value="1080x1920">Story / Reel · 1080×1920</option>
+        <option value="1200x628">Link card · 1200×628</option>
+        <option value="1000x1500">Pin · 1000×1500</option>
+        <option value="1920x1080">HD frame · 1920×1080</option>
+        <option value="1600x1000">Studio default · 1600×1000</option>
+      </select></label></div>
+    <div class="row">
+      <label>Width <input id="cW" type="number" value="1600"></label>
+      <label>Height <input id="cH" type="number" value="1000"></label>
+    </div>
+    <div class="row">
+      <label>Background <input id="cBg" type="color" value="#14121c">
+      </label>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button id="bUpscale" class="ghost" style="display:none">
+        Upscale ×2</button>
+      <button id="bAnimate" class="ghost" style="display:none">
+        Animate (LTX)</button>
+    </div>
+  </aside>
+
+  <script src="canvas.js"></script>
+</body>
+</html>

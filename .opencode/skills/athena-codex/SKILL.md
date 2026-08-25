@@ -36,7 +36,10 @@ incidents ledger, `--watch N`; **realm gates derive from the registry**),
 `realms/registry.json` schema v2 with full membership incl. tier/lang/
 verify/profile, comprehensive `.github/workflows/ci.yml`, PTAH working
 tree, forseti organ. Safeguards pre-commit gate activates via
-`git config core.hooksPath safeguards/githooks` (committed shim).
+`git config core.hooksPath safeguards/githooks` (committed shim);
+a `post-commit` shim runs `mirror_sync.py --hook` so every commit
+converges the `D:\Default Project` execution mirror automatically
+(`--audit --strict` is the CI-able drift check).
 Shipping protocol: FLOW.md - private worktrees + auto/* branches +
 squash PRs; direct pushes to main are hook-blocked.
 
@@ -64,9 +67,34 @@ members) puts the organ under sentinel gate derivation.
 every `knowledge/verify_*.py` automatically. First product DB:
 webstudio/ (25 WS-### entries + 7 topic files).
 
+Wiring pass (2026-08-24 late): registry v2 now carries 29 members -
+satellites riley `:43907` (`D:/riley`, gated via portable wrapper
+`verify_riley_satellite.py`: skip-green when undeployed/dark, deep mode
+runs the satellite's own suite) and aphrodite `:43904`
+(`D:/Aphrodite`) declared without in-repo gates; harmonia re-based to
+`:43908` after colliding with the live RILEY studio. The in-repo
+`riley-studio/` is a DISTINCT product (Electron+ComfyUI desktop tier,
+registry row present) - not a copy of `D:/riley`. Kind constants
+(`TOPIC_*`/`KIND_*`) live in `ratatosk/bus.py`. Live wires: Hades
+broadcasts `provenance.seal` on every seal (`artifacts.sealed`), GAIA
+publishes per-member samples on `vitals`, relay announces
+`fleet.render-done` for studio jobs finished outside its order stream.
+INTEGRATION §6 documents as-built pre-catalogue lanes (gates, witness,
+rights, hades-alerts, zeus-events, vulcan, daedalus, hypnos, poseidon).
+
 Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
 ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
 `43590/43591` are retired; any listener there is a squatter finding.
+
+Repo homes (policy 2026-08-24, operator-set, in force until revoked):
+`D:\` is the ONLY localside repository home. Mint-point enforcement:
+`safeguards/repo_home_profile.ps1` shell shim refuses clone/init/
+worktree-add/submodule-add outside `D:\`; canonical authority is
+`safeguards/repo_home_guard.py` (`check`/`policy`/`audit` CLI — audit
+is an operator tool, deliberately not a CI gate); `verify_repo_home.py`
+gates the logic. Known legacy violation: an older full checkout of
+this repo lives at OneDrive `Documents\Default Project` — treat it as
+frozen; never commit or clone from it.
 
 ## 3. The five guarantees (each has an owner and a test)
 
