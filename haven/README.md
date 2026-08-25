@@ -56,7 +56,7 @@ automatically, with the same source-drift hashing as code-side cards.
 
 | Domain | Contents |
 |---|---|
-| `library-d-new` | D:\new census (8.9k files · 277.8 GB), ingest pipeline & catalog |
+| `library-d-new` | D:\new census (8.9k files · 272 GB), ingest pipeline & catalog |
 | `media-tools` | APHRODITE viewer, RILEY render passes, KINEMA studio, HARMONIA, scanner query recipes, video-audit & duplicate policy |
 | `studio-suite` | riley-studio engine API, generation kinds, model tiers & pulls |
 | `generation-control` | ControlNet deep-dive, T2I-Adapter, IP-Adapter/FaceID/PuLID, regional prompting |
