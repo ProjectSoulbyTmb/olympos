@@ -484,6 +484,21 @@
         "verify_mirror_sync.py"
       ],
       "profile": "watcher"
+    },
+    {
+      "name": "haven",
+      "kind": "knowledge",
+      "engine": "sqlite-fts5",
+      "port": 43910,
+      "sdk": null,
+      "path": "haven/",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_haven.py"
+      ],
+      "profile": "operator"
     }
   ]
 }
