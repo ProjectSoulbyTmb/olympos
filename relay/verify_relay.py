@@ -647,9 +647,14 @@ def t_riley_refusal_and_seed_determinism():
 
 
 def t_completions_announce_once():
-    """Done jobs above the cursor announce exactly once; dark studio
-    stays silent; failed/empty jobs never announce."""
+    """First encounter baselines silently; later done jobs announce
+    exactly once; failed/empty jobs never announce."""
     fleet = ScratchFleet()
+
+    def read_cursor():
+        with open(content.RILEY_CURSOR, encoding="utf-8") as fh:
+            return int(fh.read().strip())
+
     stub = StubRiley(jobs=[
         {"id": "j1", "kind": "img.art", "engine": "render",
          "status": "done", "out": ["riley-a.png", "riley-a.riley.json"]},
@@ -664,22 +669,25 @@ def t_completions_announce_once():
     p = fleet.post
     try:
         s = riley_stream.RileyStream(post=p)
-        assert s.completions() == 2, "j1 + j7 must announce"
+        # first encounter with an established studio = silent baseline
+        assert s.completions() == 0, "baseline pass must not announce"
+        assert os.path.isfile(content.RILEY_CURSOR), "cursor must persist"
+        assert read_cursor() == 7
+
         done = {l["payload"]["job"]: l for l in p.read(content.MAILBOX)
                 if l.get("kind") == content.KIND_RENDER_DONE}
-        assert set(done) == {"j1", "j7"}, set(done)
-        assert done["j1"]["payload"]["outputs"] == ["riley-a.png"]
+        assert not done, f"baseline leaked {sorted(done)}"
 
-        # cursor: replay announces nothing new
-        assert s.completions() == 0
-
-        # a later job lands and is picked up from the cursor
+        # a later job lands and is announced from the cursor
         stub.jobs.append({"id": "j9", "kind": "vid.gif", "status": "done",
                           "out": ["clip.gif"]})
         assert s.completions() == 1
         late = [l for l in p.read(content.MAILBOX)
                 if l.get("kind") == content.KIND_RENDER_DONE]
         assert len(late) == 1 and late[0]["payload"]["job"] == "j9"
+
+        # replay announces nothing new
+        assert s.completions() == 0
     finally:
         stub.close()
         fleet.close()

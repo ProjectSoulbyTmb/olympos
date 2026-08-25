@@ -77,6 +77,9 @@ def committed_paths(rev="HEAD"):
 def hook_mode(ws):
     """Sync just-committed paths. Always exit 0."""
     try:
+        if not os.path.isdir(MIRROR):
+            print(f"[mirror] {MIRROR} absent - nothing to converge here")
+            return 0
         n = 0
         for f in committed_paths():
             src = os.path.join(ws, f)
@@ -95,6 +98,9 @@ def hook_mode(ws):
 
 
 def full_pass(ws, apply_fixes=True, strict=False):
+    if not os.path.isdir(MIRROR):
+        print(f"SKIP {MIRROR} not present on this machine")
+        return 0
     tracked = [t.replace("/", os.sep)
                for t in git("ls-files").splitlines() if t]
     dirty = dirty_paths()
@@ -104,7 +110,7 @@ def full_pass(ws, apply_fixes=True, strict=False):
         d = {x.replace(os.sep, "/") for x in dirty}
         return r in d or any(r.startswith(x + "/") for x in d)
 
-    synced = wip = drift = missing = 0
+    synced = wip = drift = 0
     drifted = []
     for f in tracked:
         rel = f.replace(os.sep, "/")
@@ -138,7 +144,7 @@ def full_pass(ws, apply_fixes=True, strict=False):
             print(f"  drift: {f}")
         if len(drifted) > 20:
             print(f"  ... and {len(drifted) - 20} more")
-    if strict and (drift or missing):
+    if strict and drift:
         return 1
     return 0
 

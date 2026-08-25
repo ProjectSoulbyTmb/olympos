@@ -469,6 +469,21 @@
         "verify_riley_studio.py"
       ],
       "profile": "operator"
+    },
+    {
+      "name": "mirror-gate",
+      "kind": "gate",
+      "engine": "execution-mirror-drift",
+      "port": null,
+      "sdk": null,
+      "path": "verify_mirror_sync.py",
+      "tier": 0,
+      "lang": "python",
+      "verify": [
+        "python",
+        "verify_mirror_sync.py"
+      ],
+      "profile": "watcher"
     }
   ]
 }

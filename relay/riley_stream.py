@@ -199,9 +199,13 @@ class RileyStream:
         Polls GET /api/jobs (the same surface the SPA uses), keeps a
         monotonic j<N> cursor under the relay data dir, and emits
         fleet.render-done onto updates + venus for every done job with
-        outputs above the cursor. A dark studio costs nothing: silence,
-        zero, retry next cycle. Returns how many jobs were announced.
+        outputs above the cursor. First encounter with an established
+        studio marks the baseline silently - a lane joining late never
+        replays history onto the bus. A dark studio costs nothing:
+        silence, zero, retry next cycle. Returns how many jobs were
+        announced.
         """
+        have_cursor = os.path.isfile(content.RILEY_CURSOR)
         last = _read_cursor(content.RILEY_CURSOR)
         items = _fetch_jobs(content.RILEY_URL, content.RILEY_TIMEOUT_S)
         if items is None:
@@ -213,6 +217,8 @@ class RileyStream:
             if n is None or n <= last:
                 continue
             top = max(top, n)
+            if not have_cursor:
+                continue                           # baseline pass
             if job.get("status") != "done" or not job.get("out"):
                 continue                           # pending/failed/empty
             outs = [o for o in job.get("out") or []
@@ -227,7 +233,7 @@ class RileyStream:
                 "at": _iso(),
             }, kind=content.KIND_RENDER_DONE)
             announced += 1
-        if top != last:
+        if top != last or not have_cursor:
             _write_cursor(content.RILEY_CURSOR, top)
         return announced
 
