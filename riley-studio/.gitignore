@@ -1,0 +1,10 @@
+# heavy/local-only paths
+data/
+bin/
+ai-stack/
+node_modules/
+release/
+dist/
+__pycache__/
+*.pyc
+.part
