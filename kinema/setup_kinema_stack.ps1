@@ -74,27 +74,33 @@ if (Test-Path (Join-Path $comfy "main.py")) {
     Step "ComfyUI already cloned - skipping"
 } else {
     Step "cloning ComfyUI (comfyanonymous/ComfyUI) ..."
-    git clone --depth 1 https://github.com/comfyanonymous/ComfyUI $comfy
+    # cmd /c keeps git's stderr progress from becoming a terminating
+    # PowerShell error under $ErrorActionPreference = Stop
+    cmd /c "git clone --depth 1 https://github.com/comfyanonymous/ComfyUI `"$comfy`" 2>&1"
+    if ($LASTEXITCODE -ne 0) { throw "git clone failed ($LASTEXITCODE)" }
 }
 
 $venv = Join-Path $stack "venv"
 if (-not (Test-Path (Join-Path $venv "Scripts\python.exe"))) {
     Step "creating virtualenv ..."
-    python -m venv $venv
+    cmd /c "python -m venv `"$venv`" 2>&1"
+    if ($LASTEXITCODE -ne 0) { throw "venv creation failed ($LASTEXITCODE)" }
 }
 $py = Join-Path $venv "Scripts\python.exe"
 
-Step "installing torch wheels ($(@{ $true = 'cpu'; $false =
-    'cuda' }[$CpuOnly.IsPresent])) ..."
-if ($CpuOnly) {
-    & $py -m pip install --upgrade torch torchvision torchaudio `
-        --index-url https://download.pytorch.org/whl/cpu
-} else {
-    & $py -m pip install --upgrade torch torchvision torchaudio `
-        --index-url https://download.pytorch.org/whl/cu121
+function Pip($argline, $label) {
+    Step "$label ..."
+    cmd /c "`"$py`" -m pip install $argline 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        throw "$label failed with exit code $LASTEXITCODE - free disk space or rerun (idempotent)"
+    }
 }
-Step "installing ComfyUI requirements ..."
-& $py -m pip install -r (Join-Path $comfy "requirements.txt")
+
+$index = @{ $true = "cpu"; $false = "cu121" }[$CpuOnly.IsPresent]
+Pip "--upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/$index" `
+    "installing torch wheels ($index)"
+$req = Join-Path $comfy "requirements.txt"
+Pip "-r `"$req`"" "installing ComfyUI requirements"
 
 Step @"
 AI tier ready. Next (one-time, manual, your choice of models):

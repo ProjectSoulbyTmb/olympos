@@ -287,6 +287,145 @@ def check_guard(h, base):
     return True
 
 
+def check_authority_gate(h, base):
+    """Operator override authority: enroll -> mint -> execute; then
+    attack it with a forged secret, an expired token, a replay, and a
+    private-method raw call. Denial is the default."""
+    import json as _json
+    import time as _time
+    from hades import authority
+
+    auth_dir = os.path.join(base, "authdir")       # stands in for LOCALAPPDATA
+    os.environ["HADES_AUTHORITY_DIR"] = auth_dir
+    try:
+        fp = authority.enroll()
+        authority.write_fingerprint(h.state_dir, fp)
+        if authority.read_fingerprint(h.state_dir) != fp:
+            return "fingerprint not persisted"
+
+        # happy path: mint + verify + single-use consumption
+        tok = authority.mint("raw", {"call": "status"}, ttl_s=600)
+        got = authority.verify_token(h.state_dir, tok)
+        if got["op"] != "raw":
+            return "valid token refused"
+        try:
+            authority.verify_token(h.state_dir, tok)
+        except authority.AuthorityError:
+            pass
+        else:
+            return "replayed nonce accepted"
+
+        # wrong secret must fail the fingerprint binding:
+        # re-enrolling rotates the secret while state still binds the old one
+        authority.enroll()                          # secret rotated under us
+        tok3 = authority.mint("raw", {"call": "status"})   # signed by NEW key
+        try:
+            authority.verify_token(h.state_dir, tok3)
+        except authority.AuthorityError:
+            pass
+        else:
+            return "secret/fingerprint mismatch accepted"
+
+        # expired token (binding fixed first so expiry is what trips)
+        fp2 = {"fingerprint": authority._hash_secret(),
+               "enrolled_at": "test", "policy": 1}
+        authority.write_fingerprint(h.state_dir, fp2)
+        tok4 = authority.mint("force-seal", {}, ttl_s=60)
+        tok4["exp"] = int(_time.time()) - 5
+        import hashlib as _hl
+        import hmac as _hm          # mint() signs with HMAC, not hashlib
+        body = {k: v for k, v in tok4.items() if k != "sig"}
+        with open(authority.secret_path(), "rb") as f:
+            key = f.read()
+        tok4["sig"] = _hm.new(key, authority._canonical(body),
+                              _hl.sha256).hexdigest()
+        try:
+            authority.verify_token(h.state_dir, tok4)
+        except authority.AuthorityError:
+            pass
+        else:
+            return "expired token accepted"
+
+        # tampered args (signature covers them)
+        tok5 = authority.mint("exempt", {"path": "prod/x.py"})
+        tok5["args"]["path"] = "prod/EVERYTHING.py"
+        try:
+            authority.verify_token(h.state_dir, tok5)
+        except authority.AuthorityError:
+            pass
+        else:
+            return "tampered args accepted"
+
+        # raw grammar: private machinery denied, public allowed
+        if authority.raw_allowed("_key"):
+            return "private method passed the policy"
+        try:
+            authority.raw_call(h, "_load_seal", {})
+        except authority.AuthorityError:
+            pass
+        else:
+            return "raw call reached a private method"
+
+        # end-to-end through the CLI dispatcher: exempt then verify green
+        p = os.path.join(base, "prod", "game", "world.py")
+        with open(p, "a", encoding="utf-8") as f:
+            f.write("# operator-accepted tweak\n")
+        from hades.cli import _exec_override
+        tok6 = authority.mint("exempt",
+                              {"path": "prod/game/world.py",
+                               "reason": "operator tweak"})
+        rc = _exec_override(h, _json.dumps(tok6))
+        if rc != 0:
+            return "exempt override failed rc=%s" % rc
+        rep = h.verify()
+        if rep["violations"]:
+            return "exemption not honored: %r" % rep["violations"][:2]
+        if not any(v["path"].endswith("world.py")
+                   for v in rep.get("exempted", [])):
+            return "exempted path not reported"
+        return True
+    finally:
+        os.environ.pop("HADES_AUTHORITY_DIR", None)
+
+
+def check_realms_expansion(h, base):
+    """include_realms: every registered realm joins the seal; worktrees
+    never leak in; explicit products keep precedence."""
+    import json as _json
+    reg_dir = os.path.join(base, "realms")
+    os.makedirs(reg_dir, exist_ok=True)
+    with open(os.path.join(reg_dir, "registry.json"), "w",
+              encoding="utf-8") as f:
+        _json.dump({"realms": [
+            {"name": "zeus", "lang": "python", "path": "zeus/server.py"},
+            {"name": "ptah", "lang": "python", "path": "ptah/server.py"},
+            {"name": "ghostrealm", "lang": "python",
+             "path": "ghostrealm/nowhere.py"},
+        ]}, f)
+    prod = os.path.join(base, "zeus")
+    os.makedirs(prod, exist_ok=True)
+    with open(os.path.join(prod, "server.py"), "w", encoding="utf-8") as f:
+        f.write("REALM = 'zeus'\n")
+    cfg = dict(h.config)
+    cfg["include_realms"] = True
+    h2 = Hades(root=base, state_dir=h.state_dir,
+               config={"include_realms": True,
+                       "products": h.config.get("products", [])})
+    found = h2.collect()
+    zeus_files = [k for k, v in found.items() if v == "zeus"]
+    if not zeus_files:
+        return "registered realm not picked up: %r" % sorted(found)[:10]
+    if any(v == "ghostrealm" for v in found.values()):
+        return "nonexistent realm materialized out of thin air"
+    wt = os.path.join(base, ".worktrees", "someone", "zeus", "evil.py")
+    os.makedirs(os.path.dirname(wt), exist_ok=True)
+    with open(wt, "w", encoding="utf-8") as f:
+        f.write("# duplicate checkout\n")
+    if any(".worktrees" in k for k in h2.collect()):
+        return "worktree copies leaked into the seal"
+    return True
+
+
 CHECKS = [
     ("seal counts + key birth", lambda h, b: check_seal_counts(h)),
     ("clean verify", lambda h, b: check_clean_verify(h)),
@@ -299,6 +438,8 @@ CHECKS = [
     ("audit chain integrity", check_audit_chain),
     ("forged seal rejection", check_forged_seal),
     ("fail-closed guard", check_guard),
+    ("operator authority gate", check_authority_gate),
+    ("realm expansion + worktree exclusion", check_realms_expansion),
 ]
 
 
