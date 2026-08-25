@@ -29,6 +29,16 @@ failed cycle leaves the workspace exactly as it was found. Three
 consecutive failures quarantine shipping for a cooldown; ``resume``
 (or the cooldown elapsing) reopens the lane.
 
+Self-healing is built into the automation itself: every cycle opens
+with a light repair pass (``heal.auto_pass`` - rebuild a damaged berth,
+sweep orphaned throwaway indexes, trim a torn ledger tail, probe-release
+a quarantine whose cause has cleared), and each push carries its own
+auto-fixes (``_push_with_heal`` - non-fast-forward rejections adopt
+origin's copy of this single-writer branch and replay the snapshot from
+its untouched source in the root drift; transient network errors retry
+once after a backoff). Nothing is force-pushed; ``python -m poseidon
+heal [--apply|--deep]`` exposes the deeper diagnostics.
+
 States live under ``poseidon/data/``: ``tides.jsonl`` ledger and
 ``state.json`` (tide sequence, failure count, quarantine window).
 """
@@ -76,6 +86,34 @@ LEDGER_MAX_BYTES = 2_000_000
 LEDGER_ROTATIONS = 3
 RESTORE_BATCH = 40         # paths per checkout call
 SUBJECT_MAX = 72
+IDX_MAX_AGE_S = 3600.0     # orphaned throwaway indexes earn a sweep
+
+# push self-healing: one spaced retry for transient transport errors,
+# branch adoption + snapshot replay for non-fast-forward rejections
+
+
+def _env_float(name, fallback):
+    try:
+        return float(os.environ.get(name, fallback))
+    except (TypeError, ValueError):
+        return fallback
+
+
+RETRY_BACKOFF_S = _env_float("POSEIDON_RETRY_BACKOFF_S", 5.0)
+
+PUSH_NONFF_MARKERS = ("non-fast-forward", "fetch first",
+                      "failed to push")
+TRANSIENT_MARKERS = ("timed out", "timeout", "could not resolve host",
+                     "connection", "rpc failed", "ssl", "tls",
+                     "rate limit", "network", "broken pipe",
+                     "early eof", "502", "503", "504")
+
+
+def is_transient(text):
+    """Transport-grade noise worth one retry, not a verdict."""
+    t = str(text).lower()
+    return any(m in t for m in TRANSIENT_MARKERS)
+
 
 MERGE_MODES = ("squash", "review", "local")
 
@@ -327,6 +365,15 @@ class TideEngine:
     # ---------------- PR layer (overridable for gates) ----------------
 
     def _gh(self, *args):
+        try:
+            return self._gh_call(*args)
+        except RuntimeError as exc:
+            if is_transient(exc):
+                time.sleep(RETRY_BACKOFF_S)
+                return self._gh_call(*args)
+            raise
+
+    def _gh_call(self, *args):
         proc = subprocess.run([self.gh] + list(args),
                               capture_output=True, text=True,
                               timeout=GIT_TIMEOUT_S)
@@ -447,12 +494,85 @@ class TideEngine:
             base = self.interval
         return max(5.0, base)
 
+    def _auto_heal(self):
+        """Light self-repair before every real tide. Never fatal."""
+        try:
+            from . import heal
+            return heal.auto_pass(self)
+        except Exception as exc:              # noqa: BLE001 - soft
+            return {"applied": [],
+                    "errors": ["auto-pass: %s" % str(exc)[:120]]}
+
+    def replay_cargo(self, snap):
+        """Tier-2 heal replay: overlay ONLY the swept paths from the
+        snapshot onto the current tip. Harmless foreign cargo on our
+        single-writer branch survives; contested paths take the sweep,
+        because the root drift is the newer writer intent."""
+        paths = [p.replace("\\", "/")
+                 for p in list(snap.tracked) + list(snap.untracked)]
+        for batch in _chunks(paths, RESTORE_BATCH):
+            _git(self.worktree, "restore", "--source", snap.commit,
+                 "--staged", "--worktree", "--", *batch)
+        if not _git(self.worktree, "status",
+                    "--porcelain").strip():
+            return                          # cargo already aboard
+        subject = _git(self.worktree, "show", "-s",
+                       "--format=%s", snap.commit)[:SUBJECT_MAX]
+        _git(self.worktree, "commit", "-m", subject)
+
+    def _push_with_heal(self, snap, report):
+        """Push with auto-fixes. A non-fast-forward rejection means
+        origin's copy of OUR single-writer branch moved without us
+        (crash residue): adopt it, replay the snapshot - its source
+        content still waits untouched in the root drift - and push
+        again. Transient transport errors retry once after a backoff.
+        Never force-pushes; an unclean reconcile raises into the
+        quarantine breaker like any other failure."""
+        applied = report.setdefault("heal", {}).setdefault(
+            "applied", [])
+        try:
+            self.push_branch()
+            return
+        except RuntimeError as exc:
+            text = str(exc).lower()
+            if any(m in text for m in PUSH_NONFF_MARKERS):
+                self.refresh_remote(force=True)
+                _git(self.worktree, "reset", "--hard",
+                     "origin/%s" % BRANCH)
+                self.sync_branch()
+                try:
+                    self.cherry_pick(snap)
+                except RuntimeError:
+                    self.replay_cargo(snap)
+                applied.append(
+                    "push-nonff:branch-adopted+cargo-replayed")
+                self.push_branch()
+            elif is_transient(text):
+                time.sleep(RETRY_BACKOFF_S)
+                applied.append("push-transient:retried")
+                self.push_branch()
+            else:
+                raise
+
     def once(self, dry_run=False):
         """One tide. Returns a report dict (also written to ledger on
         real runs). Private worktree work runs OUTSIDE the FORSETI
         lane; only push -> PR/merge -> mirror-settle holds it."""
         st = self._load_state()
         report = {"mode": self.mode, "verdict": "idle", "seq": st["seq"]}
+
+        if dry_run:
+            drift = self.drift()
+            n_files = len(drift["tracked"]) + len(drift["untracked"])
+            report["files"] = n_files
+            report["verdict"] = "dry-run"
+            report["plan"] = {
+                "tracked": drift["tracked"][:50],
+                "untracked": drift["untracked"][:50]}
+            return report
+
+        report["heal"] = self._auto_heal()
+        st = self._load_state()   # the heal pass may have reopened the lane
 
         if self.quarantined(st):
             report["verdict"] = "quarantined"
@@ -463,12 +583,6 @@ class TideEngine:
         drift = self.drift()
         n_files = len(drift["tracked"]) + len(drift["untracked"])
         report["files"] = n_files
-        if dry_run:
-            report["verdict"] = "dry-run"
-            report["plan"] = {
-                "tracked": drift["tracked"][:50],
-                "untracked": drift["untracked"][:50]}
-            return report
 
         if n_files == 0:
             self.refresh_remote()
@@ -500,6 +614,9 @@ class TideEngine:
                 self._ledger(dict(report))
                 self._say("tide-idle", report)
                 return report
+            # a cherry-pick conflict here is a REAL content collision
+            # with advanced main: it must fail into the quarantine
+            # breaker, never be auto-overridden (gate-enforced)
             self.cherry_pick(snap)
 
             # ---- shared waters: hold the FORSETI lane ------------
@@ -512,8 +629,9 @@ class TideEngine:
                 self._ledger(dict(report))
                 self._say("tide-failed", report)
                 return report
-            self.push_branch()
+            self._push_with_heal(snap, report)
             pr = self.ship_pr(subject)
+
             st["seq"] = seq_next
             report.update({"verdict": "shipped", "seq": seq_next,
                            "commit": snap.commit[:12], "subject": subject,

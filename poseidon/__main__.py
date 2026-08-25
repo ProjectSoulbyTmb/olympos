@@ -3,6 +3,9 @@
     python -m poseidon once                 # single tide cycle
     python -m poseidon once --dry-run       # plan only, touch nothing
     python -m poseidon watch --interval 300 # the constant workflow
+    python -m poseidon heal                 # diagnose the water
+    python -m poseidon heal --apply         # diagnose + repair
+    python -m poseidon heal --deep --apply  # + object-database fsck
     python -m poseidon status               # sea state
     python -m poseidon resume               # clear quarantine
     python -m poseidon fleet start          # berth every kernel
@@ -35,6 +38,11 @@ def main(argv=None):
                    help="comma-separated kernel names")
     sub.add_parser("status")
     sub.add_parser("resume")
+    h = sub.add_parser("heal")
+    h.add_argument("--apply", action="store_true",
+                   help="apply the safe mechanical repairs")
+    h.add_argument("--deep", action="store_true",
+                   help="add an object-database fsck to diagnosis")
     ns = ap.parse_args(argv)
 
     eng = TideEngine(root=ns.root, mode=ns.mode, interval=ns.interval)
@@ -65,6 +73,12 @@ def main(argv=None):
         print("lane reopened: failures=%d quarantine cleared"
               % st["failures"])
         return 0
+
+    if ns.cmd == "heal":
+        from . import heal
+        rep = heal.repair(eng, apply=ns.apply, deep=ns.deep)
+        print(json.dumps(rep, indent=1))
+        return 0 if rep["healthy"] else 1
 
     ap.print_help()
     return 2
