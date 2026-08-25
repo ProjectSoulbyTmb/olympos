@@ -32,10 +32,13 @@
    Olympos commit lineage is carried over.
 2. **Seed set (v0).** Byte-exact export from Olympos main:
    `ratatosk/ norn/ hades/ zeus/ gaia/ ptah/ atlas/ daedalus/ buskit/`
-   plus infra (`doctor.py`, `sentinel.py`, `realms/`). Configs are
-   re-pointed at the new root (ports 441xx, protected roots,
-   `RATATOSK_ROOT`). After V5, divergence is intentional policy.
-3. **Isolation contract (two-sided, gate-enforced).**
+   plus infra (`doctor.py`, `sentinel.py`, `boundary.py`, `realms/`).
+   Configs are re-pointed at the new root (ports 441xx, protected roots,
+   `RATATOSK_ROOT`, arming `VOLTAGE_ROOT`). After V5, divergence is
+   intentional policy.
+3. **Isolation contract (two-sided, gate-enforced).** Canonical
+   authority: repo-root `boundary.py` (landed V1), seeded to VOLTAGE at
+   V2; posture derives from the armed jail, never from edited copies.
    - VOLTAGE-side path jail: every VOLTAGE organ refuses any path outside
      `D:\VOLTAGE`; sole exception is the push lane to its private GitHub
      mirror using existing credential store (tokens never tracked).

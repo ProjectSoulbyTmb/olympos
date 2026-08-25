@@ -13,11 +13,18 @@ next; bootstrap (V2) additionally requires the Olympos W0 precondition
 - Entry to V1 requires nothing further; V2 stays CI-gated.
 
 ### V1 — Two-sided guards
-- [ ] Olympos-side: scope rule extended so sentinel/verify lanes treat
+- [x] Olympos-side: scope rule extended so sentinel/verify lanes treat
       `D:\VOLTAGE` as foreign territory; any touch fails loud.
-- [ ] VOLTAGE-side: path-jail check wired into organ dispatch — refuse
+      (`boundary.py` side A + `verify_boundary.py` gate, registered in
+      sentinel + CI; executables may not even name the root.)
+- [x] VOLTAGE-side: path-jail check wired into organ dispatch — refuse
       any path outside `D:\VOLTAGE` except the mirror push lane.
+      (`boundary.py` side B, armed by `VOLTAGE_ROOT`; ratatosk bus
+      seams wired; push lane declares exemptions via
+      `VOLTAGE_JAIL_EXEMPT`.)
 - Acceptance: attempted cross-boundary write fails on BOTH sides.
+      PROVEN by `verify_boundary.py` (both-direction refusal tests +
+      live ratatosk seam tests).
 
 ### V2 — Bootstrap (gated: W0 green)
 - [ ] Byte-exact copy from Olympos main: `ratatosk/ norn/ hades/ zeus/
@@ -56,9 +63,13 @@ next; bootstrap (V2) additionally requires the Olympos W0 precondition
 |---|---|
 | Disjoint ports 44100–44199 | registry + boot-time squatter sweep |
 | Task names `voltage-*` | installer scripts + task audit |
-| Path jail (outbound) | VOLTAGE organ dispatch checks |
-| Foreign territory (inbound) | Olympos sentinel/scope guards |
+| Path jail (outbound) | `boundary.py` side B via organ dispatch seams (`VOLTAGE_ROOT` arms; `VOLTAGE_JAIL_EXEMPT` for the push lane only) |
+| Foreign territory (inbound) | `boundary.py` side A + `verify_boundary.py` gate in sentinel/CI |
 | Secrets never tracked | secrets gate pre-mirror-push |
+
+One canonical module serves both sides (`boundary.py`, seeded at V2):
+posture derives from whether the jail is armed, so neither fleet edits
+the shared file to flip polarity.
 
 ## Risks
 

@@ -77,6 +77,8 @@ jobs:
         run: python verify_buskit.py
       - name: Scope guard gate
         run: python verify_scope.py
+      - name: Boundary isolation gate
+        run: python verify_boundary.py
       - name: Sindri sandbox-forge gate
         run: python verify_sindri.py
       - name: Forseti arbitration gate
