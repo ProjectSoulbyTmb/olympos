@@ -159,6 +159,66 @@ def wire_rights_watchers_read_only():
 
 
 @check
+def port_capture_fails_loud_never_drifts():
+    # ADR-0002 §3.4: a squatter on :43905 must be a finding, not a
+    # silent move to :43906 that breaks clients and health claims.
+    import socket as _s
+    from daedalus.server import DaedalusServer
+    with sandbox() as hv:
+        blocker = _s.socket()
+        blocker.bind((content.SERVER_HOST, content.SERVER_PORT))
+        blocker.listen(1)
+        try:
+            srv = DaedalusServer(workshop=Workshop(
+                hypervisor=hv, lanes=1))
+            raised = None
+            try:
+                srv.start_async()
+            except OSError as exc:
+                raised = exc
+            assert raised is not None, \
+                "bind fell back to port drift - regression"
+            assert str(content.SERVER_PORT) in str(raised), raised
+            assert srv.running is False, "server started anyway"
+            assert srv.port == content.SERVER_PORT, \
+                "address drifted from registry truth"
+        finally:
+            blocker.close()
+
+
+@check
+def caller_identity_rides_the_witness_line():
+    from daedalus.server import DaedalusServer
+    from norn.witness import Witness, args_digest
+    with sandbox() as hv:
+        wdir = os.path.join(content.DATA_DIR, "witness-who")
+        srv = DaedalusServer(port=0, workshop=Workshop(
+            hypervisor=hv, lanes=1))
+        srv.witness = Witness(wdir, actor="daedalus-verify")
+        srv.profiles[1] = "operator"
+        srv.profiles[2] = "operator"
+        srv.whos[1] = "riley-studio"
+
+        def last_entry():
+            with open(srv.witness.path, encoding="utf-8") as fh:
+                return json.loads(fh.read().splitlines()[-1])
+
+        r = srv.handle("pump_stop", {}, cid=1)
+        assert r["error"] is None, r
+        e = last_entry()
+        assert e["verb"] == "pump_stop", e
+        assert e["args_sha"] == args_digest(["riley-studio"]), e
+        r = srv.handle("pump_stop", {}, cid=2)   # anonymous caller
+        assert r["error"] is None, r
+        e2 = last_entry()
+        assert e2["args_sha"] == args_digest(["anonymous"]) \
+            != e["args_sha"], "caller provenance collapsed"
+        assert srv._witness_args(1, [7]) == ["riley-studio", 7]
+        assert srv._witness_args(None, []) == ["anonymous"]
+        srv.witness.close()
+
+
+@check
 def audit_trail_is_tamper_evident():
     with sandbox() as hv:
         ws = Workshop(hypervisor=hv, lanes=1)
