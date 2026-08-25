@@ -82,3 +82,9 @@ lesson id in `lessons.json`.
     plus canonical authority `safeguards/repo_home_guard.py`. A second
     checkout of one remote is a split brain in incubation; audit for
     strays with the guard CLI by hand, never as a CI gate.
+23. **Repair trees mechanically, bounded by evidence** (L034): stale
+    locks (age grace + zero live git), missing tracked files (recent
+    sibling writes veto), generated dirt, and patch-duplicate lane
+    branches are fixed by `safeguards/tree_repair.py --fix`, logged to
+    a per-root hash-chained ledger. Merge/rebase-in-progress is always
+    reported, never auto-aborted — aborting destroys intent.
