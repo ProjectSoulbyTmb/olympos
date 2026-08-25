@@ -1,8 +1,10 @@
 # ADR 0002 — DAEDELUS Sovereign Workshop: fleet authority, universal intake, isolation
 
-**Status:** Proposed — awaiting operator confirmation on two labeled
-constraint points; implementation gated on Phase W0 (fleet green).
-Mechanics live in `docs/plans/sovereign-workshop-roadmap.md`.
+**Status:** **Accepted** — operator confirmed Option C and both constraint
+points 2026-08-25 ("confirm and push"). W0 satisfied (stable base, divergence
+resolved); W1 landed via PR #85. Mechanics:
+`docs/plans/sovereign-workshop-roadmap.md`. Already referenced downstream
+(e.g. PROJECT VOLTAGE).
 
 **Date:** 2026-08-25 · **Author:** ATHENA · **Companions:**
 `docs/plans/expansion-stability-roadmap.md` (DAEDALUS = executor of record),
