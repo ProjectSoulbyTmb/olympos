@@ -82,6 +82,9 @@ the shared file to flip polarity.
 
 ## Open questions (operator)
 
-1. Confirm mirror repo name (`ProjectSoulbyTmb/voltage`, private?).
-2. Confirm root spelling `D:\VOLTAGE`.
-3. Ratify port block 44100–44199.
+RESOLVED 2026-08-25 (operator "go" ordering V2 bootstrap):
+
+1. Mirror repo: `ProjectSoulbyTmb/voltage`, private. Created.
+2. Root spelling: `D:\VOLTAGE`.
+3. Port block 44100–44199 ratified; seeded organs shift suffix-preserving
+   (4390N → 4410N).
