@@ -51,7 +51,8 @@ TOPICS = {
     "artifacts.sealed": {"provenance.seal"},
     "policy.update": {"policy.reload"},
     "llm": {"llm.call", "llm.error"},
-    "updates": {"fleet.tick", "fleet.build", "fleet.repair"},
+    "updates": {"fleet.tick", "fleet.build", "fleet.repair",
+                "fleet.render"},
 }
 
 KINDS = frozenset(k for kinds in TOPICS.values() for k in kinds)
