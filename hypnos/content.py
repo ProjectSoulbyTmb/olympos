@@ -140,6 +140,9 @@ BUILD_GATES = [
     {"name": "kinema",
      "argv": ["python", "verify_kinema.py"],
      "timeout_s": 600},
+    {"name": "riley-studio",
+     "argv": ["python", "verify_riley_studio.py"],
+     "timeout_s": 600},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this
 BUILD_ON_IDLE = True           # the organism proves itself even quiet
