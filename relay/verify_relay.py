@@ -1,4 +1,4 @@
-﻿"""Verify suite for RELAY - the daedalus<->venus bridges.
+﻿"""Verify suite for RELAY - the daedalus<->venus<->riley bridges.
 
 Proves the seams, not the organs (those have their own suites):
 
@@ -15,6 +15,15 @@ Proves the seams, not the organs (those have their own suites):
                           legal (kind allowed on its topic)
   R5 cli ................ python -m relay status exits green against
                           a scratch post office
+  R6 work stream ........ nymph-hunter verdicts queue seeded render
+                          orders at the studio exactly-once; restart
+                          replays nothing; foreign builds never dial
+  R7 spool .............. a dark studio parks orders in pending/
+                          silently; once the studio answers, retries
+                          land, file to sent/ and publish fleet.render
+  R8 refusal + seeds .... permanent refusals file to rejected/ without
+                          retry storms; seeds derive deterministically
+                          from the workshop job id
 
 Run:  python relay/verify_relay.py      Exit: 0 green / 1 red.
 """
@@ -25,6 +34,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE = os.path.dirname(HERE)
@@ -33,7 +45,7 @@ sys.path.insert(0, WORKSPACE)
 from ratatosk.bus import Post                 # noqa: E402
 from buskit.envelope import TOPICS            # noqa: E402
 
-from relay import content                     # noqa: E402
+from relay import content, riley_stream       # noqa: E402
 from relay.bridge import Relay                # noqa: E402
 
 RESULTS = []
@@ -50,17 +62,21 @@ def check(name, fn):
 
 
 class ScratchFleet:
-    """A relay wired to a throwaway post office + intent lanes."""
+    """A relay wired to a throwaway post office + intent lanes + a
+    dark studio (no order ever dials the real RILEY here)."""
 
     def __init__(self):
         self.tmp = tempfile.mkdtemp(prefix="relay-verify-")
         self.post = Post(root=os.path.join(self.tmp, "post"))
         self.intent_dir = os.path.join(self.tmp, "to-fleet")
         self.mind_dir = os.path.join(self.tmp, "from-mind")
+        riley_root = os.path.join(self.tmp, "riley-spool")
         self._saved = (content.INTENT_DIR, content.INTENT_DONE,
                        content.INTENT_FAILED, content.WORKSPACE,
                        content.MIND_INTENT_DIR, content.MIND_DONE,
-                       content.MIND_FAILED)
+                       content.MIND_FAILED,
+                       content.RILEY_URL, content.RILEY_PENDING_DIR,
+                       content.RILEY_SENT_DIR, content.RILEY_REJECTED_DIR)
         content.INTENT_DIR = self.intent_dir
         content.INTENT_DONE = os.path.join(self.intent_dir, "done")
         content.INTENT_FAILED = os.path.join(self.intent_dir, "failed")
@@ -68,12 +84,19 @@ class ScratchFleet:
         content.MIND_INTENT_DIR = self.mind_dir
         content.MIND_DONE = os.path.join(self.mind_dir, "done")
         content.MIND_FAILED = os.path.join(self.mind_dir, "failed")
+        # port 9 (discard): refused instantly - a dark studio default
+        content.RILEY_URL = "http://127.0.0.1:9"
+        content.RILEY_PENDING_DIR = os.path.join(riley_root, "pending")
+        content.RILEY_SENT_DIR = os.path.join(riley_root, "sent")
+        content.RILEY_REJECTED_DIR = os.path.join(riley_root, "rejected")
 
     def restore(self):
         (content.INTENT_DIR, content.INTENT_DONE,
          content.INTENT_FAILED, content.WORKSPACE,
          content.MIND_INTENT_DIR, content.MIND_DONE,
-         content.MIND_FAILED) = self._saved
+         content.MIND_FAILED,
+         content.RILEY_URL, content.RILEY_PENDING_DIR,
+         content.RILEY_SENT_DIR, content.RILEY_REJECTED_DIR) = self._saved
 
     def write_intent(self, body):
         os.makedirs(self.intent_dir, exist_ok=True)
@@ -92,12 +115,49 @@ class ScratchFleet:
         return name
 
     def close(self):
-        (content.INTENT_DIR, content.INTENT_DONE,
-         content.INTENT_FAILED, content.WORKSPACE,
-         content.MIND_INTENT_DIR, content.MIND_DONE,
-         content.MIND_FAILED) = self._saved
+        self.restore()
         shutil.rmtree(self.tmp, ignore_errors=True)
-        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+class StubRiley:
+    """A loopback stand-in for the studio's job API on an ephemeral
+    port. Records every POST; `code` scripts the verdict."""
+
+    def __init__(self, code=200):
+        self.code = code
+        self.hits = []
+        outer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):                      # noqa: N802
+                part = urlsplit(self.path)
+                outer.hits.append({
+                    "path": part.path,
+                    "qs": {k: v[0]
+                           for k, v in parse_qs(part.query).items()},
+                })
+                body = json.dumps({
+                    "ok": outer.code == 200,
+                    "error": None if outer.code == 200 else "refused",
+                    "data": {"id": f"j{len(outer.hits)}"}},
+                ).encode("utf-8")
+                self.send_response(outer.code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_a):
+                pass
+
+        self.srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.srv.server_address[1]}"
+        threading.Thread(target=self.srv.serve_forever,
+                         daemon=True).start()
+
+    def close(self):
+        self.srv.shutdown()
+        self.srv.server_close()
 
 
 # ------------------------------------------------------------------ R1
@@ -312,6 +372,152 @@ def t_mind_knowledge_intent():
         fleet.close()
 
 
+# ------------------------------------------------------------------ R6
+
+def t_riley_stream_orders_proofs():
+    fleet = ScratchFleet()
+    stub = StubRiley()
+    content.RILEY_URL = stub.url
+    try:
+        p = fleet.post
+        p.broadcast("daedalus", "build",
+                    {"id": "nymph-daphne-a1b2c3",
+                     "blueprint": "nymph-hunter"}, frm="daedalus")
+        p.broadcast("daedalus", "build-failed",
+                    {"id": "nymph-maera-d4e5f6",
+                     "blueprint": "nymph-hunter", "error": "blind"},
+                    frm="daedalus")
+        p.broadcast("daedalus", "build",
+                    {"id": "web1-abc999", "blueprint": "jsonl-echo"},
+                    frm="daedalus")            # foreign - must never dial
+        r = Relay(post=p)
+        out = r.riley.stream()
+        assert out == {"queued": 2, "retried": 0}, out
+        assert len(stub.hits) == 2, stub.hits
+        by_seed = {h["qs"]["seed"]: h for h in stub.hits}
+        green = [h for h in stub.hits if h["qs"]["count"] == "1"]
+        red = [h for h in stub.hits if h["qs"]["count"] ==
+               str(content.RED_VARIANTS)]
+        assert len(green) == 1 and len(red) == 1, stub.hits
+        assert green[0]["qs"]["style"] == content.NYMPH_STYLES["daphne"]
+        assert red[0]["qs"]["style"] == content.NYMPH_STYLES["maera"]
+        assert all(h["path"] == "/api/jobs" for h in stub.hits)
+        assert set(by_seed) == {
+            str(order["seed"]) for order in
+            (riley_stream.order_for("daphne", True, "nymph-daphne-a1b2c3"),
+             riley_stream.order_for("maera", False, "nymph-maera-d4e5f6"))}
+        sent = os.listdir(content.RILEY_SENT_DIR)
+        assert len(sent) == 2, sent
+        filed = json.load(open(os.path.join(content.RILEY_SENT_DIR,
+                                            sent[0]), encoding="utf-8"))
+        assert filed["outcome"]["state"] == "sent", filed
+        renders = [l for l in p.read(content.MAILBOX)
+                   if l.get("kind") == "fleet.render"]
+        assert len(renders) == 2, renders
+        assert {l["payload"]["verdict"] for l in renders} == \
+            {"green", "red"}
+
+        # restart: same cursor, zero duplicate dials
+        r2 = Relay(post=p)
+        assert r2.riley.stream() == {"queued": 0, "retried": 0}
+        assert len(stub.hits) == 2, "restart replayed orders"
+    finally:
+        stub.close()
+        fleet.close()
+    return "green+red nymph verdicts ordered once; foreign never dialed"
+
+
+# ------------------------------------------------------------------ R7
+
+def t_riley_spool_retries_when_dark():
+    fleet = ScratchFleet()             # studio stays dark here (port 9)
+    try:
+        p = fleet.post
+        p.broadcast("daedalus", "build",
+                    {"id": "nymph-arethusa-0f1e2d",
+                     "blueprint": "nymph-hunter"}, frm="daedalus")
+        r = Relay(post=p)
+        out = r.riley.stream()
+        assert out == {"queued": 1, "retried": 0}, out
+        pending = os.listdir(content.RILEY_PENDING_DIR)
+        assert len(pending) == 1, pending          # parked, not lost
+        assert not [l for l in p.read(content.MAILBOX)
+                    if l.get("kind") == "fleet.render"], \
+            "dark studio must stay silent"
+
+        # the studio wakes up; the next pass delivers the parked order
+        stub = StubRiley()
+        try:
+            content.RILEY_URL = stub.url
+            out2 = r.riley.stream()
+            assert out2 == {"queued": 0, "retried": 1}, out2
+            assert len(stub.hits) == 1, stub.hits
+            assert os.listdir(content.RILEY_PENDING_DIR) == []
+            sent = os.listdir(content.RILEY_SENT_DIR)
+            assert len(sent) == 1, sent
+            renders = [l for l in p.read(content.MAILBOX)
+                       if l.get("kind") == "fleet.render"]
+            assert len(renders) == 1 and renders[0]["payload"]["ok"], \
+                renders
+        finally:
+            stub.close()
+    finally:
+        fleet.close()
+    return "dark studio parks silently; wake-up delivers exactly once"
+
+
+# ------------------------------------------------------------------ R8
+
+def t_riley_refusal_and_seed_determinism():
+    fleet = ScratchFleet()
+    stub = StubRiley(code=400)         # the studio validates and refuses
+    content.RILEY_URL = stub.url
+    try:
+        # seeds: deterministic per job id, distinct across job ids
+        a1 = riley_stream.order_for("daphne", True, "nymph-daphne-a1b2c3")
+        a2 = riley_stream.order_for("daphne", True, "nymph-daphne-a1b2c3")
+        assert a1 == a2, "same job id must render identically"
+        assert a1["seed"] != riley_stream.order_for(
+            "daphne", True, "nymph-daphne-ffffff")["seed"]
+        unknown = riley_stream.order_for("echo", True, "nymph-echo-x1y2z3")
+        assert unknown["params"]["style"] == \
+            content.NYMPH_DEFAULT_STYLE, unknown
+
+        p = fleet.post
+        p.broadcast("daedalus", "build",
+                    {"id": "nymph-taygete-77aa77",
+                     "blueprint": "nymph-hunter"}, frm="daedalus")
+        r = Relay(post=p)
+        out = r.riley.stream()
+        assert out == {"queued": 1, "retried": 0}, out
+        rejected = os.listdir(content.RILEY_REJECTED_DIR)
+        assert len(rejected) == 1, rejected
+        filed = json.load(open(os.path.join(content.RILEY_REJECTED_DIR,
+                                            rejected[0]),
+                               encoding="utf-8"))
+        assert filed["outcome"] == {"state": "rejected",
+                                    "detail": "refused"}, filed
+        assert os.listdir(content.RILEY_PENDING_DIR) == [], \
+            "refusals must not retry"
+
+        # second pass: no retry storm, no duplicate letters
+        assert r.riley.stream() == {"queued": 0, "retried": 0}
+        renders = [l for l in p.read(content.MAILBOX)
+                   if l.get("kind") == "fleet.render"]
+        assert len(renders) == 1 and not renders[0]["payload"]["ok"], \
+            renders
+        assert renders[0]["payload"]["state"] == "rejected"
+        allowed = TOPICS[content.TOPIC]
+        for rec in p.since(content.TOPIC, "audit"):
+            if rec["kind"] == "fleet.render":
+                assert rec["payload"].get("at"), "records must timestamp"
+                assert rec["kind"] in allowed
+    finally:
+        stub.close()
+        fleet.close()
+    return "400 files rejected without retry; seeds deterministic"
+
+
 def main():
     print("verify_relay")
     check("forward exactly-once across restart", t_forward_exactly_once)
@@ -324,6 +530,12 @@ def main():
     check("constant stream carries verdicts", t_tick_streams_verdict)
     check("buskit catalogue discipline", t_catalogue_contract)
     check("cli status green on scratch bus", t_cli_status)
+    check("work stream orders nymph proofs exactly-once",
+          t_riley_stream_orders_proofs)
+    check("spool parks through a dark studio, delivers on wake",
+          t_riley_spool_retries_when_dark)
+    check("refusals file without retry; seeds deterministic",
+          t_riley_refusal_and_seed_determinism)
     failed = [n for ok, n in RESULTS if not ok]
     print(f"relay: {len(RESULTS) - len(failed)}/{len(RESULTS)} "
           "checks passed")

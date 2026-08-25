@@ -5,6 +5,7 @@
     python -m relay status                     # bridge + lane snapshot
     python -m relay send --type build --blueprint jsonl-echo --name web1
     python -m relay send --type repair --note "operator asked"
+    python -m relay riley [--status]           # studio work stream
 """
 
 import argparse
@@ -15,6 +16,7 @@ import uuid
 
 from . import content
 from .bridge import Relay, watch
+from .riley_stream import RileyStream
 
 
 def cmd_once(_a):
@@ -63,6 +65,25 @@ def cmd_send(a):
     return 0
 
 
+def cmd_riley(a):
+    if a.status:
+        def _n(path):
+            try:
+                return sum(1 for f in os.listdir(path)
+                           if f.endswith(".order.json"))
+            except OSError:
+                return 0
+        print(json.dumps({
+            "studio": content.RILEY_URL,
+            "spool": {"pending": _n(content.RILEY_PENDING_DIR),
+                      "sent": _n(content.RILEY_SENT_DIR),
+                      "rejected": _n(content.RILEY_REJECTED_DIR)},
+        }, indent=2))
+        return 0
+    print(json.dumps(RileyStream().stream(), indent=2, default=str))
+    return 0
+
+
 def _counts():
     def _n(path):
         try:
@@ -101,6 +122,10 @@ def main(argv=None):
     s.add_argument("--name", default=None)
     s.add_argument("--note", default=None)
     s.set_defaults(fn=cmd_send)
+    s = sub.add_parser("riley", help="studio work stream pass/status")
+    s.add_argument("--status", action="store_true",
+                   help="spool counts, no dialing")
+    s.set_defaults(fn=cmd_riley)
     args = p.parse_args(argv)
     fn = getattr(args, "fn", None)
     if fn is None:

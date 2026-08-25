@@ -221,7 +221,7 @@ Organs flush cursors + heartbeats, close journals (witness rotates at
 | `artifacts.sealed` | Hades | hub, releaser | provenance.seal |
 | `policy.update` | THOTH | all | policy.reload |
 | `llm` | builder brain (ptah) | hub, witness | llm.call / llm.error |
-| `updates` | relay | Venus hub, GAIA, operator | fleet.tick / fleet.build / fleet.repair |
+| `updates` | relay | Venus hub, GAIA, operator | fleet.tick / fleet.build / fleet.repair / fleet.render |
 
 Rule: new cross-organ communication goes through a catalogue entry in
 this table + a kind constant in `bus.py`; ad-hoc inbox spam is rejected
