@@ -1,10 +1,14 @@
 ﻿# Project Olympos
 
-A local-first workspace for building autonomous software systems:
-protection kernels, provenance sealing, a filesystem message bus,
-capability rights, deterministic replay, and self-healing automation
-organs - grown and hardened by building and operating complete
-simulations end-to-end.
+Project Olympos is a local-first workspace of cooperating autonomous
+kernels — process protection (ZEUS), SHA-256 provenance sealing
+(HADES), a portless filesystem message bus (RATATOSK), capability
+rights (NORN), agent construction (DAEDALUS over the ATLAS hypervisor),
+and ops health (GAIA) — grown and hardened by operating complete
+simulations end-to-end entirely on your machine. Trust is enforced,
+not assumed: every behavioral change ships a standalone verify suite
+run as a hard gate, automated actions quarantine rather than destroy,
+and append-only ledgers record every action.
 
 Everything here runs on your machine. No external game services, no
 shipped scrapers - data arrives as operator-supplied snapshot files.
