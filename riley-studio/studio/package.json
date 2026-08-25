@@ -1,0 +1,20 @@
+{
+  "name": "riley-studio",
+  "productName": "RileyStudio",
+  "version": "1.0.0",
+  "description": "Riley Studio - fully local AI creative suite (canvas, gallery, models)",
+  "main": "main.js",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "node -e \"process.env.RILEY_STUDIO_SMOKE='1';require('child_process').spawnSync(process.execPath,['.'],{stdio:'inherit',env:process.env});\"",
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "electron": "^43.4.1"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0"
+  }
+}
