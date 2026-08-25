@@ -435,6 +435,20 @@
     "repair",
     "gates"
    ]
+  },
+  {
+   "id": "L035",
+   "title": "Inherited lane dirt may already be shipped - diff against fresh main before committing it",
+   "category": "process",
+   "source": "hermes session 2026-08-25: two posture-aware boundary/ptah fixture edits sat uncommitted in the auto/hermes worktree from a prior session; while hermes verified them green, another lane shipped the same content as PR #91, so hermes PR #92 carried a byte-similar duplicate through squash merge",
+   "lesson": "Uncommitted changes found in your worktree are not automatically yours to land - they are evidence of an interrupted session whose owner may have re-run elsewhere. Before committing inherited dirt: fetch origin, scan recent merged PRs (git log --oneline origin/main plus subject match) for the same content, and diff your tree against fresh main first. If the work already landed, drop or reset your copy instead of re-shipping; if it is genuinely unlanded, commit it as its own labeled unit with the affected gates run, never swept into unrelated paper changes. Duplicate squash merges are usually harmless but they burn review trust and can silently fork helper functions when hunks land at different offsets.",
+   "tags": [
+    "git",
+    "worktrees",
+    "multi-agent",
+    "hygiene",
+    "verification"
+   ]
   }
  ]
 }
