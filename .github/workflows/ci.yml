@@ -10,8 +10,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Self-hosted (earth949-d, D:\actions-runner): zero billed minutes.
+  # GitHub-hosted jobs were blocked by account billing; local-first is
+  # house doctrine anyway (STRATEGY non-goals). Revert to windows-latest
+  # only after billing is settled AND the ubuntu portability PR lands.
   assistant:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
     # assistant/ is a nested repo that stays out of this checkout; the
     # detect step skips the suite when the directory is absent.
     steps:
@@ -37,7 +41,7 @@ jobs:
         run: npm test
 
   ecosystem:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
