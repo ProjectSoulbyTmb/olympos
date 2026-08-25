@@ -437,7 +437,10 @@
       "path": "D:/riley/riley_server.py",
       "tier": 3,
       "lang": "python",
-      "verify": null,
+      "verify": [
+        "python",
+        "verify_riley_satellite.py"
+      ],
       "profile": "watcher"
     },
     {
@@ -451,6 +454,21 @@
       "lang": "python",
       "verify": null,
       "profile": "watcher"
+    },
+    {
+      "name": "riley-studio",
+      "kind": "studio-desktop",
+      "engine": "comfyui-electron-suite",
+      "port": null,
+      "sdk": null,
+      "path": "riley-studio/",
+      "tier": 3,
+      "lang": "javascript",
+      "verify": [
+        "python",
+        "verify_riley_studio.py"
+      ],
+      "profile": "operator"
     }
   ]
 }
