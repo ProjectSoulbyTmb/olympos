@@ -1,0 +1,39 @@
+{
+  "obs": {
+    "host": "127.0.0.1",
+    "port": 4455,
+    "password": ""
+  },
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 43906
+  },
+  "journal_path": "data/mind/journal.jsonl",
+  "flows": [
+    {
+      "id": "on-air-note",
+      "on": "stream_started",
+      "then": [
+        { "action": "log", "message": "we are live" },
+        { "action": "http_get", "url": "http://127.0.0.1:43906/healthz" }
+      ]
+    },
+    {
+      "id": "brb-return",
+      "on": "scene_changed",
+      "when": { "scene_in": ["BRB"] },
+      "cooldown_s": 60,
+      "then": [
+        { "action": "wait", "seconds": 10 },
+        { "action": "switch_scene", "scene": "Live" }
+      ]
+    },
+    {
+      "id": "archive-on-live",
+      "on": "stream_started",
+      "then": [
+        { "action": "set_recording", "state": "start" }
+      ]
+    }
+  ]
+}
