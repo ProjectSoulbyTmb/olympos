@@ -1,4 +1,4 @@
-# Library census - 2026-08-25 post-fix refresh
+# Library census - 2026-08-25 refresh
 keywords: d:\new library census folders tags size duplicates generated quarantine
 Ground truth from `ingest/media_scanner.py --sniff --dedupe`, generated 2026-08-25T11:50Z, after the duplicate cleanup.
 
