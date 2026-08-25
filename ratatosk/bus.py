@@ -134,6 +134,7 @@ KIND_FLEET_BUILD = "fleet.build"
 KIND_FLEET_REPAIR = "fleet.repair"
 KIND_FLEET_RENDER = "fleet.render"
 KIND_FLEET_RENDER_DONE = "fleet.render-done"
+KIND_FLEET_PLAN = "fleet.plan"      # daedalus planning-station transitions
 
 
 def publish_vital(organ, sample, frm=None, root=None):

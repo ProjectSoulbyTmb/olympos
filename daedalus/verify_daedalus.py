@@ -38,7 +38,7 @@ def sandbox():
     outer = tempfile.mkdtemp(prefix="daedalus-verify-")
     saved_d = {f: getattr(content, f) for f in
                ("DATA_DIR", "AUDIT_PATH", "ARTIFACTS_DIR",
-                "REPAIR_STATS_PATH")}
+                "REPAIR_STATS_PATH", "PLANS_DIR")}
     saved_a = {"GUESTS_DIR": ac.GUESTS_DIR,
                # the hypervisor's audit chain binds atlas's AUDIT_PATH;
                # without this redirect every check verifies the SHARED
@@ -52,6 +52,7 @@ def sandbox():
     content.AUDIT_PATH = os.path.join(data, "audit.jsonl")
     content.ARTIFACTS_DIR = os.path.join(data, "artifacts")
     content.REPAIR_STATS_PATH = os.path.join(data, "repair_stats.json")
+    content.PLANS_DIR = os.path.join(data, "plans")
     ac.GUESTS_DIR = os.path.join(outer, "guests")
     ac.AUDIT_PATH = os.path.join(data, "atlas-audit.jsonl")
     os.environ["RATATOSK_ROOT"] = os.path.join(outer, "post")
@@ -356,6 +357,203 @@ def multi_fault_interaction_restores_all():
         assert r["ok"], r
         assert "culprit" not in r, "no single culprit exists here"
         assert r["fixed"] is True and r["attempts"] >= 2, r
+
+
+# ------------------------------------------------- planning station --
+
+def _brief(**over):
+    doc = {"title": "wiring pass 7",
+           "intent": "Commission one echo server and close out "
+                     "the docs checkpoint for the sprint.",
+           "author": "verify-suite",
+           "steps": [
+               {"kind": "build",
+                "spec": {"blueprint": "jsonl-echo"}},
+               {"kind": "manual",
+                "note": "confirm the artifact digest is recorded"},
+           ]}
+    doc.update(over)
+    return doc
+
+
+@check
+def plan_schema_refuses_garbage():
+    from daedalus.planning import validate_plan, PlanError
+    names = BLUEPRINTS.keys()
+    assert validate_plan(_brief(), names) == []
+    bad = _brief(intent="too short")
+    assert any("intent" in i for i in validate_plan(bad, names)), bad
+    bad = _brief(title="ab")
+    assert any("title" in i for i in validate_plan(bad, names)), bad
+    bad = _brief(steps=[{"kind": "dance"}])
+    assert any("step 0.kind" in i
+               for i in validate_plan(bad, names)), bad
+    bad = _brief(steps=[{"kind": "build"}])
+    assert any("spec object" in i
+               for i in validate_plan(bad, names)), bad
+    bad = _brief(steps=[{"kind": "build",
+                         "spec": {"blueprint": "nope"}}])
+    assert any("unknown blueprint" in i
+               for i in validate_plan(bad, names)), bad
+    # store refuses hard errors outright
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        try:
+            ws.plans.submit({"title": "x"})
+            raise AssertionError("garbage plan was accepted")
+        except PlanError as exc:
+            assert "refused" in str(exc), exc
+
+
+@check
+def plan_lifecycle_requires_signoff():
+    from daedalus.planning import PlanError
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        st = ws.plans
+        pid = st.submit(_brief())["id"]
+        assert st.show(pid)["status"] == "draft"
+        try:
+            st.approve(pid, {})
+            raise AssertionError("approved without sign_off")
+        except PlanError as exc:
+            assert "who" in str(exc) and "how" in str(exc), exc
+        st.approve(pid, {"who": "operator", "how": "session"})
+        p = st.show(pid)
+        assert p["status"] == "approved" \
+            and p["sign_off"]["who"] == "operator", p
+        try:                       # approve is one-way; no re-run
+            st.approve(pid, {"who": "op", "how": "again"})
+            raise AssertionError("double approval allowed")
+        except PlanError:
+            pass
+        other = st.submit(_brief(title="reject me"))["id"]
+        st.reject(other, "obsolete")
+        assert st.show(other)["status"] == "rejected"
+
+
+@check
+def plan_commission_spawns_and_closes_steps():
+    import time as _t
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        st = ws.plans
+        pid = st.submit(_brief(title="echo commission"))["id"]
+        st.approve(pid, {"who": "operator", "how": "session"})
+        r = st.commission(pid)
+        assert len(r["jobs"]) == 1, r          # one build job spawned
+        job_id = r["jobs"][0]["job"]
+        p = st.show(pid)
+        assert p["status"] == "commissioned", p
+        assert p["steps"][0]["job_id"] == job_id, p
+        # manual step closes by hand while the build runs its course
+        st.step_done(pid, 1, note="digest verified by hand")
+        res = None
+        deadline = _t.time() + 15
+        while _t.time() < deadline:
+            if ws.jobs[job_id]["state"] == "done":
+                break
+            ws.build_next()
+            _t.sleep(0.05)
+        else:
+            raise AssertionError("commissioned build never drained")
+        p = st.show(pid)
+        assert p["status"] == "done", p
+        assert p["steps"][0]["state"] == "closed" \
+            and p["steps"][0]["ok"] is True, p
+
+
+@check
+def plan_survives_restart():
+    from daedalus.planning import PlanStore
+    with sandbox() as hv:
+        ws = Workshop(hypervisor=hv, lanes=1)
+        st = ws.plans
+        pid = st.submit(_brief(title="durable order"))["id"]
+        st.approve(pid, {"who": "operator", "how": "session"})
+        st2 = PlanStore(content.PLANS_DIR, workshop=None)
+        p2 = st2.show(pid)
+        assert p2["status"] == "approved", p2
+        assert p2["sign_off"]["who"] == "operator", p2
+        assert len(p2["steps"]) == 2, p2
+
+
+@check
+def watcher_cannot_approve_or_resize_on_wire():
+    from daedalus.server import DaedalusServer
+    with sandbox() as hv:
+        srv = DaedalusServer(port=0, workshop=Workshop(
+            hypervisor=hv, lanes=1))
+        srv.start_async()
+        try:
+            srv.profiles[2] = "watcher"
+            r = srv.handle("plan_list", {}, cid=2)
+            assert r["error"] is None, r          # reading plans is fine
+            r = srv.handle("plan_approve",
+                           {"plan_id": "plan-x-000001",
+                            "sign_off": {"who": "w", "how": "h"}},
+                           cid=2)
+            assert "right_denied" in str(r.get("error")), r
+            r = srv.handle("fleet_resize", {"lanes": 3}, cid=2)
+            assert "right_denied" in str(r.get("error")), r
+        finally:
+            srv.running = False
+
+
+@check
+def fleet_resize_grows_and_shrinks():
+    from daedalus.fleet import SubFleet
+    with sandbox() as hv:
+        pool = SubFleet(1, hv)
+        rep = pool.resize(3)
+        assert rep["added"] == ["L2", "L3"] and not rep["retired"], rep
+        assert [l.name for l in pool.lanes] == ["L1", "L2", "L3"]
+        # busy tail: shrink must wait for it instead of killing work
+        pool.lanes[2].take({"blueprint": "jsonl-echo", "id": "hold"})
+        rep = pool.resize(1)
+        assert rep["retired"] == [] and rep["pending"] == ["L3"], rep
+        assert len(pool.lanes) == 3          # still present until reap
+        pool.lanes[2].release(True)
+        pool.reap_retired()
+        assert [l.name for l in pool.lanes] == ["L1", "L2"], \
+            pool.snapshot()
+        # now the excess is idle: shrink retires it on the spot
+        rep = pool.resize(1)
+        assert rep["retired"] == ["L2"] and rep["pending"] == [], rep
+        assert [l.name for l in pool.lanes] == ["L1"], pool.snapshot()
+
+
+@check
+def resize_respects_the_atlas_ceiling():
+    from atlas import content as ac
+    from daedalus.fleet import SubFleet
+    with sandbox() as hv:
+        old = ac.MAX_GUESTS
+        ac.MAX_GUESTS = 2
+        try:
+            pool = SubFleet(1, hv)
+            try:
+                pool.resize(3)
+                raise AssertionError("resize passed the hypervisor cap")
+            except ValueError as exc:
+                assert "ceiling" in str(exc) or "MAX_GUESTS" in str(exc), \
+                    exc
+        finally:
+            ac.MAX_GUESTS = old
+
+
+@check
+def env_override_sets_lane_count():
+    import subprocess
+    import sys as _sys
+    code = ("import os, sys; os.environ['DAEDALUS_LANES']='3'; "
+            f"sys.path.insert(0, {ROOT!r}); "
+            "from daedalus import content; "
+            "assert content.MAX_CONCURRENT_BUILDS == 3, "
+            "content.MAX_CONCURRENT_BUILDS")
+    r = subprocess.run([_sys.executable, "-c", code],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, (r.returncode, r.stderr[-300:])
 
 
 def main():

@@ -192,7 +192,8 @@
       "profile": "operator",
       "publishes": [
         "daedalus"
-      ]
+      ],
+      "notes": "planning station (2026-08-25): durable operator-signed work orders at daedalus/data/plans, publishes fleet.plan on transitions; lane pool 8 (DAEDALUS_LANES env override), live resize clamped to atlas MAX_GUESTS"
     },
     {
       "name": "sindri",
