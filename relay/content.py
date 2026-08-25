@@ -30,6 +30,14 @@ MIND_INTENT_DIR = os.path.join(WORKSPACE, "assistant", "data", "relay",
 MIND_DONE = os.path.join(MIND_INTENT_DIR, "done")
 MIND_FAILED = os.path.join(MIND_INTENT_DIR, "failed")
 
+# ---------- mind lane semantics ----------
+MIND_MAX_PER_DRAIN = 25         # per-cycle ceiling; overflow stays queued
+MIND_INTENT_TTL_S = 900         # intents older than this expire unrun
+MIND_DEDUPE_LEDGER = os.path.join(HERE, "data", "mind_seen.json")
+MIND_LEDGER_MAX = 500           # prune oldest entries beyond this
+MIND_SUBSCRIPTIONS = os.path.join(
+    WORKSPACE, "assistant", "data", "relay", "mind-subscriptions.json")
+
 # ---------- cadence ----------
 
 TICK_EVERY_S = 60.0             # constant update stream period

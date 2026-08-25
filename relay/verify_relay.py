@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE = os.path.dirname(HERE)
@@ -60,7 +61,7 @@ class ScratchFleet:
         self._saved = (content.INTENT_DIR, content.INTENT_DONE,
                        content.INTENT_FAILED, content.WORKSPACE,
                        content.MIND_INTENT_DIR, content.MIND_DONE,
-                       content.MIND_FAILED)
+                       content.MIND_FAILED, content.MIND_DEDUPE_LEDGER)
         content.INTENT_DIR = self.intent_dir
         content.INTENT_DONE = os.path.join(self.intent_dir, "done")
         content.INTENT_FAILED = os.path.join(self.intent_dir, "failed")
@@ -68,12 +69,17 @@ class ScratchFleet:
         content.MIND_INTENT_DIR = self.mind_dir
         content.MIND_DONE = os.path.join(self.mind_dir, "done")
         content.MIND_FAILED = os.path.join(self.mind_dir, "failed")
+        # hermetic dedupe ledger: mind tests must never read or write
+        # the real relay/data/mind_seen.json (a polluted ledger turns
+        # fresh intents into "duplicate ignored" and skips the runner)
+        content.MIND_DEDUPE_LEDGER = os.path.join(self.tmp,
+                                                  "mind_seen.json")
 
     def restore(self):
         (content.INTENT_DIR, content.INTENT_DONE,
          content.INTENT_FAILED, content.WORKSPACE,
          content.MIND_INTENT_DIR, content.MIND_DONE,
-         content.MIND_FAILED) = self._saved
+         content.MIND_FAILED, content.MIND_DEDUPE_LEDGER) = self._saved
 
     def write_intent(self, body):
         os.makedirs(self.intent_dir, exist_ok=True)
@@ -95,7 +101,7 @@ class ScratchFleet:
         (content.INTENT_DIR, content.INTENT_DONE,
          content.INTENT_FAILED, content.WORKSPACE,
          content.MIND_INTENT_DIR, content.MIND_DONE,
-         content.MIND_FAILED) = self._saved
+         content.MIND_FAILED, content.MIND_DEDUPE_LEDGER) = self._saved
         shutil.rmtree(self.tmp, ignore_errors=True)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
@@ -312,6 +318,112 @@ def t_mind_knowledge_intent():
         fleet.close()
 
 
+
+def t_mind_priority_cap():
+    fleet = ScratchFleet()
+    try:
+        ran = []
+        def runner(intent):
+            ran.append(intent.get("id"))
+            return True, "ok"
+        r = Relay(post=fleet.post, runner=runner)
+        for i in range(30):
+            fleet.write_mind_intent({"id": f"n{i:02d}", "type": "status"})
+        fleet.write_mind_intent({"id": "urgent", "type": "status",
+                                 "urgent": True})
+        out = r.drain_mind_intents()
+        assert len(out) == 25, len(out)          # cap 25 per cycle
+        assert ran[0] == "urgent", ran[:3]       # urgent jumps the queue
+        pending = [n for n in os.listdir(content.MIND_INTENT_DIR)
+                   if n.endswith(".intent.json")]
+        assert len(pending) == 6, len(pending)   # 31 - 25 overflow
+        out2 = r.drain_mind_intents()            # next pass drains rest
+        assert len(out2) == 6, len(out2)
+        return "urgent first; cap honoured; overflow queued"
+    finally:
+        fleet.close()
+
+
+def t_mind_stale_ttl():
+    import time as _t
+    fleet = ScratchFleet()
+    try:
+        ran = []
+        old_iso = time.strftime(
+            "%Y-%m-%dT%H:%M:%S+00:00",
+            _t.gmtime(_t.time() - content.MIND_INTENT_TTL_S - 60))
+        fresh_id = "fresh1"
+        def runner(intent):
+            ran.append(intent["id"])
+            return True, "ran"
+        r = Relay(post=fleet.post, runner=runner)
+        fleet.write_mind_intent({"id": "old1", "type": "status",
+                                 "ts": old_iso})
+        fleet.write_mind_intent({"id": fresh_id, "type": "status"})
+        out = r.drain_mind_intents()
+        by_id = {n.split("-")[0]: ok for n, ok, _d in out}
+        assert ran == [fresh_id], ran
+        failed = os.listdir(content.MIND_FAILED)
+        assert any("old1" in n for n in failed), failed
+        filed = json.load(open(os.path.join(content.MIND_FAILED,
+                                            [n for n in failed
+                                             if "old1" in n][0]),
+                               encoding="utf-8"))
+        assert "expired" in filed["error"], filed
+        return "stale intent expired unrun; fresh executed"
+    finally:
+        fleet.close()
+
+
+def t_mind_dedupe():
+    fleet = ScratchFleet()
+    try:
+        # point the ledger at scratch so the suite never touches real data
+        content.MIND_DEDUPE_LEDGER = os.path.join(fleet.tmp,
+                                                  "mind_seen.json")
+        calls = []
+        def runner(intent):
+            calls.append(intent.get("id"))
+            return True, "executed"
+        r = Relay(post=fleet.post, runner=runner)
+        body = {"id": "dup9", "type": "status"}
+        fleet.write_mind_intent(body)
+        first = r.drain_mind_intents()
+        assert len(first) == 1 and first[0][1] is True
+        fleet.write_mind_intent(body)                # crash-replayed id
+        second = r.drain_mind_intents()
+        assert len(second) == 1 and second[0][1] is True
+        assert second[0][2] == "duplicate ignored", second
+        assert calls == ["dup9"], calls              # runner ran once
+        replies = [l for l in fleet.post.read(content.MIND_MAILBOX)
+                   if l.get("kind") == "fleet.reply"]
+        assert len(replies) == 2                     # acked both times
+        return "runner once; replay acknowledged with duplicate note"
+    finally:
+        fleet.close()
+
+
+def t_mind_subscriptions():
+    fleet = ScratchFleet()
+    try:
+        sub_path = content.MIND_SUBSCRIPTIONS
+        os.makedirs(os.path.dirname(sub_path), exist_ok=True)
+        with open(sub_path, "w", encoding="utf-8") as fh:
+            json.dump({"all": False, "kinds": ["fleet.build"]}, fh)
+        r = Relay(post=fleet.post,
+                  runner=lambda i: (True, "ok"))
+        fleet.write_intent({"id": "v-build", "type": "build",
+                            "blueprint": "jsonl-echo"})
+        r.run_cycle()                                 # build + tick
+        mind_kinds = [l.get("kind")
+                      for l in fleet.post.read(content.MIND_MAILBOX)]
+        assert "fleet.build" in mind_kinds, mind_kinds
+        assert "fleet.tick" not in mind_kinds, mind_kinds
+        os.unlink(sub_path)
+        return "subscription filter gates the mind mirror"
+    finally:
+        fleet.close()
+
 def main():
     print("verify_relay")
     check("forward exactly-once across restart", t_forward_exactly_once)
@@ -321,6 +433,11 @@ def main():
           t_mind_intents_roundtrip)
     check("mind knowledge intent answers from library",
           t_mind_knowledge_intent)
+    check("mind priority, cap and overflow queue", t_mind_priority_cap)
+    check("mind stale intents expire unrun", t_mind_stale_ttl)
+    check("mind duplicate ids acknowledge once-run", t_mind_dedupe)
+    check("mind subscription filter gates the mirror",
+          t_mind_subscriptions)
     check("constant stream carries verdicts", t_tick_streams_verdict)
     check("buskit catalogue discipline", t_catalogue_contract)
     check("cli status green on scratch bus", t_cli_status)

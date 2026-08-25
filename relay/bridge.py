@@ -55,14 +55,23 @@ class Relay:
     # ---------------- outbound ----------------
 
     def _emit(self, kind, payload):
-        """One catalogue-legal broadcast + mailbox mirrors (venus+mind)."""
+        """Catalogue-legal broadcast + mailbox mirrors (venus always;
+        mind honours its subscription filter)."""
         self.post.broadcast(content.TOPIC, kind, payload,
                             frm=content.ORGAN)
-        for box in (content.MAILBOX, content.MIND_MAILBOX):
-            try:
-                self.post.send(box, kind, payload, frm=content.ORGAN)
-            except Exception:
-                pass                  # mirrors are best-effort; topic rules
+        try:
+            self.post.send(content.MAILBOX, kind, payload,
+                           frm=content.ORGAN)
+        except Exception:
+            pass                      # mirror is best-effort; topic rules
+        kinds, all_kinds = _mind_subscriptions()
+        if not all_kinds and kinds and kind not in kinds:
+            return                    # mind opted out of this kind
+        try:
+            self.post.send(content.MIND_MAILBOX, kind, payload,
+                           frm=content.ORGAN)
+        except Exception:
+            pass
 
     def forward_daedalus(self, limit=100):
         """Daedalus -> updates/venus, exactly-once per seq cursor."""
@@ -112,33 +121,84 @@ class Relay:
                                content.INTENT_FAILED, "venus-intent",
                                self.runner, limit)
 
-    def drain_mind_intents(self, limit=25):
+    def drain_mind_intents(self, limit=None):
         """Claim, execute and file every pending MIND intent.
 
-        Mirrors the venus lane; every outcome is additionally answered
-        back into the `mind` mailbox as a fleet.reply record carrying
-        the intent id so the mind layer can correlate requests.
+        Mind-lane semantics (beyond the venus lane):
+          - urgent intents jump the queue
+          - intents older than MIND_INTENT_TTL_S expire unrun
+          - duplicate ids (crash-replayed writers) are acknowledged as
+            duplicates via the seen-ledger; the runner runs once
+          - at most MIND_MAX_PER_DRAIN execute per cycle; overflow stays
+            queued for the next pass
+
+        Every outcome is additionally answered back into the `mind`
+        mailbox as a fleet.reply record carrying the intent id so the
+        mind layer can correlate requests.
         """
-        return self._drain_dir(content.MIND_INTENT_DIR, content.MIND_DONE,
-                               content.MIND_FAILED, "mind-intent",
-                               self.runner, limit,
-                               reply_box=content.MIND_MAILBOX)
+        return self._drain_dir(
+            content.MIND_INTENT_DIR, content.MIND_DONE,
+            content.MIND_FAILED, "mind-intent", self.runner,
+            limit if limit is not None else content.MIND_MAX_PER_DRAIN,
+            reply_box=content.MIND_MAILBOX, mind_semantics=True)
 
     def _drain_dir(self, intent_dir, done_dir, failed_dir, source,
-                   runner, limit, reply_box=None):
+                   runner, limit, reply_box=None, mind_semantics=False):
         out = []
         os.makedirs(intent_dir, exist_ok=True)
-        names = sorted(n for n in os.listdir(intent_dir)
-                       if n.endswith(".intent.json"))
-        for name in names[:max(0, limit)]:
+        entries = []
+        for name in sorted(n for n in os.listdir(intent_dir)
+                           if n.endswith(".intent.json")):
             src = os.path.join(intent_dir, name)
             intent = _read_json(src)
+            entries.append((name, src, intent))
+        if mind_semantics:
+            # urgent intents jump the queue; then stable filename order
+            entries.sort(key=lambda e: (
+                0 if (e[2] or {}).get("urgent") else 1, e[0]))
+        executed = 0
+        seen_ledger = _load_seen() if mind_semantics else {}
+        ledger_dirty = False
+        for name, src, intent in entries:
+            if mind_semantics and executed >= limit:
+                break                                  # stays queued
             if not isinstance(intent, dict) or \
                     not isinstance(intent.get("type"), str):
                 _file_away(src, failed_dir,
                            {"error": "malformed intent"})
                 out.append((name, False, "malformed intent"))
                 continue
+            key = _intent_key(intent)
+            if mind_semantics and key in seen_ledger:
+                # acknowledge the replay so the mind side learns the
+                # intent was already executed - silence reads as loss
+                # and turns crash replays into infinite redrives
+                if reply_box:
+                    try:
+                        self.post.send(reply_box, "fleet.reply", {
+                            "source": source,
+                            "intent": str(intent.get("id") or name),
+                            "type": intent.get("type"),
+                            "ok": True,
+                            "detail": "duplicate of earlier intent "
+                                      f"{seen_ledger[key]}",
+                            "at": _iso(),
+                        }, frm=content.ORGAN)
+                    except Exception:
+                        pass        # ack mirror stays best-effort
+                _file_away(src, done_dir, {"outcome": {
+                    "ok": True, "duplicate": True,
+                    "detail": f"duplicate of earlier intent "
+                              f"{seen_ledger[key]}"}})
+                out.append((name, True, "duplicate ignored"))
+                continue
+            if mind_semantics:
+                stale = _stale_reason(intent)
+                if stale:
+                    _file_away(src, failed_dir,
+                               {"error": stale})
+                    out.append((name, False, stale))
+                    continue
             try:
                 ok, detail = runner(intent)
             except Exception as exc:            # noqa: BLE001 - evidence
@@ -166,6 +226,12 @@ class Relay:
                                        {"ok": bool(ok),
                                         "detail": str(detail)[:400]}})
             out.append((name, bool(ok), detail))
+            executed += 1
+            if mind_semantics:
+                seen_ledger[key] = str(intent.get("id") or name)
+                ledger_dirty = True
+        if mind_semantics and ledger_dirty:
+            _save_seen(seen_ledger)
         return out
 
     # ---------------- cycle ----------------
@@ -271,6 +337,80 @@ def _read_json(path):
             return json.load(fh)
     except (OSError, ValueError):
         return None
+
+
+def _intent_key(intent):
+    """Stable dedupe key: declared id or content hash."""
+    declared = intent.get("id")
+    if declared:
+        return f"id:{declared}"
+    blob = json.dumps(intent, sort_keys=True,
+                      ensure_ascii=False).encode("utf-8")
+    import hashlib
+    return "sha:" + hashlib.sha256(blob).hexdigest()[:32]
+
+
+def _stale_reason(intent):
+    """TTL check for intents that carry their own timestamp."""
+    ttl = content.MIND_INTENT_TTL_S
+    ts = intent.get("ts")
+    if not ts:
+        return None                       # undated intents never expire
+    try:
+        if isinstance(ts, (int, float)):
+            age = time.time() - float(ts)
+        else:
+            from datetime import datetime
+            stamp = str(ts).replace("Z", "+00:00")
+            age = time.time() - datetime.fromisoformat(stamp).timestamp()
+    except (ValueError, TypeError, OSError):
+        return None                       # unparsable dates are trusted
+    if age > ttl:
+        return f"expired: intent is {int(age)}s old (ttl {ttl}s)"
+    return None
+
+
+def _load_seen():
+    try:
+        with open(content.MIND_DEDUPE_LEDGER, encoding="utf-8") as fh:
+            ledger = json.load(fh)
+        if isinstance(ledger, dict):
+            # prune oldest beyond the cap
+            if len(ledger) > content.MIND_LEDGER_MAX:
+                keep = sorted(ledger.items(),
+                              key=lambda kv: kv[1])[-content.MIND_LEDGER_MAX:]
+                return dict(keep)
+            return ledger
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def _save_seen(ledger):
+    try:
+        os.makedirs(os.path.dirname(content.MIND_DEDUPE_LEDGER),
+                    exist_ok=True)
+        with open(content.MIND_DEDUPE_LEDGER + ".tmp", "w",
+                  encoding="utf-8") as fh:
+            json.dump(ledger, fh)
+        os.replace(content.MIND_DEDUPE_LEDGER + ".tmp",
+                   content.MIND_DEDUPE_LEDGER)
+    except OSError:
+        pass                              # dedupe degrades to no-op
+
+
+def _mind_subscriptions():
+    """Kinds MIND wants mirrored; default = everything."""
+    path = content.MIND_SUBSCRIPTIONS
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        kinds = data.get("kinds")
+        if isinstance(kinds, list) and kinds:
+            return set(kinds), data.get("all") is True
+        return None, data.get("all", True)
+    except (OSError, ValueError):
+        return None, True
 
 
 def _file_away(src, dest_dir, extra):
