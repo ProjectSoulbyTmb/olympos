@@ -73,6 +73,10 @@
 
 ## Open items (block V2, not V0)
 
-1. Mirror repo identity: proposed `ProjectSoulbyTmb/voltage` (private).
-2. Root spelling: proposed `D:\VOLTAGE`.
-3. Port block ratification: proposed 44100–44199.
+Ratified by operator "go" (2026-08-25, session ordering V2 bootstrap):
+
+1. Mirror repo identity: `ProjectSoulbyTmb/voltage` (**private**) — created.
+2. Root spelling: `D:\VOLTAGE`.
+3. Port block: **44100–44199**, suffix-preserving shift from the olympos
+   ports (4390N → 4410N; zeus 43902→44102, ptah 43903→44103,
+   atlas 43904→44104, daedalus 43905→44105).
