@@ -58,8 +58,7 @@ HERE = Path(__file__).resolve().parent
 KERNEL_PATH = Path(__file__).resolve()
 CONFIG = HERE / "products.json"
 
-STATE_ROOT = Path(os.environ.get("PERSEPHONE_STATE",
-                                 Path.home() / "AppData" / "Local" / "PERSEPHONE"))
+STATE_ROOT = Path(os.environ.get("PERSEPHONE_STATE", "D:\\persephone\\state"))
 VAULT_DIR = STATE_ROOT / "vault"
 DATA_VAULT = STATE_ROOT / "vault" / "data"
 ATTEST_DIR = STATE_ROOT / "attest"
@@ -103,11 +102,16 @@ def record_history(entry: dict) -> None:
     entry["ts"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     try:
         STATE_ROOT.mkdir(parents=True, exist_ok=True)
-        lines = HISTORY_PATH.read_text(encoding="utf-8").splitlines()
+        try:
+            lines = HISTORY_PATH.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            lines = []                       # first event bootstraps file
         if len(lines) >= HISTORY_KEEP_LINES:
             lines = lines[-(HISTORY_KEEP_LINES - 1):]
         lines.append(json.dumps(entry, ensure_ascii=False))
-        HISTORY_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        tmp = HISTORY_PATH.with_suffix(".tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp, HISTORY_PATH)
     except Exception:
         pass
 
@@ -476,36 +480,65 @@ class DriveGuard:
         except Exception as exc:
             self.state["health"] = f"unknown({exc})"
 
-    def _inventory_root(self, root_str: str) -> tuple[dict, int]:
+    def _inventory_root(self, root_str: str,
+                        budget_s: float = 120.0) -> tuple[dict, int]:
+        """Count files/dirs/bytes under root without following links.
+
+        Junctions/symlinks are skipped (cycle-proof); hard wall-clock
+        budget keeps pathological trees from hanging sweeps.
+        """
+        import stat as stat_mod
+        REPARSE = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT
         files = dirs = 0
         total_bytes = 0
         scanned = 0
         suspicious: list[str] = []
+        deadline = time.time() + budget_s
+
+        def onerror(_exc):
+            pass
+
+        base = Path(root_str)
         try:
-            base = Path(root_str)
-            stack = [base]
-            while stack and scanned < STRUCTURE_MAX_ENTRIES:
-                cur = stack.pop()
-                try:
-                    for entry in cur.iterdir():
+            base_st = base.stat(follow_symlinks=False)
+            if stat_mod.S_ISLNK(base_st.st_mode) or \
+                    getattr(base_st, "st_file_attributes", 0) & REPARSE:
+                return {"files": 0, "dirs": 0, "bytes": 0,
+                        "suspicious": []}, 0
+        except OSError:
+            return {"files": 0, "dirs": 0, "bytes": 0, "suspicious": []}, 0
+
+        stack = [str(base)]
+        while stack:
+            if time.time() > deadline:
+                break
+            cur = stack.pop()
+            try:
+                with os.scandir(cur) as it:
+                    for entry in it:
                         scanned += 1
-                        if entry.is_dir():
+                        if scanned > STRUCTURE_MAX_ENTRIES:
+                            stack.clear()
+                            break
+                        try:
+                            st = entry.stat(follow_symlinks=False)
+                        except OSError:
+                            continue
+                        if getattr(st, "st_file_attributes", 0) & REPARSE:
+                            continue  # junction/symlink: never descend
+                        if entry.is_dir(follow_symlinks=False):
                             dirs += 1
-                            stack.append(entry)
+                            stack.append(entry.path)
                         else:
                             files += 1
-                            try:
-                                total_bytes += entry.stat().st_size
-                            except OSError:
-                                pass
-                            if entry.suffix.lower() in RANSOM_EXTENSIONS:
-                                suspicious.append(str(entry))
-                except (PermissionError, FileNotFoundError, OSError):
-                    continue
-        except (FileNotFoundError, PermissionError, OSError):
-            pass
+                            total_bytes += st.st_size
+                            ext = os.path.splitext(entry.name)[1].lower()
+                            if ext in RANSOM_EXTENSIONS and len(suspicious) < 20:
+                                suspicious.append(entry.path)
+            except (PermissionError, FileNotFoundError, OSError):
+                continue
         return {"files": files, "dirs": dirs, "bytes": total_bytes,
-                "suspicious": suspicious[:20]}, scanned
+                "suspicious": suspicious}, scanned
 
     def g_structure(self, allow_writes: bool = True) -> None:
         now = time.time()
@@ -656,11 +689,13 @@ class Guardian:
         actions: list[str] = []
 
         allow_writes = self.g_disk(prod)
-
-        verdict, _problems = check_integrity(prod, allow_writes=allow_writes)
+        verdict, problems = check_integrity(prod,
+                                             allow_writes=allow_writes)
         st["integrity"] = verdict
         if verdict in ("restored", "novault", "pending-disk"):
             actions.append(f"integrity={verdict}")
+            record_history({"product": name, "event": "integrity",
+                            "verdict": verdict, "files": problems[:12]})
 
         self.g_data(prod, allow_writes)
 
