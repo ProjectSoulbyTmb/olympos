@@ -29,8 +29,11 @@ House rules inherited from the Olympos watchdogs:
 
 * if a port is owned by a process that does not answer the product's
   health endpoint, PERSEPHONE stands down (never fights foreign services)
-* all state lives under `%LOCALAPPDATA%\PERSEPHONE`
-  (`vault\`, `attest\`, `persephone.log`, `history.jsonl`)
+* all state lives under the state root `PERSEPHONE_STATE`
+  (default `D:\persephone\state`; override the env var to relocate):
+  `vault\`, `attest\`, `persephone.log`, `history.jsonl`.
+  NOTE: older docs said `%LOCALAPPDATA%\PERSEPHONE` — that path is
+  stale; if it exists on your machine it is a dead relic.
 
 ## Setup
 
@@ -60,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File register-persephone-task.ps1
 ```powershell
 python persephone\persephone.py --once      # single sweep, print table
 curl http://127.0.0.1:43909/api/status      # live JSON while running
-Get-Content $env:LOCALAPPDATA\PERSEPHONE\persephone.log -Tail 20
+Get-Content D:\persephone\state\persephone.log -Tail 20
 ```
 
 ## Configuration

@@ -76,3 +76,21 @@ lesson id in `lessons.json`.
     shared worktrees; after push, compare `origin/<branch>` — a no-op
     push exits 0. Never merge a PR whose `gh pr diff` file list does
     not match the intended change exactly.
+
+## Observability & operations
+
+22. **Guardian telemetry paths are part of the contract**: the state
+    root a safety kernel writes must be exactly what its docs and
+    doctor checks resolve - a log nobody reads equals silence (L035).
+23. **Append-only ledgers bootstrap themselves**: create-then-append,
+    atomic replace, and no bare except around ledger writes; verify
+    gates assert the file exists after any state-changing action
+    (L036).
+24. **Test fixtures never share global state with production safety
+    systems**: set isolation env before in-process imports, redirect
+    every module-level path constant, and probe production state for
+    byte-stability while the suite runs (L037).
+25. **Negative-path suites require one positive control through the
+    same door**: assert a valid submit succeeds with expected shape
+    before running rejection batteries, or a server that refuses
+    everything scores green (L038).

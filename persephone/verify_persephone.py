@@ -88,7 +88,6 @@ def main() -> int:
         check("first sweep baselines manifest",
               r.returncode == 0 and "baseline manifest written" in (r.stdout + r.stderr),
               (r.stderr or "")[:160])
-
         # 3. tamper -> vault restore on next sweep
         (prod_root / "index.html").write_text("<html>EVIL</html>", encoding="utf-8")
         r = run_kernel(["--once"], env)
@@ -97,6 +96,21 @@ def main() -> int:
         check("tamper detected and restored from vault",
               "VAULT RESTORE" in out and "<html>v1</html>" == now,
               f"out={out[:100]!r} content={now!r}")
+
+        # 3b. restore lands in the forensic history ledger
+        hist = state / "history.jsonl"
+        ok_hist = False
+        try:
+            entries = [json.loads(x) for x in
+                       hist.read_text(encoding="utf-8").splitlines() if x]
+            ok_hist = any(
+                e.get("event") == "integrity"
+                and e.get("verdict") == "restored"
+                and e.get("product") == "fixture"
+                for e in entries)
+        except Exception:                          # noqa: BLE001
+            pass
+        check("restore recorded in history ledger", ok_hist)
 
         # 4. attestation round-trip
         r = run_kernel(["--attest", "fixture", "--days", "7"], env)
@@ -107,6 +121,9 @@ def main() -> int:
         # 5. drive guards (sandboxed DriveGuard against fixture tree)
         sys.path.insert(0, str(HERE))
         import importlib.util
+        # isolate module-level state paths (log/history/drive) so the
+        # in-process DriveGuard exercises cannot touch real state
+        os.environ["PERSEPHONE_STATE"] = str(state)
         spec = importlib.util.spec_from_file_location(
             "pk", test_kernel)
         pk = importlib.util.module_from_spec(spec)
