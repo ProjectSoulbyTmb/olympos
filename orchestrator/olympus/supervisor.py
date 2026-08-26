@@ -112,9 +112,17 @@ class Supervisor(threading.Thread):
                 "started pid=%d job_assigned=%s", pid, bool(assigned)
             )
             exited_naturally = True
+            stable_since = time.monotonic()
             while not self.stop_event.is_set():
                 if not jobobject.is_alive(hp):
                     break
+                if (
+                    self.consecutive_crashes
+                    and time.monotonic() - stable_since > 600
+                ):
+                    with self.lock:
+                        self.consecutive_crashes = 0
+                    self.log.info("stable 600s; crash counter reset")
                 time.sleep(1)
             if self.stop_event.is_set():
                 jobobject.terminate(hp)

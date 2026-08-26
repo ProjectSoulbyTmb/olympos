@@ -60,12 +60,6 @@ SINGLETON_JOBS = [
         "freshness": 900,
     },
     {
-        "name": "voltage-sentinel",
-        "args": [PY, "sentinel.py"],
-        "cwd": r"D:\VOLTAGE",
-        "freshness": 1800,
-    },
-    {
         "name": "actions-runner",
         "args": [CMD, "/c", r"D:\actions-runner-soul\run.cmd"],
         "cwd": r"D:\actions-runner-soul",
@@ -81,6 +75,13 @@ SINGLETON_JOBS = [
 ]
 
 ONESHOT_JOBS = [
+    {
+        "name": "voltage-sentinel",
+        "args": [PY, "sentinel.py"],
+        "cwd": r"D:\VOLTAGE",
+        "interval": 1200,
+        "timeout": 900,
+    },
     {
         "name": "vulcan-auto",
         "args": [
