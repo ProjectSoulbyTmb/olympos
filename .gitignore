@@ -1,5 +1,6 @@
 # --- nested repos / apps that manage their own git ---
 assistant/
+mind/
 
 # --- sibling projects with their own build artifacts ---
 eidovara/
