@@ -12,6 +12,14 @@ Configuration via environment:
   PTAH_LLM_MODEL     provider model id
   PTAH_API_KEY       provider credential (falls back to OPENAI/ANTHROPIC)
   PTAH_BASE_URL      custom OpenAI-compatible endpoint (Ollama, vLLM...)
+  PTAH_LMSTUDIO_URL  alias: LM Studio server base url, used when
+                     PTAH_BASE_URL is unset (e.g. http://127.0.0.1:1234/v1)
+  PTAH_LMSTUDIO_MODEL  alias: LM Studio model id, used when
+                     PTAH_LLM_MODEL is unset
+
+The LM Studio aliases are pure configuration - nothing dials the server
+at boot. With the endpoints down, run --demo / scripted mode and the
+selfcheck gate work exactly as before.
 """
 
 import argparse

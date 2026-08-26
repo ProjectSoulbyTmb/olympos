@@ -10,6 +10,14 @@ Two real transports over the standard library only:
 plus `scripted`: a deterministic reply queue used by tests, the demo
 mode and CI - the kernel is fully exercisable offline.
 
+LM Studio seam: the local LM Studio server (OpenAI dialect) is addressed
+through the standard openai provider plus env alias keys -
+PTAH_LMSTUDIO_URL / PTAH_LMSTUDIO_MODEL fill base_url/model when the
+canonical PTAH_BASE_URL / PTAH_LLM_MODEL keys are unset. Aliases are
+pure configuration: nothing probes the network at config or boot time,
+so with the server down PTAH still boots unchanged (scripted/demo mode,
+selfcheck, verify gates all run offline).
+
 Reliability: transient failures (network errors, timeouts, HTTP 429 and
 5xx) retry with exponential backoff honoring Retry-After; hard client
 errors fail fast with a classified LLMError.
@@ -51,17 +59,28 @@ class LLMConfig:
 
     @classmethod
     def from_env(cls, prefix="PTAH"):
+        """Env-driven config. Precedence per key:
+
+            canonical ({prefix}_BASE_URL, {prefix}_LLM_MODEL)
+              > LM Studio seam alias ({prefix}_LMSTUDIO_URL,
+                {prefix}_LMSTUDIO_MODEL)
+              > provider default
+
+        Reading env never touches the network.
+        """
         env = os.environ.get
-        provider = env(f"{prefix}_LLM_PROVIDER", "openai")
+        provider = env(f"{prefix}_LLM_PROVIDER") or "openai"
         default_key = (env("ANTHROPIC_API_KEY") if provider == "anthropic"
                        else env("OPENAI_API_KEY")) or ""
         key = env(f"{prefix}_API_KEY") or default_key
-        return cls(provider=provider,
-                   model=env(f"{prefix}_LLM_MODEL",
-                             "gpt-4o-mini" if provider == "openai"
-                             else "claude-sonnet-4-5"),
-                   api_key=key,
-                   base_url=env(f"{prefix}_BASE_URL", ""))
+        base_url = (env(f"{prefix}_BASE_URL")
+                    or env(f"{prefix}_LMSTUDIO_URL") or "")
+        model = (env(f"{prefix}_LLM_MODEL")
+                 or env(f"{prefix}_LMSTUDIO_MODEL")
+                 or ("gpt-4o-mini" if provider == "openai"
+                     else "claude-sonnet-4-5"))
+        return cls(provider=provider, model=model, api_key=key,
+                   base_url=base_url)
 
 
 @dataclass
