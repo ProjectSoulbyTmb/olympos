@@ -21,7 +21,7 @@ import sys
 
 REPO = "https://github.com/ProjectSoulbyTmb/voltage"
 SPEC = REPO + "/blob/main/docs/contracts/voltage-command-spec-v1.md"
-ADR3 = REPO + "/blob/main/docs/adr/0003-voltage-creative-control-os.md"
+ADR3 = REPO + "/blob/main/docs/adr/0005-voltage-creative-control-os.md"
 
 CURRICULUM = {
     "$schema": "olympos/knowledge-db-v1",
@@ -29,7 +29,7 @@ CURRICULUM = {
                     "the laws a creative-control OS runs on."),
     "prefix": "muse",
     "updated": "2026-08-25",
-    "upstream": "ADR-0003 + voltage-command-spec-v1",
+    "upstream": "ADR-0005 + voltage-command-spec-v1",
     "entries": [
         {"id": "MUSE-001", "title": "command grammar law",
          "category": "command-plane",

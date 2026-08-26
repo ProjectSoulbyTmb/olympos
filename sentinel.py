@@ -208,6 +208,8 @@ def gate_defs():
     defs += [
         ("buskit contract", [PY, "-u", "verify_buskit.py"], HERE, None, 1),
         ("scope guard", [PY, "-u", "verify_scope.py"], HERE, None, 1),
+        ("boundary isolation", [PY, "-u", "verify_boundary.py"],
+         HERE, None, 1),
         ("sindri forge", [PY, "-u", "verify_sindri.py"], HERE, None, 1),
         ("forseti arbitration", [PY, "-u", "verify_forseti.py"],
          HERE, None, 1),

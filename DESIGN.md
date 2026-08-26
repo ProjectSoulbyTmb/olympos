@@ -73,7 +73,7 @@ tag-driven releases).
   (19 checks, exit-code verdict).
 - 2026-08-25: Operator directive - all building delegated to the
   muster fleet (hard rule 5, root `AGENTS.md`). First exercise: full
-  subfleet muster minting L035-L044, artemis registry dedupe, codex
+  subfleet muster minting L036-L045 (ids shifted at merge; main had its own L035), artemis registry dedupe, codex
   drift corrections (commit aec1174, ares WIP excluded).
 - 2026-08-23: Trademark-hygiene rebrand: public product names moved to
   the public domain and the ecosystem took the name Olympos. Public
@@ -184,8 +184,23 @@ tag-driven releases).
   no_validation/lost_template exercise gate bite and retry convergence;
   fault injection exposed a stale port.txt race in re-gate passes -
   fixed via pre-boot removal in the woven gate. Root gate
-  `verify_deskmate.py` wired into doctor; auto-discovered by CI.
+  `  verify_deskmate.py` wired into doctor; auto-discovered by CI.
   1964f36 (daedalus: deskmate blueprint - local design-desk service for VENUS (card template/validate/scaffold) + stale-port gate fix)
+
+- 2026-08-25: **VOLT north star extended; THOTH named the metal
+  kernel (ADR-0003).** The operator ordered PROJECT VOLTAGE to become
+  a fully usable operating system on its own bare-metal kernel, and
+  bound the THOTH name to it: VOLTAGE is the OS, THOTH is the kernel;
+  thoth-private doctrine (grants/safety, knowledge routing, scribe,
+  stabilizer) graduates into kernel subsystems - concepts port, code
+  does not. Eidovara seeds the desktop product surface as design
+  (Electron itself cannot run on early metal; native rebuild ladder).
+  Roadmap gains Track B (V6-V12: paper architecture, hello metal,
+  kernel core, userland genesis, desktop seed, drivers+installer,
+  daily driver); Track A (V1-V5) unchanged and now doubles as the
+  factory/CI for the kernel. Kernel language (Rust recommended),
+  reference hardware, filesystem format and port-strategy details are
+  open items gating V6/V7/V9/V10 respectively.
 
 - 2026-08-25: **ADR-0002 accepted — DAEDELUS sovereign workshop.** Operator
   confirmed single-intake architecture (all building plans enter as journaled
@@ -197,8 +212,10 @@ tag-driven releases).
   W1 isolation hardening landed (fail-loud port bind, caller `who` in
   witness attestation). Survival mechanisms per roadmap W5 pending.
 
-- 2026-08-25: **ADR-0003 accepted — VOLTAGE is the Studio Creative
-  Control OS.** First artifact shipped via muster: blueprint
+- 2026-08-25: **ADR-0005 accepted (renumbered from a colliding
+  ADR-0003 draft at merge; 0004 reserved for the Track B
+  kernel-language decision) — VOLTAGE is the Studio Creative Control
+  OS.** First artifact shipped via muster: blueprint
   `apollo-os` (command plane: grammar/rights-law/sessions/dispatch/
   witness/seals), registered as `apollo-os`, gate green plus all four
   injected breakers proven to bite (`tools/muster_launch.py`).

@@ -10,6 +10,12 @@
 
 ## Context
 
+- **North star (extended 2026-08-25, same day as acceptance):** the
+  operator ordered Volt to become a *fully usable operating system*
+  running on its own bare-metal kernel, named **THOTH** — see
+  `docs/adr/0003-volt-bare-metal-thoth-kernel.md`. This ADR's V1–V5
+  remain unchanged as Track A (sovereign foundation); the metal ladder
+  is Track B (V6–V12) in `docs/plans/project-voltage-roadmap.md`.
 - DESIGN.md states the ecosystem converges on *"a fully autonomous,
   open-source game and app development platform"*. An open-source-core
   extraction was planned 2026-08-25 (working name "Darwin"), then
@@ -32,10 +38,13 @@
    Olympos commit lineage is carried over.
 2. **Seed set (v0).** Byte-exact export from Olympos main:
    `ratatosk/ norn/ hades/ zeus/ gaia/ ptah/ atlas/ daedalus/ buskit/`
-   plus infra (`doctor.py`, `sentinel.py`, `realms/`). Configs are
-   re-pointed at the new root (ports 441xx, protected roots,
-   `RATATOSK_ROOT`). After V5, divergence is intentional policy.
-3. **Isolation contract (two-sided, gate-enforced).**
+   plus infra (`doctor.py`, `sentinel.py`, `boundary.py`, `realms/`).
+   Configs are re-pointed at the new root (ports 441xx, protected roots,
+   `RATATOSK_ROOT`, arming `VOLTAGE_ROOT`). After V5, divergence is
+   intentional policy.
+3. **Isolation contract (two-sided, gate-enforced).** Canonical
+   authority: repo-root `boundary.py` (landed V1), seeded to VOLTAGE at
+   V2; posture derives from the armed jail, never from edited copies.
    - VOLTAGE-side path jail: every VOLTAGE organ refuses any path outside
      `D:\VOLTAGE`; sole exception is the push lane to its private GitHub
      mirror using existing credential store (tokens never tracked).
@@ -70,6 +79,10 @@
 
 ## Open items (block V2, not V0)
 
-1. Mirror repo identity: proposed `ProjectSoulbyTmb/voltage` (private).
-2. Root spelling: proposed `D:\VOLTAGE`.
-3. Port block ratification: proposed 44100–44199.
+Ratified by operator "go" (2026-08-25, session ordering V2 bootstrap):
+
+1. Mirror repo identity: `ProjectSoulbyTmb/voltage` (**private**) — created.
+2. Root spelling: `D:\VOLTAGE`.
+3. Port block: **44100–44199**, suffix-preserving shift from the olympos
+   ports (4390N → 4410N; zeus 43902→44102, ptah 43903→44103,
+   atlas 43904→44104, daedalus 43905→44105).

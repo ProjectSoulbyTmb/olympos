@@ -428,134 +428,149 @@
    "source": "hermes completion sweep 2026-08-24/25: stale ref locks blocked fetches, a killed pull left index past HEAD, ~70 tracked files missing from a worktree disk, 13 auto/* branches carried squash-duplicates of merged PRs, and one live writer shared another lane worktree",
    "lesson": "Multi-writer fleets accumulate five recurring tree injuries - stale .lock files, interrupted operations, stale-index-after-ref-move, disk-behind-ref drift, and patch-duplicate lane branches - and each one costs a debugging session if repaired by hand under pressure. Centralize them behind one mechanical tool (safeguards/tree_repair.py) whose repairs are bounded by three guards: no removal without a lock age grace AND zero live git processes, no restore of paths in directories showing recent sibling writes (the deletion itself bumps dir mtime - sibling mtimes are the live-writer signal), and judgment-call states like MERGE_HEAD are reported, never auto-fixed. Every action lands in a per-root hash-chained ledger so a later audit can trust prior repairs; fixture-gate the tool itself (verify_tree_repair.py) including the refusal cases - a repair tool tested only on damage it should fix will learn to pass by being dangerous.",
    "tags": [
-     "git",
-     "worktrees",
-     "multi-agent",
-     "safeguards",
-     "repair",
-     "gates"
-    ]
-   },
-   {
-    "id": "L035",
-    "title": "Registry loaders must reject or coalesce duplicate realm names",
-    "category": "data-integrity",
-    "source": "fleet muster 2026-08-25 (metis + argus merged): artemis row duplicated verbatim in realms/registry.json:21-50; sentinel double-ran the 'artemis suite' every patrol (incidents.jsonl:331,371) and every downstream membership count was wrong; all_realms() consumes rows raw with no dedupe (realms/__init__.py:28-29)",
-    "lesson": "Duplicate names in a declarative registry are corrupt input, not extra members: validate at LOAD time - reject the file outright, or coalesce identical duplicates and refuse conflicting ones loudly. One organ means one gate run and one alert stream; anything that consumes membership must never see the same name twice. Count claims derived from an unvalidated registry are wrong by construction.",
-    "tags": [
-     "registry",
-     "validation",
-     "dedupe",
-     "sentinel"
-    ]
-   },
-   {
-    "id": "L036",
-    "title": "Refuse realm admissions whose verifier is null",
-    "category": "process",
-    "source": "fleet muster 2026-08-25 (metis): aphrodite is the only realm with \"verify\": null (realms/registry.json:455) and no aphrodite gate ever appears in a patrol summary (incidents.jsonl:408)",
-    "lesson": "A declaration without a runnable verifier is visibility theater: it cannot go red, so its green is meaningless and guarantee 5 dies quietly. Registry admission requires a verify command - if a member is genuinely ungated, force an explicit UNPROTECTED state that patrols report as such, never a silent null.",
-    "tags": [
-     "registry",
-     "gates",
-     "admission"
-    ]
-   },
-   {
-    "id": "L037",
-    "title": "Impossible coverage readings mean broken measurement - re-run clean before believing",
-    "category": "testing",
-    "source": "fleet muster 2026-08-25 (metis): coverage gates failed llmlog.py 0% (0/82) while verify_buskit.py:153 imports it under registered tests; captured detail carried sysconfig env-noise (incidents.jsonl:386,405)",
-    "lesson": "When a metric reports something impossible - 0% coverage on a module the tests demonstrably import - the instrument is lying, not the code: sanitize child env of noise vars, assert import-under-trace actually fires, re-run in a clean environment, and only then trust the number. Never record an impossible reading as a real failure without one verification pass.",
-    "tags": [
-     "coverage",
-     "measurement",
-     "flaky-gates"
-    ]
-   },
-   {
-    "id": "L038",
-    "title": "Incident records need structured failure attribution, not output tails",
-    "category": "reliability",
-    "source": "fleet muster 2026-08-25 (metis): three unattributable gate FAILs across both ledger eras - free-text tails with no failing-check field (incidents.jsonl:10,30,318)",
-    "lesson": "Every FAIL record carries structured fields - failing check name, exit code, full-log reference - with free text allowed only in addition. A ledger you cannot group by cause is not evidence, it is sediment; attribution work should be a query, not archaeology.",
-    "tags": [
-     "incidents",
-     "observability",
-     "schema"
-    ]
-   },
-   {
-    "id": "L039",
-    "title": "An organ absent from disk is not a member - mark proposed-only and date-stamp it",
-    "category": "process",
-    "source": "fleet muster 2026-08-25 (argus): codex heart watchlist claimed a v0.2.0 desk companion on port 4767 while heart/ is an empty dir in both roots with zero tracked files (h0a cycle log:41-47 vs git ls-files)",
-    "lesson": "Codex entries describing organs with no tree on disk must carry an explicit proposed-only/unbound marker plus a last-verified date - never prose that reads as deployed reality. Before citing any organ in a design, Test-Path its home; absence downgrades it to an open decision (restore or retire), not a fact.",
-    "tags": [
-     "codex",
-     "drift",
-     "membership"
-    ]
-   },
-   {
-    "id": "L040",
-    "title": "Correction and still-missing lists expire on landing - re-derive from disk each revision",
-    "category": "process",
-    "source": "fleet muster 2026-08-25 (argus): INTEGRATION.md:5-7 'pending restoration' and the :304-308 still-missing list stayed false since the 2026-08-24 restoration landed; line 26 still cited retired ports 43590/43591",
-    "lesson": "Any doc section that lists what is missing or broken is a snapshot with a shelf life: when the underlying work lands, the list silently becomes a lie that sends planners re-restoring live organs. Re-derive such lists from disk truth at every revision of the document and stamp them with the audit date - stale truth is worse than missing truth.",
-    "tags": [
-     "codex",
-     "drift",
-     "documentation"
-    ]
-   },
-   {
-    "id": "L041",
-    "title": "Every gated organ gets an ecosystem-table row on arrival - document or retire within one cycle",
-    "category": "process",
-    "source": "fleet muster 2026-08-25 (argus): haven (:43910, sqlite-fts5) and ares (vault-cipher, T1) are gated on disk with registry rows but absent from DESIGN.md table, INTEGRATION topology, and codex watchlist (registry.json:488-517 vs DESIGN.md:9-20)",
-    "lesson": "Declaration without documentation creates orphan organs: gated, ported, real - yet invisible to every planner reading the model of record. New registry rows must land with their ecosystem-table row in the same cycle; if a row should not exist, retire it explicitly instead of letting it linger undocumented.",
-    "tags": [
-     "registry",
-     "documentation",
-     "onboarding"
-    ]
-   },
-   {
-    "id": "L042",
-    "title": "Resolve an organ's current home before working on it",
-    "category": "process",
-    "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1042,h0a,1300,1310}.md - organs relocated between workspace/nested-repo/standalone mid-cycle and stale-home work was orphaned; PR #61 withdrawn at 1310:25",
-    "lesson": "Before expanding, registering, or reviewing an organ, resolve its CURRENT home mechanically: git log --all --grep <organ>, registry read, Test-Path. Organs migrate between homes mid-cycle; on discovery of a move, withdraw in-flight surface and redo against the new home. Distinct from declare-on-arrival (L029) and one-home policy (L033): this is the per-session check that the home you remember is the home that exists.",
-    "tags": [
-     "organs",
-     "multi-home",
-     "verification"
-    ]
-   },
-   {
-    "id": "L043",
-    "title": "Doc-sourced claims are hypotheses: verify against disk before acting",
-    "category": "process",
-    "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{0959,1042,1112,1138}.md - doc-trusted claims produced false review findings and burned two full review rounds",
-    "lesson": "Every claim read from codex, DESIGN, INTEGRATION, or a roadmap surface is a hypothesis until checked on disk (Test-Path, registry count, port probe). Disk wins ties. The codex itself says this (rule 1); the failure mode is not ignorance of the rule but skipping the check under time pressure - make the check the first action, not a later audit step.",
-    "tags": [
-     "codex",
-     "verification",
-     "drift"
-    ]
-   },
-   {
-    "id": "L044",
-    "title": "Mirrors converge on commit; audit a mirror before executing from it",
-    "category": "reliability",
-    "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1112,1146,wiring}.md - mirrors drifted behind the workspace (stale kernels, VERSION, blocking dirt); fixed by commits df0a85b,04e9130,d79e3ef",
-    "lesson": "Execution mirrors are caches, not sources: convergence happens through mirror_sync on commit, and before executing or reading truth from any mirror run mirror_sync.py --audit --strict first. Convergence failures escalate to the operator - never force-resolve by mixing foreign work into a diverged copy. CI wiring of the audit is deliberately left to the operator (respects rule against live-machine gates, L033).",
-    "tags": [
-     "mirrors",
-     "sync",
-     "execution"
-    ]
-   }
-  ]
- }
+    "git",
+    "worktrees",
+    "multi-agent",
+    "safeguards",
+    "repair",
+    "gates"
+   ]
+  },
+  {
+   "id": "L035",
+   "title": "Inherited lane dirt may already be shipped - diff against fresh main before committing it",
+   "category": "process",
+   "source": "hermes session 2026-08-25: two posture-aware boundary/ptah fixture edits sat uncommitted in the auto/hermes worktree from a prior session; while hermes verified them green, another lane shipped the same content as PR #91, so hermes PR #92 carried a byte-similar duplicate through squash merge",
+   "lesson": "Uncommitted changes found in your worktree are not automatically yours to land - they are evidence of an interrupted session whose owner may have re-run elsewhere. Before committing inherited dirt: fetch origin, scan recent merged PRs (git log --oneline origin/main plus subject match) for the same content, and diff your tree against fresh main first. If the work already landed, drop or reset your copy instead of re-shipping; if it is genuinely unlanded, commit it as its own labeled unit with the affected gates run, never swept into unrelated paper changes. Duplicate squash merges are usually harmless but they burn review trust and can silently fork helper functions when hunks land at different offsets.",
+   "tags": [
+    "git",
+    "worktrees",
+    "multi-agent",
+    "hygiene",
+    "verification"
+   ]
+  },
+
+  {
+   "id": "L036",
+   "title": "Registry loaders must reject or coalesce duplicate realm names",
+   "category": "data-integrity",
+   "source": "fleet muster 2026-08-25 (metis + argus merged): artemis row duplicated verbatim in realms/registry.json:21-50; sentinel double-ran the 'artemis suite' every patrol (incidents.jsonl:331,371) and every downstream membership count was wrong; all_realms() consumes rows raw with no dedupe (realms/__init__.py:28-29)",
+   "lesson": "Duplicate names in a declarative registry are corrupt input, not extra members: validate at LOAD time - reject the file outright, or coalesce identical duplicates and refuse conflicting ones loudly. One organ means one gate run and one alert stream; anything that consumes membership must never see the same name twice. Count claims derived from an unvalidated registry are wrong by construction.",
+   "tags": [
+    "registry",
+    "validation",
+    "dedupe",
+    "sentinel"
+   ]
+  },
+  {
+   "id": "L037",
+   "title": "Refuse realm admissions whose verifier is null",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (metis): aphrodite is the only realm with \"verify\": null (realms/registry.json:455) and no aphrodite gate ever appears in a patrol summary (incidents.jsonl:408)",
+   "lesson": "A declaration without a runnable verifier is visibility theater: it cannot go red, so its green is meaningless and guarantee 5 dies quietly. Registry admission requires a verify command - if a member is genuinely ungated, force an explicit UNPROTECTED state that patrols report as such, never a silent null.",
+   "tags": [
+    "registry",
+    "gates",
+    "admission"
+   ]
+  },
+  {
+   "id": "L038",
+   "title": "Impossible coverage readings mean broken measurement - re-run clean before believing",
+   "category": "testing",
+   "source": "fleet muster 2026-08-25 (metis): coverage gates failed llmlog.py 0% (0/82) while verify_buskit.py:153 imports it under registered tests; captured detail carried sysconfig env-noise (incidents.jsonl:386,405)",
+   "lesson": "When a metric reports something impossible - 0% coverage on a module the tests demonstrably import - the instrument is lying, not the code: sanitize child env of noise vars, assert import-under-trace actually fires, re-run in a clean environment, and only then trust the number. Never record an impossible reading as a real failure without one verification pass.",
+   "tags": [
+    "coverage",
+    "measurement",
+    "flaky-gates"
+   ]
+  },
+  {
+   "id": "L039",
+   "title": "Incident records need structured failure attribution, not output tails",
+   "category": "reliability",
+   "source": "fleet muster 2026-08-25 (metis): three unattributable gate FAILs across both ledger eras - free-text tails with no failing-check field (incidents.jsonl:10,30,318)",
+   "lesson": "Every FAIL record carries structured fields - failing check name, exit code, full-log reference - with free text allowed only in addition. A ledger you cannot group by cause is not evidence, it is sediment; attribution work should be a query, not archaeology.",
+   "tags": [
+    "incidents",
+    "observability",
+    "schema"
+   ]
+  },
+  {
+   "id": "L040",
+   "title": "An organ absent from disk is not a member - mark proposed-only and date-stamp it",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (argus): codex heart watchlist claimed a v0.2.0 desk companion on port 4767 while heart/ is an empty dir in both roots with zero tracked files (h0a cycle log:41-47 vs git ls-files)",
+   "lesson": "Codex entries describing organs with no tree on disk must carry an explicit proposed-only/unbound marker plus a last-verified date - never prose that reads as deployed reality. Before citing any organ in a design, Test-Path its home; absence downgrades it to an open decision (restore or retire), not a fact.",
+   "tags": [
+    "codex",
+    "drift",
+    "membership"
+   ]
+  },
+  {
+   "id": "L041",
+   "title": "Correction and still-missing lists expire on landing - re-derive from disk each revision",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (argus): INTEGRATION.md:5-7 'pending restoration' and the :304-308 still-missing list stayed false since the 2026-08-24 restoration landed; line 26 still cited retired ports 43590/43591",
+   "lesson": "Any doc section that lists what is missing or broken is a snapshot with a shelf life: when the underlying work lands, the list silently becomes a lie that sends planners re-restoring live organs. Re-derive such lists from disk truth at every revision of the document and stamp them with the audit date - stale truth is worse than missing truth.",
+   "tags": [
+    "codex",
+    "drift",
+    "documentation"
+   ]
+  },
+  {
+   "id": "L042",
+   "title": "Every gated organ gets an ecosystem-table row on arrival - document or retire within one cycle",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (argus): haven (:43910, sqlite-fts5) and ares (vault-cipher, T1) are gated on disk with registry rows but absent from DESIGN.md table, INTEGRATION topology, and codex watchlist (registry.json:488-517 vs DESIGN.md:9-20)",
+   "lesson": "Declaration without documentation creates orphan organs: gated, ported, real - yet invisible to every planner reading the model of record. New registry rows must land with their ecosystem-table row in the same cycle; if a row should not exist, retire it explicitly instead of letting it linger undocumented.",
+   "tags": [
+    "registry",
+    "documentation",
+    "onboarding"
+   ]
+  },
+  {
+   "id": "L043",
+   "title": "Resolve an organ's current home before working on it",
+   "category": "process",
+   "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1042,h0a,1300,1310}.md - organs relocated between workspace/nested-repo/standalone mid-cycle and stale-home work was orphaned; PR #61 withdrawn at 1310:25",
+   "lesson": "Before expanding, registering, or reviewing an organ, resolve its CURRENT home mechanically: git log --all --grep <organ>, registry read, Test-Path. Organs migrate between homes mid-cycle; on discovery of a move, withdraw in-flight surface and redo against the new home. Distinct from declare-on-arrival (L029) and one-home policy (L033): this is the per-session check that the home you remember is the home that exists.",
+   "tags": [
+    "organs",
+    "multi-home",
+    "verification"
+   ]
+  },
+  {
+   "id": "L044",
+   "title": "Doc-sourced claims are hypotheses: verify against disk before acting",
+   "category": "process",
+   "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{0959,1042,1112,1138}.md - doc-trusted claims produced false review findings and burned two full review rounds",
+   "lesson": "Every claim read from codex, DESIGN, INTEGRATION, or a roadmap surface is a hypothesis until checked on disk (Test-Path, registry count, port probe). Disk wins ties. The codex itself says this (rule 1); the failure mode is not ignorance of the rule but skipping the check under time pressure - make the check the first action, not a later audit step.",
+   "tags": [
+    "codex",
+    "verification",
+    "drift"
+   ]
+  },
+  {
+   "id": "L045",
+   "title": "Mirrors converge on commit; audit a mirror before executing from it",
+   "category": "reliability",
+   "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1112,1146,wiring}.md - mirrors drifted behind the workspace (stale kernels, VERSION, blocking dirt); fixed by commits df0a85b,04e9130,d79e3ef",
+   "lesson": "Execution mirrors are caches, not sources: convergence happens through mirror_sync on commit, and before executing or reading truth from any mirror run mirror_sync.py --audit --strict first. Convergence failures escalate to the operator - never force-resolve by mixing foreign work into a diverged copy. CI wiring of the audit is deliberately left to the operator (respects rule against live-machine gates, L033).",
+   "tags": [
+    "mirrors",
+    "sync",
+    "execution"
+   ]
+  }
+ ]
+}
