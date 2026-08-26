@@ -59,6 +59,18 @@ tag-driven releases).
 
 ## Decision log
 
+- 2026-08-25: **ARES v2 vault suite** (`ares/`) - the code-seal kernel
+  grew an encrypted metadata vault (single sealed JSONL container with
+  `.bak` recovery), named L1-L3 defense profiles, auto-lock
+  (`ares lock`, one prompt, rails enforced), a chain-aware audit
+  viewer/exporter, one-time-code device pairing (adopted keys join a
+  keyring; open tries primary then adoptions) and signed sync bundles
+  (sha256 manifest + HMAC). Automation law: unsealing is never
+  automated and unattended sealing is refused - it would need a stored
+  passphrase - so `register-autolock.ps1` installs a 15-minute
+  exposure SWEEP (dry-run findings to `data/ares/exposure.jsonl`).
+  v1 `.ares` blob format unchanged. Gate: `python verify_ares.py`
+  (19 checks, exit-code verdict).
 - 2026-08-25: Operator directive - all building delegated to the
   muster fleet (hard rule 5, root `AGENTS.md`). First exercise: full
   subfleet muster minting L035-L044, artemis registry dedupe, codex
