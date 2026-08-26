@@ -47,12 +47,17 @@ squash PRs; direct pushes to main are hook-blocked.
 `buskit/`, `hypnos/`, `tools/` verified via their verify suites;
 anything new gets inspected before being cited in a design.
 
-Disk watchlist (audit 2026-08-24): `heart/` is a self-managed nested
-repo (ex-DeskMate), v0.2.0 desk companion on port 4767, zero runtime
-deps — designed under `docs/adr/0001`, registry row pending H0
-sign-off; `hebe/` claimed by its lane (registry row exists). `docs/`
-founded 2026-08-24 (`adr/`, `plans/cycles/`, `contracts/`) holds the
-ATHENA artifact suite.
+Disk watchlist (re-audited 2026-08-25, argus muster): `heart/` tree is
+ABSENT in both roots (empty dir, zero tracked files) - the 2026-08-24
+"v0.2.0 desk companion on port 4767" entry was stale; restoration from
+heart's own remote or retirement of the pending row is an OPEN operator
+decision, :4767 remains proposed-only/unbound. `hebe/` claimed by its
+lane (registry row exists). New since last audit: `haven/` (:43910,
+sqlite-fts5 search organ) and `ares/` (vault cipher, T1) are gated on
+disk with registry rows but were undocumented until the 2026-08-25
+muster added them to DESIGN.md - keep/retire adjudication open.
+`docs/` founded 2026-08-24 (`adr/`, `plans/cycles/`, `contracts/`)
+holds the ATHENA artifact suite.
 
 Knowledge organ (audited 2026-08-24, post auto-wire):
 `knowledge/engine.py` TF-IDF search indexes library docs, lessons.json,
@@ -67,7 +72,10 @@ members) puts the organ under sentinel gate derivation.
 every `knowledge/verify_*.py` automatically. First product DB:
 webstudio/ (25 WS-### entries + 7 topic files).
 
-Wiring pass (2026-08-24 late): registry v2 now carries 29 members -
+Wiring pass (2026-08-24 late; membership re-counted 2026-08-25):
+registry v2 carries 32 members (argus muster found the artemis row
+duplicated verbatim -> 33 raw rows; duplicate deleted and L036 minted
+requiring loader-level dedupe) -
 satellites riley `:43907` (`D:/riley`, gated via portable wrapper
 `verify_riley_satellite.py`: skip-green when undeployed/dark, deep mode
 runs the satellite's own suite) and aphrodite `:43904`
@@ -82,9 +90,13 @@ publishes per-member samples on `vitals`, relay announces
 INTEGRATION §6 documents as-built pre-catalogue lanes (gates, witness,
 rights, hades-alerts, zeus-events, vulcan, daedalus, hypnos, poseidon).
 
-Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
-ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
-`43590/43591` are retired; any listener there is a squatter finding.
+Ports (registry = single source, re-audited 2026-08-25): zeus `:43902`,
+vulcan `:43901`, ptah `:43903`, daedalus `:43905`, haven `:43910`,
+aphrodite `:43904` (only live fleet listener at audit time); harmonia
+re-based to `:43908` after colliding with the live RILEY studio; riley
+satellite `:43907`. heart `:4767` proposed via ADR-0001 but UNBOUND -
+tree absent from disk. `43590/43591` are retired; any listener there is
+a squatter finding.
 
 Repo homes (policy 2026-08-24, operator-set, in force until revoked):
 `D:\` is the ONLY localside repository home. Mint-point enforcement:
@@ -95,6 +107,26 @@ is an operator tool, deliberately not a CI gate); `verify_repo_home.py`
 gates the logic. Known legacy violation: an older full checkout of
 this repo lives at OneDrive `Documents\Default Project` — treat it as
 frozen; never commit or clone from it.
+
+Tree repair (2026-08-25): `safeguards/tree_repair.py --fix` mechanically
+repairs stale locks / missing tracked files / generated dirt /
+patch-duplicate auto/* branches (per-root hash-chained ledger in
+data/); interrupted merge-rebase states and split-brain repos are
+report-only. Gate: `verify_tree_repair.py`. Completed-stranded-work
+record: hades operator authority (13/13), artemis organ (16/16),
+relay mind-mirror (12/12), mind organ (GREEN) all shipped 2026-08-25
+via PRs #73-#77.
+
+Operator directive (2026-08-25, binding on every session): ALL
+BUILDING IS DELEGATED TO THE MUSTER FLEET - construction runs through
+the Daedalus workshop lane (@epeios/@icarus/@talos/@perdix/@kourai/
+@kerux/@trophonios under @daedalus) and knowledge cycles through the
+learning subfleet; primary sessions plan, dispatch, verify, integrate,
+commit - never build organ code inline. No fitting agent = escalate to
+operator. Recorded as DESIGN.md hard rule 5 + root `AGENTS.md`.
+First muster under this doctrine: 2026-08-25 (L036-L045 minted,
+artemis dedupe, drift fixes; log:
+`docs/plans/learning/2026-08-25-muster-decisions.md`).
 
 ## 3. The five guarantees (each has an owner and a test)
 

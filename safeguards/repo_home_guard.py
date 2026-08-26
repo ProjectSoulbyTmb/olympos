@@ -172,15 +172,16 @@ def find_repos(root, maxdepth=3):
     """Depth-bounded scan for directories containing .git."""
     hits = []
     root = os.path.abspath(root)
+    skip = {"node_modules", ".worktrees", "$RECYCLE.BIN",
+            "System Volume Information", "AppData", "Application Data",
+            "Windows", "Program Files", "Program Files (x86)",
+            "ProgramData"}
     for dirpath, dirnames, filenames in os.walk(root):
         depth = dirpath[len(root):].count(os.sep)
         if depth >= maxdepth:
             dirnames[:] = []
             continue
-        dirnames[:] = [d for d in dirnames
-                       if d not in ("node_modules", ".worktrees",
-                                    "$RECYCLE.BIN", "System Volume "
-                                    "Information")]
+        dirnames[:] = [d for d in dirnames if d not in skip]
         if ".git" in dirnames or ".git" in filenames:
             hits.append(dirpath)
             dirnames[:] = []         # do not descend into repos

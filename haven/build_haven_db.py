@@ -237,6 +237,42 @@ def build_corpus():
     except (OSError, ValueError):
         pass
 
+    # ---- operator-taught cards (haven/teach/*.md) ----
+    # File format: first line "# Title", optional second line
+    # "keywords: a, b, c", remainder is the body markdown. The domain
+    # comes from the filename prefix: <domain>--<slug>.md
+    teach_dir = os.path.join(HERE, "teach")
+    if os.path.isdir(teach_dir):
+        for fn in sorted(os.listdir(teach_dir)):
+            if not fn.endswith(".md") or "--" not in fn:
+                continue
+            domain = fn[:-3].split("--", 1)[0].strip()
+            rel = os.path.join("haven", "teach", fn)
+            try:
+                raw = _read(REPO[0], rel)
+            except OSError:
+                continue
+            lines = raw.splitlines()
+            title = fn[:-3].split("--", 1)[1].replace("-", " ").strip()
+            kw = ""
+            body_start = 0
+            if lines and lines[0].startswith("# "):
+                title = lines[0][2:].strip()
+                body_start = 1
+                if len(lines) > 1 and lines[1].lower().startswith(
+                        "keywords:"):
+                    kw = lines[1].split(":", 1)[1].strip()
+                    body_start = 2
+            if domain and title and body_start < len(lines):
+                add(domain, title,
+                    "\n".join(lines[body_start:]).strip(), kw, rel)
+
+    # ---- full technological-expansion curriculum (haven/expansions.py) ----
+    from expansions import EXPANSIONS
+    for e in EXPANSIONS:
+        add(e["domain"], e["title"], e["body_md"], e.get("keywords", ""),
+            e.get("source"))
+
     return c
 
 
@@ -267,27 +303,28 @@ def upsert_cards(conn, cards):
 
 
 def ensure_tokens(conn, repo, rotate=False):
-    """Mint missing tokens; keep existing ones unless --rotate.
+    """Keep every consumer authenticated; self-heal on drift.
 
-    Returns {consumer: token_file_path_or_None}. Existing kernels stay
-    authenticated across rebuilds because their tokens are untouched.
+    Law: the token FILE is the delivery truth. If a file exists and its
+    hash matches the DB row -> keep both. Any other state (missing row,
+    missing file, mismatch, or --rotate) mints a fresh token, updates
+    the row and rewrites every candidate dir's file.
     """
     report = {}
     for name in CONSUMERS:
         row = conn.execute(
             "SELECT token_sha256 FROM consumers WHERE name=?",
             (name,)).fetchone()
-        if row and not rotate:
-            tok_file = _find_token(repo, name)
-            if tok_file and _hash_file(tok_file) == row[0]:
-                report[name] = tok_file
-                continue
-            if tok_file is None:
-                # token lost - re-mint this consumer only
-                pass
-            else:
-                report[name] = tok_file  # file exists but drifted;
-                continue                  # leave DB row authoritative
+        tok_file = _find_token(repo, name)
+        current = None
+        if tok_file:
+            with open(tok_file, "rb") as fh:
+                current = fh.read().strip().decode("ascii", "replace")
+        if (not rotate and row and current
+                and hashlib.sha256(current.encode()).hexdigest()
+                == row[0]):
+            report[name] = tok_file
+            continue
         tok = secrets.token_hex(24)
         conn.execute(
             "INSERT INTO consumers(name,token_sha256,enabled,minted_at)"
@@ -297,13 +334,13 @@ def ensure_tokens(conn, repo, rotate=False):
             (name, hashlib.sha256(tok.encode()).hexdigest(), _now()))
         written = None
         for d in TOKEN_DIRS[name]:
+            d_abs = d if os.path.isabs(d) else os.path.join(repo, d)
             try:
-                os.makedirs(d, exist_ok=True)
-                p = os.path.join(d, "haven.token")
+                os.makedirs(d_abs, exist_ok=True)
+                p = os.path.join(d_abs, "haven.token")
                 with open(p, "w", encoding="utf-8") as fh:
                     fh.write(tok)
                 written = p
-                break
             except OSError:
                 continue
         report[name] = written
@@ -331,6 +368,8 @@ def main(argv=None):
     ap.add_argument("--out", default=None)
     ap.add_argument("--rotate", action="store_true",
                     help="re-mint all consumer tokens")
+    ap.add_argument("--no-provision", action="store_true",
+                    help="skip token file writes (tests use temp dirs)")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--add", nargs=2, metavar=("DOMAIN", "TITLE"),
                     help="append one operator-authored topic")
@@ -359,7 +398,9 @@ def main(argv=None):
         return 0
 
     fresh = upsert_cards(conn, build_corpus())
-    tokens = ensure_tokens(conn, args.repo, rotate=args.rotate)
+    tokens = ({name: _find_token(args.repo, name)
+               for name in CONSUMERS} if args.no_provision
+              else ensure_tokens(conn, args.repo, rotate=args.rotate))
     conn.execute(
         "INSERT INTO meta(key,value) VALUES('consumers',?) "
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -376,9 +417,16 @@ def main(argv=None):
           % (n, fresh, ", ".join(domains)))
     print("db: %s" % out)
     ok = True
-    for name, path in tokens.items():
-        print("token[%s]: %s" % (name, path or "PROVISION FAILED"))
-        ok = ok and bool(path)
+    if args.no_provision:
+        # Provisioning intentionally skipped (tests use temp dbs):
+        # token presence is informational here, never part of the verdict.
+        for name, path in tokens.items():
+            print("token[%s]: %s"
+                  % (name, path or "not found (--no-provision)"))
+    else:
+        for name, path in tokens.items():
+            print("token[%s]: %s" % (name, path or "PROVISION FAILED"))
+            ok = ok and bool(path)
     if args.list:
         for dom, t in conn.execute(
                 "SELECT domain,title FROM topics ORDER BY domain,title"):

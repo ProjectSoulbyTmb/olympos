@@ -1,0 +1,20 @@
+{
+	email {$ACME_EMAIL}
+}
+
+git.eidovara.org {
+	encode zstd gzip
+	reverse_proxy forgejo:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# LFS uploads can be large; lift proxy body limits
+	request_body {
+		max_size 4GB
+	}
+}

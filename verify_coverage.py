@@ -9,6 +9,7 @@ Exit: 0 at/above floor, 1 below, 2 harness failure.
 """
 
 import io
+import os
 import runpy
 import sys
 import trace
@@ -16,12 +17,17 @@ from contextlib import redirect_stdout
 
 FLOOR = 60  # percent of executable lines that must be exercised
 TARGETS = ("buskit",)
+# Anchor "ignore the stdlib" on the directory that IS the loaded
+# stdlib, not on sys.prefix: relocated/portable interpreters (actions
+# runner toolcache, embedded dists) can resolve prefix to the CWD,
+# which would silently ignore the whole repo and report every file 0%.
+STDLIB_DIR = os.path.dirname(os.__file__)
 
 
 def main():
     print("verify_coverage")
     tracer = trace.Trace(count=1, trace=0,
-                         ignoredirs=(sys.prefix, sys.exec_prefix))
+                         ignoredirs=(STDLIB_DIR,))
     code = "runpy.run_path('verify_buskit.py', run_name='__main__')"
     buf = io.StringIO()
     try:
@@ -41,9 +47,13 @@ def main():
             executed.setdefault("buskit/" + rel, set()).update(
                 range(_lineno, _lineno + max(n, 1)))
 
+    if not executed:
+        print("FAIL  harness recorded no buskit lines - trace blind; "
+              f"stdlib={STDLIB_DIR} sys.prefix={sys.prefix!r}")
+        return 2
+
     total_ok = True
     for target in TARGETS:
-        import os
         pkg_dir = target
         all_lines = {}
         for root, _dirs, files in os.walk(pkg_dir):

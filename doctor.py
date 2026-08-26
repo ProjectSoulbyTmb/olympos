@@ -45,6 +45,22 @@ def _registry_ports():
         return set()
 
 
+def _registry_port_tiers():
+    """Port -> tier map from realms/registry.json (best effort).
+
+    Mirrors sentinel's H0a convention: a busy tier-3 satellite port is
+    a healthy companion, not a squatter - satellites run as normal
+    life, so doctor must not warn about them."""
+    try:
+        with open(os.path.join(HERE, "realms", "registry.json"),
+                  encoding="utf-8") as fh:
+            realms = json.load(fh).get("realms", [])
+        return {int(r["port"]): int(r.get("tier") or 1)
+                for r in realms if r.get("port")}
+    except (OSError, ValueError, TypeError, KeyError):
+        return {}
+
+
 def _knowledge_suites():
     """Every knowledge/verify_*.py joins the battery automatically.
 
@@ -220,14 +236,21 @@ class Doctor:
         return result["files"]
 
     def check_ports(self):
+        """Who owns the owned ports right now.
+
+        Tier-aware like sentinel: a busy port whose registry tier is
+        >= 3 is a live satellite companion (recorded separately, not
+        warned); anything else in use stays a warning."""
         import socket
-        squatters = []
+        tiers = _registry_port_tiers()
+        squatters, companions = [], []
         for port in OWNED_PORTS:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(0.3)
                 if s.connect_ex(("127.0.0.1", port)) == 0:
-                    squatters.append(port)
-        return squatters                    # info only - who owns it matters
+                    (companions if tiers.get(port, 1) >= 3
+                     else squatters).append(port)
+        return squatters, companions
 
     def collect_pycache(self):
         found = []
@@ -301,11 +324,15 @@ class Doctor:
                             f"stale ({age / 3600:.0f}h) rebuilt: "
                             f"{files} files")
 
-            squatters = self.check_ports()
-            self.record("owned ports",
-                        "warn" if squatters else "pass",
-                        f"in use: {squatters}" if squatters
-                        else f"{len(OWNED_PORTS)} ports clear")
+            squatters, companions = self.check_ports()
+            if squatters:
+                self.record("owned ports", "warn",
+                            "in use: " + str(squatters))
+            else:
+                self.record("owned ports", "pass",
+                            f"{len(OWNED_PORTS)} ports clear"
+                            + (f"; T3 companion alive on {companions}"
+                               if companions else ""))
 
         missing = self.check_requirements()
         if missing and self.fix_deps and not self.ci:
