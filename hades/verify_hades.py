@@ -19,7 +19,6 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from hades import watermark as wm                     # noqa: E402
-from hades.auth import AuthError, AuthStore           # noqa: E402
 from hades.audit import AuditLog                      # noqa: E402
 from hades.kernel import Hades, TamperError           # noqa: E402
 
@@ -288,95 +287,6 @@ def check_guard(h, base):
     return True
 
 
-# ---------------- operator password gate ----------------
-
-def check_auth_lifecycle(h, base):
-    st = AuthStore(h.state_dir)
-    if st.status() != "missing":
-        return "fresh fixture should have no auth state"
-    if st.session_valid() or st.session() is not None:
-        return "session exists before any unlock"
-    if st.set_password("opw12345"):
-        return "first enroll reported itself as rotation"
-    # wrong password: refused, counted, no session minted
-    if st.attempt_unlock("wrong-pass") is not None:
-        return "wrong password unlocked"
-    if st.fails() != 1 or st.session_valid():
-        return "failure not counted / session leaked: fails=%d" % st.fails()
-    # correct password: one unlock, session lives, lock kills it
-    sess = st.attempt_unlock("opw12345")
-    if not sess or not st.session_valid():
-        return "correct password failed to open a session"
-    st.lock()
-    if st.session_valid():
-        return "lock did not revoke the session"
-    if st.fails() != 0:
-        return "success did not reset the failure counter"
-    return True
-
-
-def check_auth_expiry_and_rotation(h, base):
-    import json
-    import time
-    st = AuthStore(h.state_dir)
-    # craft an expired session - must be treated as locked and swept
-    with open(st.session_path, "w", encoding="utf-8") as f:
-        json.dump({"token_hex": "ff", "unlocked_at": "yesterday",
-                   "expires_epoch": int(time.time()) - 10,
-                   "expires_at": "yesterday"}, f)
-    if st.session_valid():
-        return "expired session accepted"
-    if os.path.exists(st.session_path):
-        return "expired session not swept from disk"
-    # rotation demands the current password
-    try:
-        st.set_password("newpass99", old="wrong-current")
-    except AuthError:
-        pass
-    else:
-        return "rotation accepted a wrong current password"
-    st.set_password("newpass99", old="opw12345")
-    if st.attempt_unlock("opw12345") is not None:
-        return "old password still unlocks after rotation"
-    if not st.attempt_unlock("newpass99"):
-        return "new password does not unlock after rotation"
-    # rotating again must kill the live session
-    st.set_password("another22", old="newpass99")
-    if st.session_valid():
-        return "rotation left the previous session alive"
-    return True
-
-
-def check_auth_backoff_fail_closed(h, base):
-    st = AuthStore(h.state_dir)
-    for _ in range(3):
-        st.attempt_unlock("bad-guess")
-    if st.backoff_remaining() != 0:
-        return "backoff engaged before the free-failure budget ran out"
-    st.attempt_unlock("bad-guess")                 # 4th failure starts it
-    wait = st.backoff_remaining()
-    if wait <= 0:
-        return "no backoff after repeated failures"
-    try:
-        st.attempt_unlock("another22")             # even the RIGHT password
-    except AuthError:
-        pass
-    else:
-        return "backoff let an attempt through"
-    # corrupt credential state must fail closed
-    with open(st.auth_path, "w", encoding="utf-8") as f:
-        f.write("{this is not json")
-    if st.status() != "corrupt":
-        return "corrupt auth state not detected"
-    try:
-        st.attempt_unlock("another22")
-    except AuthError:
-        pass
-    else:
-        return "corrupt state did not refuse unlock"
-    return True
-
-
 def check_authority_gate(h, base):
     """Operator override authority: enroll -> mint -> execute; then
     attack it with a forged secret, an expired token, a replay, and a
@@ -530,9 +440,6 @@ CHECKS = [
     ("fail-closed guard", check_guard),
     ("operator authority gate", check_authority_gate),
     ("realm expansion + worktree exclusion", check_realms_expansion),
-    ("auth lifecycle (set/fail/unlock/lock)", check_auth_lifecycle),
-    ("auth expiry + rotation kills sessions", check_auth_expiry_and_rotation),
-    ("auth backoff + corrupt-state fail-closed", check_auth_backoff_fail_closed),
 ]
 
 

@@ -39,7 +39,7 @@ below - parallel-lane work in this checkout is deliberately excluded.
 - hardening: ops-domain single-use confirms, session-seal chains,
   sla-pulse injected-clock SLOs, voltage-packager release law
 - tools: muster_launch.py harness, voltage_export.py seeder
-- docs: ADR-0003, command-spec v1, roadmap V6-V9 status, DESIGN log
+- docs: ADR-0005, command-spec v1, roadmap V6-V9 status, DESIGN log
 - muster-fleet.ps1 continuation command + land-all.ps1 itself
 '@
 
@@ -61,7 +61,7 @@ $OLYMPOS_PATHS = @(
     'daedalus/blueprints.py',
     'tools/muster_launch.py',
     'tools/voltage_export.py',
-    'docs/adr/0003-voltage-creative-control-os.md',
+    'docs/adr/0005-voltage-creative-control-os.md',
     'docs/contracts/voltage-command-spec-v1.md',
     'docs/plans/project-voltage-roadmap.md',
     'DESIGN.md',

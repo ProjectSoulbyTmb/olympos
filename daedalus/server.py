@@ -20,6 +20,7 @@ import time
 
 from daedalus.kernel import Workshop
 from daedalus import content
+from daedalus.blueprints import blueprint_names
 
 try:
     import norn.rights as rights
@@ -157,7 +158,8 @@ class DaedalusServer:
                 return {"error": f"right_denied: profile '{pname}' "
                                  f"may not '{cmd}'", "result": None}
         args = args if isinstance(args, dict) else {}
-        mutating = cmd not in ("status", "builds", "blueprints", "close")
+        mutating = cmd not in ("status", "builds", "blueprints", "close",
+                               "plan_list", "plan_show")
         result, error = None, None
         try:
             result = method(**args)
@@ -194,6 +196,48 @@ class DaedalusServer:
         job = self.ws.submit(spec)
         r = self.ws.build_next()
         return {"submitted": job, "outcome": r}
+
+    # ---- planning station ----
+
+    def api_plan_submit(self, plan):
+        return self.ws.plans.submit(plan,
+                                    known_blueprints=blueprint_names())
+
+    def api_plan_list(self, status=None):
+        return self.ws.plans.list(status=status)
+
+    def api_plan_show(self, plan_id):
+        return self.ws.plans.show(plan_id)
+
+    def api_plan_approve(self, plan_id, sign_off, commission=False):
+        """Operator sign-off moves draft -> approved; commission=True
+        chains the workshop hand-off in the same audited call."""
+        plan = self.ws.plans.approve(plan_id, sign_off)
+        if commission:
+            r = self.ws.plans.commission(plan_id)
+            return {"approved": plan, "commission": r}
+        return {"approved": plan}
+
+    def api_plan_reject(self, plan_id, reason=""):
+        return {"rejected": self.ws.plans.reject(plan_id, reason)}
+
+    def api_plan_commission(self, plan_id):
+        return self.ws.plans.commission(plan_id)
+
+    def api_plan_step_done(self, plan_id, index, note=""):
+        return self.ws.plans.step_done(plan_id, int(index), note)
+
+    def api_plan_quarantine(self, plan_id, reason=""):
+        return {"quarantined":
+                self.ws.plans.quarantine(plan_id, reason)}
+
+    # ---- fleet shape ----
+
+    def api_fleet_resize(self, lanes):
+        report = self.ws.fleet.resize(lanes)
+        findings = self.ws.warden.patrol()
+        return {"resize": report, "lanes": len(self.ws.fleet.lanes),
+                "warden_findings": findings}
 
     def api_lane_drain(self, max_jobs=8):
         """Drive the queue (used by the daemon loop + tests)."""

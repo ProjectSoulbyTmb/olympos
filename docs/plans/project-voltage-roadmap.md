@@ -80,7 +80,7 @@ precondition (rebase complete + one full green CI push-run on main).
 - Acceptance: one full week of unattended side-by-side operation with
   zero cross-fleet incidents in either ledger.
 
-### V6 — APOLLO command plane (ADR-0003; test-launch SHIPPED 2026-08-25)
+### V6 — APOLLO command plane (ADR-0005, renumbered from draft 0003 at merge; test-launch SHIPPED 2026-08-25)
 - [x] Blueprint `apollo-os` (daedalus/blueprint_apollo.py): grammar,
       rights law, sessions, dispatch, witness, seals, gate.
 - [x] Muster matrix green: clean pass + all four breakers confirmed
@@ -234,6 +234,18 @@ reference hardware → V7 exit, filesystem → V9, Eidovara port strategy
 - Acceptance: target four weeks of real use on metal with zero
   data-loss incidents and every failure recovered by the stabilizer
   path, not by hand.
+
+| Rule | Enforced by |
+|---|---|
+| Disjoint ports 44100–44199 | registry + boot-time squatter sweep |
+| Task names `voltage-*` | installer scripts + task audit |
+| Path jail (outbound) | `boundary.py` side B via organ dispatch seams (`VOLTAGE_ROOT` arms; `VOLTAGE_JAIL_EXEMPT` for the push lane only) |
+| Foreign territory (inbound) | `boundary.py` side A + `verify_boundary.py` gate in sentinel/CI |
+| Secrets never tracked | secrets gate pre-mirror-push |
+
+One canonical module serves both sides (`boundary.py`, seeded at V2):
+posture derives from whether the jail is armed, so neither fleet edits
+the shared file to flip polarity.
 
 ## Isolation contract summary
 

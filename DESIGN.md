@@ -73,7 +73,7 @@ tag-driven releases).
   (19 checks, exit-code verdict).
 - 2026-08-25: Operator directive - all building delegated to the
   muster fleet (hard rule 5, root `AGENTS.md`). First exercise: full
-  subfleet muster minting L035-L045, artemis registry dedupe, codex
+  subfleet muster minting L036-L045 (ids shifted at merge; main had its own L035), artemis registry dedupe, codex
   drift corrections (commit aec1174, ares WIP excluded).
 - 2026-08-23: Trademark-hygiene rebrand: public product names moved to
   the public domain and the ecosystem took the name Olympos. Public
@@ -174,6 +174,7 @@ tag-driven releases).
 
 - 2026-08-24: **Workspace relocation to D:\olympos**: the olympos tree moved off OneDrive (C:) to D:\olympos as the primary home - C: copy retained as frozen backup. All 20 git worktrees rewired (per-worktree `.git` pointers + .git/worktrees/*/gitdir), scheduled tasks re-registered from the new root ('Olympos RELAY Bridge' verified streaming), hades seal/key/audit state carried intact, verify gate green from the new root.
 
+
 - 2026-08-24: First autonomous build artifact shipped: the godot-game
   blueprint in DAEDALUS weaves a deterministic orb-collector (Godot 4.x,
   Compatibility renderer) whose world is baked at weave time from a
@@ -201,8 +202,10 @@ tag-driven releases).
   W1 isolation hardening landed (fail-loud port bind, caller `who` in
   witness attestation). Survival mechanisms per roadmap W5 pending.
 
-- 2026-08-25: **ADR-0003 accepted — VOLTAGE is the Studio Creative
-  Control OS.** First artifact shipped via muster: blueprint
+- 2026-08-25: **ADR-0005 accepted (renumbered from a colliding
+  ADR-0003 draft at merge; 0004 reserved for the Track B
+  kernel-language decision) — VOLTAGE is the Studio Creative Control
+  OS.** First artifact shipped via muster: blueprint
   `apollo-os` (command plane: grammar/rights-law/sessions/dispatch/
   witness/seals), registered as `apollo-os`, gate green plus all four
   injected breakers proven to bite (`tools/muster_launch.py`).
