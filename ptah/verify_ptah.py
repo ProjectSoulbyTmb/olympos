@@ -242,6 +242,78 @@ def check_llm_retry():
         srv.server_close()
 
 
+_ENV_KEYS = ("PTAH_BASE_URL", "PTAH_LLM_MODEL", "PTAH_LMSTUDIO_URL",
+             "PTAH_LMSTUDIO_MODEL", "PTAH_LLM_PROVIDER")
+
+
+class _EnvScope:
+    """Force selected PTAH_* env keys inside a with-block; restore after."""
+
+    def __init__(self, **overrides):
+        self.overrides = overrides
+        self.saved = {k: os.environ.get(k) for k in _ENV_KEYS}
+
+    def __enter__(self):
+        for k, v in self.overrides.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        return self
+
+    def __exit__(self, *exc):
+        for k, v in self.saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        return False
+
+
+def check_lmstudio_seam():
+    """LM Studio seam: env-driven, precedence explicit > alias >
+    default; config time never dials the network; scripted boot is
+    unchanged with dead endpoints."""
+    # 1. alias-only configuration resolves onto the standard seam
+    with _EnvScope(PTAH_LMSTUDIO_URL="http://127.0.0.1:1234/v1",
+                   PTAH_LMSTUDIO_MODEL="qwen2.5-7b-instruct"):
+        cfg = LLMConfig.from_env()
+    if cfg.provider != "openai" or cfg.base_url != "http://127.0.0.1:1234/v1":
+        return f"alias url not honored: {cfg.base_url!r}"
+    if cfg.model != "qwen2.5-7b-instruct":
+        return f"alias model not honored: {cfg.model!r}"
+
+    # 2. canonical keys outrank aliases
+    with _EnvScope(PTAH_BASE_URL="http://127.0.0.1:9999/v1",
+                   PTAH_LMSTUDIO_URL="http://127.0.0.1:1234/v1",
+                   PTAH_LLM_MODEL="canon", PTAH_LMSTUDIO_MODEL="alias"):
+        cfg = LLMConfig.from_env()
+    if cfg.base_url != "http://127.0.0.1:9999/v1" or cfg.model != "canon":
+        return f"precedence broken: {cfg.base_url!r}/{cfg.model!r}"
+
+    # 3. clean env -> provider defaults, empty base_url
+    with _EnvScope(**{k: None for k in _ENV_KEYS}):
+        cfg = LLMConfig.from_env()
+    if cfg.provider != "openai" or cfg.base_url != "":
+        return f"default posture drifted: {cfg.provider}/{cfg.base_url!r}"
+
+    # 4. pointing at a dead endpoint costs nothing at config/boot time
+    with _EnvScope(PTAH_LMSTUDIO_URL="http://127.0.0.1:1234/v1"):
+        brain = LLM(LLMConfig.from_env())
+    if brain.config.base_url != "http://127.0.0.1:1234/v1":
+        return "dead-endpoint config mutated"
+
+    # 5. scripted boot unchanged with LM aliases present
+    from ptah.cli import build_brain, build_parser
+    with _EnvScope(PTAH_LMSTUDIO_URL="http://127.0.0.1:1234/v1",
+                   PTAH_LMSTUDIO_MODEL="qwen2.5-7b-instruct"):
+        args = build_parser().parse_args(["run", "--demo"])
+        demo_brain = build_brain(args)
+    if not isinstance(demo_brain, ScriptedLLM):
+        return f"demo boot left scripted mode: {type(demo_brain).__name__}"
+    return True
+
+
 def check_end_to_end_solve():
     with tempfile.TemporaryDirectory(prefix="ptah-gate-e2e-") as tmp:
         conv, ws, agent = harness(tmp, [
@@ -422,6 +494,7 @@ CHECKS = [
     ("builtin knowledge cards", lambda: check_skills_builtin()),
     ("condenser budget + determinism", lambda: check_condenser()),
     ("llm transient retry transport", lambda: check_llm_retry()),
+    ("lm studio env seam offline-safe", lambda: check_lmstudio_seam()),
     ("end-to-end scripted solve", lambda: check_end_to_end_solve()),
     ("confirmation pause/resume cycle",
      lambda: check_confirmation_cycle()),
