@@ -16,10 +16,11 @@ def collect(supervisors, scheduler):
             mt = log_mtime(name)
             limit = supervisors[name].spec.get("freshness", 900)
             fresh = (mt is not None and time.time() - mt <= limit)
+        quiet = supervisors[name].spec.get("quiet", False)
         ok = (
             s["state"] == "RUNNING"
             and s["pid"] is not None
-            and fresh is True
+            and (fresh is True or quiet)
             and s["consecutive_crashes"] < 3
         )
         rows.append({

@@ -33,6 +33,7 @@ SINGLETON_JOBS = [
         "args": [PY, "-m", "relay", "watch", "--every", "60"],
         "cwd": r"D:\olympos",
         "freshness": 300,
+        "quiet": True,
     },
     {
         "name": "artemis-huntress",
