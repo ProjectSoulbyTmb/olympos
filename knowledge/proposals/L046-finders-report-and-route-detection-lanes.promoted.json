@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "proposed_by": "logia",
+  "proposed_ts": "2026-08-26T01:55:44",
+  "evidence": [
+    "docs/plans/cycles/2026-08-26-soak-baseline.md:9",
+    "docs/plans/cycles/2026-08-24-h0a.md:49",
+    "docs/plans/cycles/2026-08-25-volt-comm.md:51-58",
+    "docs/plans/cycles/2026-08-26-full-comm-phase0.md:34",
+    "docs/plans/cycles/2026-08-26-thoth-metal-w0.md:72"
+  ],
+  "rationale": "Five distinct cycles kept finders read-only: soak-baseline patrol posture cites findings reported with evidence, fixes nothing, and closes with never repair never delete evidence; h0a logged unrelated incidents as recorded NOT resolved here; volt-comm routed drift findings to argus and operator; full-comm left uncommitted drift untouched per standing rule; THOTH-METAL W0 left pre-existing dirty state untouched. Adjacent but distinct from L009 (what automated remediation may touch once it acts) and rule 23 (bounded mechanical repair by tool): this assigns WHO repairs - detectors route, owners repair.",
+  "lesson": {
+    "title": "Finders report and route - detection lanes never repair inline",
+    "category": "process",
+    "source": "logia synthesis",
+    "lesson": "A lane whose job is detection (patrols, drift audits, reviews, health sweeps) records findings with cited command output and routes each to a named repair owner. It never repairs inline, never deletes evidence, and leaves pre-existing dirty state untouched. Repairs belong to designated owners: repair lanes or bounded mechanical tools. Mixing repair into detection destroys the independence that makes a finding trustworthy.",
+    "tags": [
+      "pattern",
+      "synthesis"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L053",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

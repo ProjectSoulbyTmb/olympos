@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "proposed_by": "argus",
+  "proposed_ts": "2026-08-26T01:49:54",
+  "evidence": [
+    ".opencode/skills/athena-codex/SKILL.md:69; .opencode/skills/athena-codex/SKILL.md:76; realms/registry.json (ConvertFrom-Json count=32)"
+  ],
+  "rationale": "The knowledge-organ paragraph (audited 2026-08-24) says the knowledge row covers 21 realm members; the wiring-pass paragraph in the same section says registry v2 carries 32 members (re-counted 2026-08-25); disk truth is 32 rows. An internal contradiction makes the codex unusable as model of record for membership facts.",
+  "lesson": {
+    "title": "athena-codex SKILL.md sec2 self-contradiction: 21 vs 32 members",
+    "category": "data-integrity",
+    "source": "argus drift audit",
+    "lesson": "Codex facts must carry exactly one date-stamped value each; two counts of the same fact in one document is drift by definition. Delete the stale '(21 realm members)' parenthetical at SKILL.md:69-70 or replace with 32 (re-counted 2026-08-26) to match SKILL.md:75-76 and disk.",
+    "tags": [
+      "drift"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L055",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

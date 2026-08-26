@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "proposed_by": "logia",
+  "proposed_ts": "2026-08-26T01:55:43",
+  "evidence": [
+    "docs/plans/cycles/2026-08-26-thoth-metal-w0.md:53",
+    "docs/plans/cycles/2026-08-25-0052.md:48",
+    "docs/plans/cycles/2026-08-25-0200.md:26",
+    "docs/plans/cycles/2026-08-24-1300.md:3"
+  ],
+  "rationale": "Four distinct cycles re-derived annotation-over-rewrite while repairing duplicate ADR numbers and a lost cycle file: W0 dedupe placed bracket notes into 0052/0200 declaring record integrity preserved with no silent rewrite; 0052 and 0200 each annotated ADR-0002 to 0007 in place; 1300 discloses its recreation as a recovered record with content unchanged and timestamp preserved. Distinct from L041 (stale truth-lists expire and must be re-derived) and from L011 machine audit chains: this governs how human-facing records are amended without breaking their integrity.",
+  "lesson": {
+    "title": "Amend historical records only by dated annotation or disclosed recreation - never silent rewrite",
+    "category": "process",
+    "source": "logia synthesis",
+    "lesson": "Historical records (cycle logs, ADRs, decision papers, ledgers) are corrected only by dated bracket annotations or disclosed recreation. When a duplicate forces a removal or rename, update cross-references AND leave bracket notes in every older record citing the old name. When a file is lost, recreate it marked as a recovered record with content unchanged and timestamp preserved. A reader must always be able to distinguish what was true when written from what was corrected later.",
+    "tags": [
+      "pattern",
+      "synthesis"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L049",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}
