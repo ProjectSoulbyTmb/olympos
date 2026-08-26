@@ -117,6 +117,17 @@ record: hades operator authority (13/13), artemis organ (16/16),
 relay mind-mirror (12/12), mind organ (GREEN) all shipped 2026-08-25
 via PRs #73-#77.
 
+Operator directive (2026-08-25, binding on every session): ALL
+BUILDING IS DELEGATED TO THE MUSTER FLEET - construction runs through
+the Daedalus workshop lane (@epeios/@icarus/@talos/@perdix/@kourai/
+@kerux/@trophonios under @daedalus) and knowledge cycles through the
+learning subfleet; primary sessions plan, dispatch, verify, integrate,
+commit - never build organ code inline. No fitting agent = escalate to
+operator. Recorded as DESIGN.md hard rule 5 + root `AGENTS.md`.
+First muster under this doctrine: 2026-08-25 (L035-L044 minted,
+artemis dedupe, drift fixes; log:
+`docs/plans/learning/2026-08-25-muster-decisions.md`).
+
 ## 3. The five guarantees (each has an owner and a test)
 
 1. Deterministic replay — same seed => byte-identical session (norn.replay)

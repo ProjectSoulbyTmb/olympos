@@ -39,6 +39,11 @@ tag-driven releases).
    external service dependency for core functionality.
 4. **Idempotent repairs only.** Doctor/sentinel remediations are safe,
    byte-exact rollback-able operations - never improvised rewrites.
+5. **Fleet-built only (2026-08-25).** All construction is delegated to
+   the muster-fleet subagents (Daedalus workshop lane + learning
+   subfleet); primary sessions plan, dispatch, verify, and integrate -
+   they never build organ code inline. No fitting agent = escalate to
+   the operator. See `AGENTS.md`.
 
 ## Conventions
 
@@ -54,6 +59,10 @@ tag-driven releases).
 
 ## Decision log
 
+- 2026-08-25: Operator directive - all building delegated to the
+  muster fleet (hard rule 5, root `AGENTS.md`). First exercise: full
+  subfleet muster minting L035-L044, artemis registry dedupe, codex
+  drift corrections (commit aec1174, ares WIP excluded).
 - 2026-08-23: Trademark-hygiene rebrand: public product names moved to
   the public domain and the ecosystem took the name Olympos. Public
   marks stay retired; internal naming follows the current scope policy
