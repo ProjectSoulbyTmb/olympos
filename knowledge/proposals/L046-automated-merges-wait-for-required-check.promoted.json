@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "proposed_by": "metis",
+  "proposed_ts": "2026-08-26T01:38:20",
+  "evidence": [
+    "docs/plans/cycles/2026-08-24-1112.md:25",
+    "docs/plans/cycles/2026-08-24-1146.md:46"
+  ],
+  "rationale": "Two same-day squash merges (#45, #49) landed while the ecosystem check was failing or pending; the audit that day concluded nothing in automation gates any merge on checks, and the post-merge remediate step added later mitigates but does not prevent recurrence on any lane that skips it.",
+  "lesson": {
+    "title": "Automated merges wait for required checks to finish green",
+    "category": "autonomy",
+    "source": "cycle logs 2026-08-24-1112/1146 - PR #45 and #49 squash-merged ahead of check completion while main's ecosystem job was red 7+ runs",
+    "lesson": "No automated merge path may execute until every required check on the target branch has completed green - poll check status and hold, or depend on branch protection that enforces it; never invoke a merge command that ignores check state. Merging on pending or failing checks lands broken commits on main and stamps provenance claiming health the fleet cannot honor (guarantee 5). A post-merge verify-and-remediate loop mitigates damage but does not license the merge.",
+    "tags": [
+      "git",
+      "ci",
+      "merges",
+      "agents"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L046",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "proposed_by": "metis",
+  "proposed_ts": "2026-08-26T01:39:51",
+  "evidence": [
+    "docs/plans/cycles/2026-08-26-soak-baseline.md:61",
+    "docs/plans/cycles/2026-08-26-soak-baseline.md:30"
+  ],
+  "rationale": "Both Olympos sentinel homes were silent through the soak window (checkout file never created; D:\\\\olympos quiesced since 2026-08-24T16:01:01 - before day zero); only the Day-1 baseline sweep caught that the auto-arm condition would otherwise certify on vacuous evidence, which is guarantee 5 dying quietly.",
+  "lesson": {
+    "title": "A clean ledger proves nothing unless the watcher provably ran",
+    "category": "reliability",
+    "source": "soak baseline 2026-08-26 (talos): Olympos sentinel ledgers wrote zero lines during the V5 soak window at both homes while auto-arm certification reads 'zero cross-fleet incidents in either ledger'",
+    "lesson": "Every 'zero incidents' claim over a time window must ride with positive liveness evidence - heartbeat entries, last-write timestamp freshness, or an explicit armed-watch assertion evaluated at window open. A ledger silent since before the window started means the instrument was down and its silence certifies nothing: mark it AMBER, arm the watch, and restart the clock rather than counting the dead interval as a clean pass. Absence of writer is absence of evidence.",
+    "tags": [
+      "monitoring",
+      "evidence",
+      "certification",
+      "liveness"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L047",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

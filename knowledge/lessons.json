@@ -1,575 +1,704 @@
 {
-  "_meta": {
-    "description": "Distilled lessons database - one object per lesson. Append-only; ids are monotonic and never reused.",
-    "created": "2026-08-24",
-    "categories": [
-      "architecture",
-      "reliability",
-      "data-integrity",
-      "testing",
-      "process",
-      "autonomy",
-      "security"
-    ]
-  },
-  "lessons": [
-    {
-      "id": "L001",
-      "title": "Authoritative server, SDK-only client surface",
-      "category": "architecture",
-      "source": "JSON-lines game/build servers (authoritative realm pattern)",
-      "lesson": "Run exactly one authoritative process that owns all mutable state. Clients send intent messages ({cmd, args}) over a line protocol and receive full state plus an error field on every response. All clients - humans, agents, tests - go through ONE SDK object; nothing bypasses it. This makes cheating impossible by construction, lets any strategy run unchanged over wire or in-process, and gives a single place to enforce rights and rate limits.",
-      "tags": [
-        "server",
-        "sdk",
-        "state",
-        "protocol"
-      ]
-    },
-    {
-      "id": "L002",
-      "title": "Single source of truth for data tables",
-      "category": "architecture",
-      "source": "content.py consolidation after duplicate-table incident",
-      "lesson": "All tunable data (prices, specs, spawn tables, device catalogs) lives in one content module per engine. Mechanics code contains zero numbers. When two modules re-declared the same table, concurrent edits silently diverged them - consolidation is cheaper than reconciliation.",
-      "tags": [
-        "data",
-        "single-source-of-truth"
-      ]
-    },
-    {
-      "id": "L003",
-      "title": "Declarative registry instead of hardcoded endpoints",
-      "category": "architecture",
-      "source": "realm registry pattern",
-      "lesson": "Keep one JSON registry mapping component names to ports/paths/kinds. Dashboards, runners and watchdogs read from it with caller-supplied fallbacks. Hardcoded ports rotted in at least four places simultaneously before this.",
-      "tags": [
-        "registry",
-        "configuration"
-      ]
-    },
-    {
-      "id": "L004",
-      "title": "Filesystem message bus beats sockets for organ chatter",
-      "category": "architecture",
-      "source": "ratatosk post office",
-      "lesson": "For low-volume inter-process events (incidents, heartbeats, rights changes), an inbox/outbox of atomic JSON files needs no daemon, survives crashes, is greppable, and works across languages. Delivery = temp file + os.replace into the recipient inbox; broadcast = append-only JSONL topic under a mandatory lock; consumers track cursor files. Bus failures must never crash host organs: publish/beat wrappers swallow everything.",
-      "tags": [
-        "messaging",
-        "filesystem",
-        "ipc",
-        "decoupling"
-      ]
-    },
-    {
-      "id": "L005",
-      "title": "Windows O_EXCL locks fail with EACCES during delete-pending",
-      "category": "reliability",
-      "source": "ratatosk concurrency fix (400-thread stress)",
-      "lesson": "On Windows, os.open(O_CREAT|O_EXCL) raises PermissionError - not FileExistsError - while a previous holder is between close() and unlink(). Treating EACCES as fatal produced silent duplicate sequence numbers under contention. Lock loops must retry on both, take over stale locks by mtime age, use backoff, and for shared counters use mandatory locking where an unlocked write would corrupt state (fail loudly instead).",
-      "tags": [
-        "windows",
-        "locking",
-        "concurrency",
-        "atomicity"
-      ]
-    },
-    {
-      "id": "L006",
-      "title": "Atomic writes are temp-file + os.replace, never in-place",
-      "category": "data-integrity",
-      "source": "all engines; seal/anchor corruption incident",
-      "lesson": "Readers must never observe partial files. Write to a temp file in the destination directory then os.replace onto the target - atomic on same volume. Writing hashed artifacts in TEXT mode on Windows converts LF to CRLF and permanently breaks every stored hash; anything covered by a checksum is written in binary or with newline=''.",
-      "tags": [
-        "atomicity",
-        "hashing",
-        "windows",
-        "newlines"
-      ]
-    },
-    {
-      "id": "L007",
-      "title": "Circuit breakers with automatic revival around every subsystem",
-      "category": "reliability",
-      "source": "zeus kernel breakers; venus heart organs",
-      "lesson": "Wrap each patrol/probe subsystem so N consecutive failures trip an open breaker that stops calling it, cools down for M ticks, then half-opens for retry. One sick probe must never take the whole kernel down, and failures must be visible as state, not just log lines.",
-      "tags": [
-        "resilience",
-        "watchdog",
-        "breakers"
-      ]
-    },
-    {
-      "id": "L008",
-      "title": "Beat-paced organs with latency SLOs quarantine themselves",
-      "category": "reliability",
-      "source": "pulse SLO model (XNU timekeeping-inspired)",
-      "lesson": "Periodic work runs on beat multiples of one shared clock. An organ that exceeds its latency SLO too many consecutive beats is quarantined automatically and revived after a cool-down, with vitals exposed (late ratio, last duration, reason). This turns 'mysteriously slow loop' into self-healing structure.",
-      "tags": [
-        "scheduling",
-        "slo",
-        "self-healing"
-      ]
-    },
-    {
-      "id": "L009",
-      "title": "Remediate by quarantine, never destruction",
-      "category": "reliability",
-      "source": "zeus bolt/quarantine, vulcan warden",
-      "lesson": "Automated repair moves suspect artifacts aside (quarantine dir with manifest, corrupt saves renamed *.corrupt-<ts>), applies conservative fixes only to owned artifacts, records every action in an incident ledger, and escalates anything requiring judgment. Code is reported, never auto-rewritten by watchdogs.",
-      "tags": [
-        "remediation",
-        "watchdog",
-        "safety"
-      ]
-    },
-    {
-      "id": "L010",
-      "title": "Schema gates at load: reject wrong shapes, tolerate unknown keys",
-      "category": "data-integrity",
-      "source": "RIG validators (vulcan rules/saves, engine saves)",
-      "lesson": "Validate documents against an explicit shape when loading - hard-fail with key-and-type precision before bad data reaches tick one. Unknown keys produce log-only warnings so formats stay forward-compatible via load-side defaults for missing keys. Version fields gate acceptance; every format change bumps the version.",
-      "tags": [
-        "validation",
-        "versioning",
-        "forward-compat"
-      ]
-    },
-    {
-      "id": "L011",
-      "title": "Hash-chained append-only logs prove tampering",
-      "category": "security",
-      "source": "hades audit trail",
-      "lesson": "Each log entry commits to the full history (prev-hash + canonical-JSON link hash), so editing or deleting any old entry breaks every later link and verification names the exact seq. Pair with HMAC-signed manifests plus an INDEPENDENT anchor file holding the manifest hash - a forged seal fails sig/sha/anchor checks distinctly.",
-      "tags": [
-        "audit",
-        "tamper-evidence",
-        "integrity"
-      ]
-    },
-    {
-      "id": "L012",
-      "title": "Structural fingerprints detect copied logic through renames",
-      "category": "security",
-      "source": "hades ghost hunter",
-      "lesson": "Fingerprint AST-level unit shapes (strict = name-sensitive, loose = shape-only above a node-count floor) so rebranded copies of your code surface even after identifiers and strings change. Evidence lists matched symbols; innocent files must stay unflagged - tune floors against false positives.",
-      "tags": [
-        "provenance",
-        "plagiarism",
-        "ast"
-      ]
-    },
-    {
-      "id": "L013",
-      "title": "Capability profiles gate every verb, declared in one table",
-      "category": "security",
-      "source": "norn rights (Mach send-right model)",
-      "lesson": "Map command -> required right in a single dispatch table checked before execution; profiles are named right-sets with narrow-down escalation granted only by admins. Legacy clients map to the widest legacy profile so tightening is opt-in per deployment.",
-      "tags": [
-        "authz",
-        "capabilities",
-        "dispatch"
-      ]
-    },
-    {
-      "id": "L014",
-      "title": "Every behavioral change ships with a verifier check",
-      "category": "testing",
-      "source": "workspace verify-gate doctrine (17->38 checks evolution)",
-      "lesson": "Each suite runs standalone (exit 0 = green) and grows by one check per behavior. Verifiers build throwaway fixtures in temp dirs and NEVER write live data directories. The count itself becomes a visible health metric ('38/38').",
-      "tags": [
-        "verification",
-        "gates",
-        "discipline"
-      ]
-    },
-    {
-      "id": "L015",
-      "title": "Determinism seam: inject clock and RNG behind one duck-typed object",
-      "category": "testing",
-      "source": "clockwork + seeded replay corpus",
-      "lesson": "Engines accept an injected object providing now/random/randint/choice/getstate/setstate/advance. Live mode passes unseeded (byte-for-byte current behavior); sim mode passes seeded, making any session reproducible. A stable digest over canonical state proves replay twins are identical.",
-      "tags": [
-        "determinism",
-        "replay",
-        "seeding"
-      ]
-    },
-    {
-      "id": "L016",
-      "title": "Attestation journals: record enough to re-run any session",
-      "category": "autonomy",
-      "source": "witness journals wrapping SDK calls",
-      "lesson": "Journal every mutating verb with tick, actor, argument digest, outcome and state deltas (bounded rotation like saves). A journal line plus session seed reproduces behavior - attestation IS replay with provenance, which is what makes autonomous agents accountable.",
-      "tags": [
-        "audit",
-        "agents",
-        "accountability"
-      ]
-    },
-    {
-      "id": "L017",
-      "title": "LLM agents code against SDK surfaces under rights, not raw APIs",
-      "category": "autonomy",
-      "source": "strategic agent loop",
-      "lesson": "Give code-generating agents a constrained SDK, orient-decide-act loop scaffolding, error-feedback self-debugging, persisted loop state (history/best/last_error) for resume, and scoring signals. Rights profiles bound what generated code may attempt; the witness journal bounds what it can deny having done.",
-      "tags": [
-        "llm",
-        "agents",
-        "codegen"
-      ]
-    },
-    {
-      "id": "L018",
-      "title": "Single-writer mutable state; parallelism only for reads",
-      "category": "architecture",
-      "source": "engine server doctrine (distilled from classic server lineages)",
-      "lesson": "Serialize ALL cross-entity mutations on one server lock; reserve parallelism for read-only work (snapshots, pathing queries). Cached immutable per-tick state blocks let readers work lock-free. Add bounded queues everywhere, a slow-handler watchdog, and atomic off-hot-path saves. Simplicity is the performance feature.",
-      "tags": [
-        "concurrency",
-        "servers",
-        "performance"
-      ]
-    },
-    {
-      "id": "L019",
-      "title": "Bounded buffers everywhere things can grow",
-      "category": "reliability",
-      "source": "chat feeds, event deques, timeline trims",
-      "lesson": "Chat history, event rings, timelines and logs get maxlen/caps at creation (deque(maxlen), slice-on-save). Unbounded appendables eventually eat memory or make saves quadratic; caps belong in the data structure, not in caller discipline.",
-      "tags": [
-        "memory",
-        "buffers"
-      ]
-    },
-    {
-      "id": "L020",
-      "title": "Same-named modules on sys.path collide via cache",
-      "category": "testing",
-      "source": "realm-registry cross-check false failure",
-      "lesson": "Importing two different engines' content.py by inserting paths sequentially returns the FIRST cached module for both - comparisons silently compare a module to itself. Pop sys.modules['name'] and invalidate_caches() between imports, or load by importlib spec with unique names.",
-      "tags": [
-        "python",
-        "imports",
-        "gotchas"
-      ]
-    },
-    {
-      "id": "L021",
-      "title": "Retire features completely in the same commit",
-      "category": "process",
-      "source": "updater retirement incident",
-      "lesson": "Removing a subsystem means removing its runner menu flows, doc references, CI jobs, scheduled tasks, verify expectations AND its task-registration scripts together. Half-retirements leave ghosts that fail gates days later. Grep for the name across the repo before declaring retirement done.",
-      "tags": [
-        "process",
-        "hygiene",
-        "retirement"
-      ]
-    },
-    {
-      "id": "L022",
-      "title": "Watchdogs watch processes, kernels watch concepts",
-      "category": "architecture",
-      "source": "zeus vs sentinel split",
-      "lesson": "Separate generic process supervision (alive? runaway CPU? port squatting?) from domain protection (integrity baselines, seals, policy). Generic layers stay reusable across products; domain layers encode policy. Both report through the same bus topics so operators have one inbox.",
-      "tags": [
-        "supervision",
-        "layering"
-      ]
-    },
-    {
-      "id": "L023",
-      "title": "Operator-supplied snapshots beat shipped fetchers",
-      "category": "process",
-      "source": "live-data pipeline retirement",
-      "lesson": "Shipping code that scrapes external services couples the repo to their uptime, ToS and schema drift. Prefer defining a snapshot directory contract (file names, freshness ages, schema gates) that the operator populates by any means; engines read snapshots read-only and degrade gracefully (stale -> None) rather than failing.",
-      "tags": [
-        "offline-first",
-        "legal",
-        "pipelines"
-      ]
-    },
-    {
-      "id": "L024",
-      "title": "Trademark hygiene early: rename product surfaces, keep internal identifiers",
-      "category": "process",
-      "source": "brand-hygiene pass",
-      "lesson": "Public-facing names must avoid third-party marks; add non-affiliation and nominative-use disclaimers while the codebase is small. Internal import paths are descriptive identifiers and can stay - renaming those is churn without legal value.",
-      "tags": [
-        "legal",
-        "naming"
-      ]
-    },
-    {
-      "id": "L025",
-      "title": "Parallel agents need lane discipline",
-      "category": "process",
-      "source": "dual-session purge collision",
-      "lesson": "Two agents editing one repo concurrently will interleave edits inside single functions, shadow duplicate function definitions, and stage conflicting deletions. Assign disjoint file lanes, commit small and often, re-read files immediately before editing (never trust earlier reads), and reconcile duplicates by merging coverage rather than deleting wholesale.",
-      "tags": [
-        "agents",
-        "coordination",
-        "git"
-      ]
-    },
-    {
-      "id": "L026",
-      "title": "Log rotation must not reset sequence identity",
-      "category": "data-integrity",
-      "source": "ratatosk rotating topics",
-      "lesson": "Deriving record ids from line position breaks the moment a log rotates: segments reshuffle and every consumer cursor silently points at the wrong place. Allocate identity from a persistent counter file under the same exclusive lock as the append (counter written temp+replace), stamp the explicit seq into each record, and make tail/since sort and compare on that field - then segments are an implementation detail cursors can ignore. Seed the counter lazily from max(existing seqs, total lines) so pre-counter files migrate without collision.",
-      "tags": [
-        "rotation",
-        "sequences",
-        "cursors",
-        "append-only"
-      ]
-    },
-    {
-      "id": "L027",
-      "title": "Concurrent automators need isolated worktrees and PR-only integration",
-      "category": "autonomy",
-      "source": "three-way main-branch collision during the ptah kernel landing",
-      "lesson": "Two agents sharing one checkout lose updates even when both act in good faith: resets sweep staged files, commits land on moved HEADs, and force-pushes orphan whole lineages mid-task. Give every writer its own git worktree (independent index + HEAD, immune to foreign resets), a private auto/<name> branch, and exactly one route to main: push branch, open PR, squash-merge, fast-forward the mirror. Delta-based assertions and re-reading files immediately before editing are load-bearing complements - shared state always races.",
-      "tags": [
-        "agents",
-        "git",
-        "worktrees",
-        "pull-request",
-        "coordination"
-      ]
-    },
-    {
-      "id": "L028",
-      "title": "Commit through a private index in shared checkouts",
-      "category": "autonomy",
-      "source": "safeguards kit - staging races in the shared OneDrive checkout",
-      "lesson": "In a checkout several writers touch, the shared .git index is the race surface: one agent's git add stages another agent's half-edited files, and a sweep commit ships work nobody reviewed. Stage through an isolated GIT_INDEX_FILE containing only your declared paths, run mechanical gates on exactly those paths - syntax compile, duplicate top-level def scan, JSON validity (safeguards/check.py) - and only then commit. Wire check.py as the pre-commit hook too, so the gate fires even for writers who bypass the safe-commit wrapper.",
-      "tags": [
-        "agents",
-        "git",
-        "index",
-        "hooks",
-        "coordination"
-      ]
-    },
-    {
-      "id": "L029",
-      "title": "Declare satellites on arrival",
-      "category": "process",
-      "source": "heart/ audit 2026-08-24 - desk companion invisible to fleet since commit 2fec27e",
-      "lesson": "Any product directory that joins the workspace - nested repo, untracked folder, satellite - gets its declaration in the same cycle it appears: registry row (port protection), doc-table entry, and a gate hook (even informational). heart/ shipped v0.1.0 and v0.2.0 while invisible to realms/registry.json, DESIGN.md and every tier table; its port 4767 had no squatter protection and its npm test surface was aggregated by nothing, because doctor/sentinel hardcode their port lists instead of deriving them from the registry. Undeclared means unprotected: visibility debt compounds silently exactly like the hardcoded-endpoints rot L003 already paid for.",
-      "tags": [
-        "registry",
-        "satellites",
-        "onboarding",
-        "gates"
-      ]
-    },
-    {
-      "id": "L030",
-      "title": "Failure output is part of the gate",
-      "category": "testing",
-      "source": "2026-08-24 CI hunt - daedalus red on main for 7+ runs while culprit check name was truncated away by safeguards/gate.py 3-line tail",
-      "lesson": "A gate that detects failure but discards the failing output converts every diagnosis into archaeology. safeguards/gate.py kept only the last 3 lines of a failed suite, so CI showed [FAIL] daedalus with the last line being an unrelated PASS - the actual assertion, check name and traceback never left the runner. Gates must persist full per-suite output (artifact or data/ log keyed by run id) and surface the FAIL block inline; a green-last-line-plus-nonzero-exit should be reported as suspected harness crash, not as the last test result. Detection without attributable evidence fails guarantee 5 in spirit: you cannot honestly claim to know what is unhealthy.",
-      "tags": [
-        "gates",
-        "observability",
-        "ci",
-        "diagnosis"
-      ]
-    },
-    {
-      "id": "L031",
-      "title": "Verify which branch HEAD rides before committing, then verify the push moved",
-      "category": "process",
-      "source": "hermes lane incident 2026-08-24: worktree HEAD attached to a foreign branch name; wiring commit landed off-lane, push of the named ref was a silent no-op, and an empty PR merged",
-      "lesson": "In multi-writer worktree fleets, never assume a checkout's HEAD is attached to your own lane branch - another session may have repurposed the directory. Before committing, check `git symbolic-ref HEAD`; if it is not yours, switch or fix refs first. After pushing, confirm the remote actually advanced (`git fetch` + compare `rev-parse origin/<branch>`): pushing a *named ref* pushes that ref, not HEAD, and a no-op push still exits 0. Gate any PR merge on `gh pr diff` listing exactly the files you intended to change.",
-      "tags": [
-        "git",
-        "worktrees",
-        "multi-agent",
-        "verification",
-        "lanes"
-      ]
-    },
-    {
-      "id": "L032",
-      "title": "Probe og:image and pin Referer before mass-downloading from media aggregators",
-      "category": "reliability",
-      "source": "ingest/media_ingest.py build cycle 2026-08-24: i-cdn.dbnaked.com returned 403 to naive HEAD checks; full-size scheme only discoverable via gallery og:image plus thumb-count derivation",
-      "lesson": "Media aggregator CDNs enforce hotlink protection: full-size asset URLs are tokenized or Referer-gated, so a scraper that guesses URL shapes gets silent 403/404s at scale. Derive the real scheme from the page og:image (or embedded JS arrays), pin the Referer of the serving HTML host on every CDN request, HEAD-check one candidate before enumerating thousands, and write downloads to *.part with atomic os.replace so killed runs resume without keeping truncated files. Verify parsers offline against captured-shape fixtures (zero-network suite) before any live crawl.",
-      "tags": [
-        "scraping",
-        "http",
-        "cdn",
-        "resumability",
-        "verification"
-      ]
-    },
-    {
-      "id": "L033",
-      "title": "One localside repo home: D:\\ - enforce it at the clone door",
-      "category": "process",
-      "source": "operator directive 2026-08-24 + olympos split-brain incident: same remote checked out in both OneDrive Documents\\Default Project and D:\\THOTH; copies sat on different mains, lane branch auto/hermes carried squash-duplicates of already-merged PRs (#72 residue), origin refs were locked by stale .lock files, and a concurrent writer was found editing inside the hermes worktree",
-      "lesson": "A repository may exist in exactly ONE localside home - D:\\ on this machine, per operator policy - because every second checkout of a remote eventually becomes a divergence: unpushed commits strand on whichever copy is forgotten, squash-merged branches leave patch-duplicate residue that poisons cherry/rebase decisions, and agents reading 'the repo' disagree about disk truth. Policy without teeth decays, so enforcement is mechanical at the mint point: safeguards/repo_home_profile.ps1 intercepts git clone/init/worktree-add/submodule-add in the shell and refuses any destination outside D:\\, with safeguards/repo_home_guard.py as the canonical authority (check CLI for paths, audit CLI as an operator-only scanner - never a CI gate, since live-machine audits would pin gates red until legacy checkouts retire) and verify_repo_home.py gating the logic itself. Revocation is deliberately cheap: edit REPO_HOME or delete the profile line - policy changes belong to the operator, not to env drift.",
-      "tags": [
-        "git",
-        "worktrees",
-        "multi-agent",
-        "safeguards",
-        "policy"
-      ]
-    },
-    {
-      "id": "L034",
-      "title": "Repair git trees mechanically - locks, phantom indexes, stale disks, duplicate lanes",
-      "category": "process",
-      "source": "hermes completion sweep 2026-08-24/25: stale ref locks blocked fetches, a killed pull left index past HEAD, ~70 tracked files missing from a worktree disk, 13 auto/* branches carried squash-duplicates of merged PRs, and one live writer shared another lane worktree",
-      "lesson": "Multi-writer fleets accumulate five recurring tree injuries - stale .lock files, interrupted operations, stale-index-after-ref-move, disk-behind-ref drift, and patch-duplicate lane branches - and each one costs a debugging session if repaired by hand under pressure. Centralize them behind one mechanical tool (safeguards/tree_repair.py) whose repairs are bounded by three guards: no removal without a lock age grace AND zero live git processes, no restore of paths in directories showing recent sibling writes (the deletion itself bumps dir mtime - sibling mtimes are the live-writer signal), and judgment-call states like MERGE_HEAD are reported, never auto-fixed. Every action lands in a per-root hash-chained ledger so a later audit can trust prior repairs; fixture-gate the tool itself (verify_tree_repair.py) including the refusal cases - a repair tool tested only on damage it should fix will learn to pass by being dangerous.",
-      "tags": [
-        "git",
-        "worktrees",
-        "multi-agent",
-        "safeguards",
-        "repair",
-        "gates"
-      ]
-    },
-    {
-      "id": "L035",
-      "title": "Inherited lane dirt may already be shipped - diff against fresh main before committing it",
-      "category": "process",
-      "source": "hermes session 2026-08-25: two posture-aware boundary/ptah fixture edits sat uncommitted in the auto/hermes worktree from a prior session; while hermes verified them green, another lane shipped the same content as PR #91, so hermes PR #92 carried a byte-similar duplicate through squash merge",
-      "lesson": "Uncommitted changes found in your worktree are not automatically yours to land - they are evidence of an interrupted session whose owner may have re-run elsewhere. Before committing inherited dirt: fetch origin, scan recent merged PRs (git log --oneline origin/main plus subject match) for the same content, and diff your tree against fresh main first. If the work already landed, drop or reset your copy instead of re-shipping; if it is genuinely unlanded, commit it as its own labeled unit with the affected gates run, never swept into unrelated paper changes. Duplicate squash merges are usually harmless but they burn review trust and can silently fork helper functions when hunks land at different offsets.",
-      "tags": [
-        "git",
-        "worktrees",
-        "multi-agent",
-        "hygiene",
-        "verification"
-      ]
-    },
-    {
-      "id": "L036",
-      "title": "Registry loaders must reject or coalesce duplicate realm names",
-      "category": "data-integrity",
-      "source": "fleet muster 2026-08-25 (metis + argus merged): artemis row duplicated verbatim in realms/registry.json:21-50; sentinel double-ran the 'artemis suite' every patrol (incidents.jsonl:331,371) and every downstream membership count was wrong; all_realms() consumes rows raw with no dedupe (realms/__init__.py:28-29)",
-      "lesson": "Duplicate names in a declarative registry are corrupt input, not extra members: validate at LOAD time - reject the file outright, or coalesce identical duplicates and refuse conflicting ones loudly. One organ means one gate run and one alert stream; anything that consumes membership must never see the same name twice. Count claims derived from an unvalidated registry are wrong by construction.",
-      "tags": [
-        "registry",
-        "validation",
-        "dedupe",
-        "sentinel"
-      ]
-    },
-    {
-      "id": "L037",
-      "title": "Refuse realm admissions whose verifier is null",
-      "category": "process",
-      "source": "fleet muster 2026-08-25 (metis): aphrodite is the only realm with \"verify\": null (realms/registry.json:455) and no aphrodite gate ever appears in a patrol summary (incidents.jsonl:408)",
-      "lesson": "A declaration without a runnable verifier is visibility theater: it cannot go red, so its green is meaningless and guarantee 5 dies quietly. Registry admission requires a verify command - if a member is genuinely ungated, force an explicit UNPROTECTED state that patrols report as such, never a silent null.",
-      "tags": [
-        "registry",
-        "gates",
-        "admission"
-      ]
-    },
-    {
-      "id": "L038",
-      "title": "Impossible coverage readings mean broken measurement - re-run clean before believing",
-      "category": "testing",
-      "source": "fleet muster 2026-08-25 (metis): coverage gates failed llmlog.py 0% (0/82) while verify_buskit.py:153 imports it under registered tests; captured detail carried sysconfig env-noise (incidents.jsonl:386,405)",
-      "lesson": "When a metric reports something impossible - 0% coverage on a module the tests demonstrably import - the instrument is lying, not the code: sanitize child env of noise vars, assert import-under-trace actually fires, re-run in a clean environment, and only then trust the number. Never record an impossible reading as a real failure without one verification pass.",
-      "tags": [
-        "coverage",
-        "measurement",
-        "flaky-gates"
-      ]
-    },
-    {
-      "id": "L039",
-      "title": "Incident records need structured failure attribution, not output tails",
-      "category": "reliability",
-      "source": "fleet muster 2026-08-25 (metis): three unattributable gate FAILs across both ledger eras - free-text tails with no failing-check field (incidents.jsonl:10,30,318)",
-      "lesson": "Every FAIL record carries structured fields - failing check name, exit code, full-log reference - with free text allowed only in addition. A ledger you cannot group by cause is not evidence, it is sediment; attribution work should be a query, not archaeology.",
-      "tags": [
-        "incidents",
-        "observability",
-        "schema"
-      ]
-    },
-    {
-      "id": "L040",
-      "title": "An organ absent from disk is not a member - mark proposed-only and date-stamp it",
-      "category": "process",
-      "source": "fleet muster 2026-08-25 (argus): codex heart watchlist claimed a v0.2.0 desk companion on port 4767 while heart/ is an empty dir in both roots with zero tracked files (h0a cycle log:41-47 vs git ls-files)",
-      "lesson": "Codex entries describing organs with no tree on disk must carry an explicit proposed-only/unbound marker plus a last-verified date - never prose that reads as deployed reality. Before citing any organ in a design, Test-Path its home; absence downgrades it to an open decision (restore or retire), not a fact.",
-      "tags": [
-        "codex",
-        "drift",
-        "membership"
-      ]
-    },
-    {
-      "id": "L041",
-      "title": "Correction and still-missing lists expire on landing - re-derive from disk each revision",
-      "category": "process",
-      "source": "fleet muster 2026-08-25 (argus): INTEGRATION.md:5-7 'pending restoration' and the :304-308 still-missing list stayed false since the 2026-08-24 restoration landed; line 26 still cited retired ports 43590/43591",
-      "lesson": "Any doc section that lists what is missing or broken is a snapshot with a shelf life: when the underlying work lands, the list silently becomes a lie that sends planners re-restoring live organs. Re-derive such lists from disk truth at every revision of the document and stamp them with the audit date - stale truth is worse than missing truth.",
-      "tags": [
-        "codex",
-        "drift",
-        "documentation"
-      ]
-    },
-    {
-      "id": "L042",
-      "title": "Every gated organ gets an ecosystem-table row on arrival - document or retire within one cycle",
-      "category": "process",
-      "source": "fleet muster 2026-08-25 (argus): haven (:43910, sqlite-fts5) and ares (vault-cipher, T1) are gated on disk with registry rows but absent from DESIGN.md table, INTEGRATION topology, and codex watchlist (registry.json:488-517 vs DESIGN.md:9-20)",
-      "lesson": "Declaration without documentation creates orphan organs: gated, ported, real - yet invisible to every planner reading the model of record. New registry rows must land with their ecosystem-table row in the same cycle; if a row should not exist, retire it explicitly instead of letting it linger undocumented.",
-      "tags": [
-        "registry",
-        "documentation",
-        "onboarding"
-      ]
-    },
-    {
-      "id": "L043",
-      "title": "Resolve an organ's current home before working on it",
-      "category": "process",
-      "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1042,h0a,1300,1310}.md - organs relocated between workspace/nested-repo/standalone mid-cycle and stale-home work was orphaned; PR #61 withdrawn at 1310:25",
-      "lesson": "Before expanding, registering, or reviewing an organ, resolve its CURRENT home mechanically: git log --all --grep <organ>, registry read, Test-Path. Organs migrate between homes mid-cycle; on discovery of a move, withdraw in-flight surface and redo against the new home. Distinct from declare-on-arrival (L029) and one-home policy (L033): this is the per-session check that the home you remember is the home that exists.",
-      "tags": [
-        "organs",
-        "multi-home",
-        "verification"
-      ]
-    },
-    {
-      "id": "L044",
-      "title": "Doc-sourced claims are hypotheses: verify against disk before acting",
-      "category": "process",
-      "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{0959,1042,1112,1138}.md - doc-trusted claims produced false review findings and burned two full review rounds",
-      "lesson": "Every claim read from codex, DESIGN, INTEGRATION, or a roadmap surface is a hypothesis until checked on disk (Test-Path, registry count, port probe). Disk wins ties. The codex itself says this (rule 1); the failure mode is not ignorance of the rule but skipping the check under time pressure - make the check the first action, not a later audit step.",
-      "tags": [
-        "codex",
-        "verification",
-        "drift"
-      ]
-    },
-    {
-      "id": "L045",
-      "title": "Mirrors converge on commit; audit a mirror before executing from it",
-      "category": "reliability",
-      "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1112,1146,wiring}.md - mirrors drifted behind the workspace (stale kernels, VERSION, blocking dirt); fixed by commits df0a85b,04e9130,d79e3ef",
-      "lesson": "Execution mirrors are caches, not sources: convergence happens through mirror_sync on commit, and before executing or reading truth from any mirror run mirror_sync.py --audit --strict first. Convergence failures escalate to the operator - never force-resolve by mixing foreign work into a diverged copy. CI wiring of the audit is deliberately left to the operator (respects rule against live-machine gates, L033).",
-      "tags": [
-        "mirrors",
-        "sync",
-        "execution"
-      ]
-    }
+ "_meta": {
+  "description": "Distilled lessons database - one object per lesson. Append-only; ids are monotonic and never reused.",
+  "created": "2026-08-24",
+  "categories": [
+   "architecture",
+   "reliability",
+   "data-integrity",
+   "testing",
+   "process",
+   "autonomy",
+   "security"
   ]
+ },
+ "lessons": [
+  {
+   "id": "L001",
+   "title": "Authoritative server, SDK-only client surface",
+   "category": "architecture",
+   "source": "JSON-lines game/build servers (authoritative realm pattern)",
+   "lesson": "Run exactly one authoritative process that owns all mutable state. Clients send intent messages ({cmd, args}) over a line protocol and receive full state plus an error field on every response. All clients - humans, agents, tests - go through ONE SDK object; nothing bypasses it. This makes cheating impossible by construction, lets any strategy run unchanged over wire or in-process, and gives a single place to enforce rights and rate limits.",
+   "tags": [
+    "server",
+    "sdk",
+    "state",
+    "protocol"
+   ]
+  },
+  {
+   "id": "L002",
+   "title": "Single source of truth for data tables",
+   "category": "architecture",
+   "source": "content.py consolidation after duplicate-table incident",
+   "lesson": "All tunable data (prices, specs, spawn tables, device catalogs) lives in one content module per engine. Mechanics code contains zero numbers. When two modules re-declared the same table, concurrent edits silently diverged them - consolidation is cheaper than reconciliation.",
+   "tags": [
+    "data",
+    "single-source-of-truth"
+   ]
+  },
+  {
+   "id": "L003",
+   "title": "Declarative registry instead of hardcoded endpoints",
+   "category": "architecture",
+   "source": "realm registry pattern",
+   "lesson": "Keep one JSON registry mapping component names to ports/paths/kinds. Dashboards, runners and watchdogs read from it with caller-supplied fallbacks. Hardcoded ports rotted in at least four places simultaneously before this.",
+   "tags": [
+    "registry",
+    "configuration"
+   ]
+  },
+  {
+   "id": "L004",
+   "title": "Filesystem message bus beats sockets for organ chatter",
+   "category": "architecture",
+   "source": "ratatosk post office",
+   "lesson": "For low-volume inter-process events (incidents, heartbeats, rights changes), an inbox/outbox of atomic JSON files needs no daemon, survives crashes, is greppable, and works across languages. Delivery = temp file + os.replace into the recipient inbox; broadcast = append-only JSONL topic under a mandatory lock; consumers track cursor files. Bus failures must never crash host organs: publish/beat wrappers swallow everything.",
+   "tags": [
+    "messaging",
+    "filesystem",
+    "ipc",
+    "decoupling"
+   ]
+  },
+  {
+   "id": "L005",
+   "title": "Windows O_EXCL locks fail with EACCES during delete-pending",
+   "category": "reliability",
+   "source": "ratatosk concurrency fix (400-thread stress)",
+   "lesson": "On Windows, os.open(O_CREAT|O_EXCL) raises PermissionError - not FileExistsError - while a previous holder is between close() and unlink(). Treating EACCES as fatal produced silent duplicate sequence numbers under contention. Lock loops must retry on both, take over stale locks by mtime age, use backoff, and for shared counters use mandatory locking where an unlocked write would corrupt state (fail loudly instead).",
+   "tags": [
+    "windows",
+    "locking",
+    "concurrency",
+    "atomicity"
+   ]
+  },
+  {
+   "id": "L006",
+   "title": "Atomic writes are temp-file + os.replace, never in-place",
+   "category": "data-integrity",
+   "source": "all engines; seal/anchor corruption incident",
+   "lesson": "Readers must never observe partial files. Write to a temp file in the destination directory then os.replace onto the target - atomic on same volume. Writing hashed artifacts in TEXT mode on Windows converts LF to CRLF and permanently breaks every stored hash; anything covered by a checksum is written in binary or with newline=''.",
+   "tags": [
+    "atomicity",
+    "hashing",
+    "windows",
+    "newlines"
+   ]
+  },
+  {
+   "id": "L007",
+   "title": "Circuit breakers with automatic revival around every subsystem",
+   "category": "reliability",
+   "source": "zeus kernel breakers; venus heart organs",
+   "lesson": "Wrap each patrol/probe subsystem so N consecutive failures trip an open breaker that stops calling it, cools down for M ticks, then half-opens for retry. One sick probe must never take the whole kernel down, and failures must be visible as state, not just log lines.",
+   "tags": [
+    "resilience",
+    "watchdog",
+    "breakers"
+   ]
+  },
+  {
+   "id": "L008",
+   "title": "Beat-paced organs with latency SLOs quarantine themselves",
+   "category": "reliability",
+   "source": "pulse SLO model (XNU timekeeping-inspired)",
+   "lesson": "Periodic work runs on beat multiples of one shared clock. An organ that exceeds its latency SLO too many consecutive beats is quarantined automatically and revived after a cool-down, with vitals exposed (late ratio, last duration, reason). This turns 'mysteriously slow loop' into self-healing structure.",
+   "tags": [
+    "scheduling",
+    "slo",
+    "self-healing"
+   ]
+  },
+  {
+   "id": "L009",
+   "title": "Remediate by quarantine, never destruction",
+   "category": "reliability",
+   "source": "zeus bolt/quarantine, vulcan warden",
+   "lesson": "Automated repair moves suspect artifacts aside (quarantine dir with manifest, corrupt saves renamed *.corrupt-<ts>), applies conservative fixes only to owned artifacts, records every action in an incident ledger, and escalates anything requiring judgment. Code is reported, never auto-rewritten by watchdogs.",
+   "tags": [
+    "remediation",
+    "watchdog",
+    "safety"
+   ]
+  },
+  {
+   "id": "L010",
+   "title": "Schema gates at load: reject wrong shapes, tolerate unknown keys",
+   "category": "data-integrity",
+   "source": "RIG validators (vulcan rules/saves, engine saves)",
+   "lesson": "Validate documents against an explicit shape when loading - hard-fail with key-and-type precision before bad data reaches tick one. Unknown keys produce log-only warnings so formats stay forward-compatible via load-side defaults for missing keys. Version fields gate acceptance; every format change bumps the version.",
+   "tags": [
+    "validation",
+    "versioning",
+    "forward-compat"
+   ]
+  },
+  {
+   "id": "L011",
+   "title": "Hash-chained append-only logs prove tampering",
+   "category": "security",
+   "source": "hades audit trail",
+   "lesson": "Each log entry commits to the full history (prev-hash + canonical-JSON link hash), so editing or deleting any old entry breaks every later link and verification names the exact seq. Pair with HMAC-signed manifests plus an INDEPENDENT anchor file holding the manifest hash - a forged seal fails sig/sha/anchor checks distinctly.",
+   "tags": [
+    "audit",
+    "tamper-evidence",
+    "integrity"
+   ]
+  },
+  {
+   "id": "L012",
+   "title": "Structural fingerprints detect copied logic through renames",
+   "category": "security",
+   "source": "hades ghost hunter",
+   "lesson": "Fingerprint AST-level unit shapes (strict = name-sensitive, loose = shape-only above a node-count floor) so rebranded copies of your code surface even after identifiers and strings change. Evidence lists matched symbols; innocent files must stay unflagged - tune floors against false positives.",
+   "tags": [
+    "provenance",
+    "plagiarism",
+    "ast"
+   ]
+  },
+  {
+   "id": "L013",
+   "title": "Capability profiles gate every verb, declared in one table",
+   "category": "security",
+   "source": "norn rights (Mach send-right model)",
+   "lesson": "Map command -> required right in a single dispatch table checked before execution; profiles are named right-sets with narrow-down escalation granted only by admins. Legacy clients map to the widest legacy profile so tightening is opt-in per deployment.",
+   "tags": [
+    "authz",
+    "capabilities",
+    "dispatch"
+   ]
+  },
+  {
+   "id": "L014",
+   "title": "Every behavioral change ships with a verifier check",
+   "category": "testing",
+   "source": "workspace verify-gate doctrine (17->38 checks evolution)",
+   "lesson": "Each suite runs standalone (exit 0 = green) and grows by one check per behavior. Verifiers build throwaway fixtures in temp dirs and NEVER write live data directories. The count itself becomes a visible health metric ('38/38').",
+   "tags": [
+    "verification",
+    "gates",
+    "discipline"
+   ]
+  },
+  {
+   "id": "L015",
+   "title": "Determinism seam: inject clock and RNG behind one duck-typed object",
+   "category": "testing",
+   "source": "clockwork + seeded replay corpus",
+   "lesson": "Engines accept an injected object providing now/random/randint/choice/getstate/setstate/advance. Live mode passes unseeded (byte-for-byte current behavior); sim mode passes seeded, making any session reproducible. A stable digest over canonical state proves replay twins are identical.",
+   "tags": [
+    "determinism",
+    "replay",
+    "seeding"
+   ]
+  },
+  {
+   "id": "L016",
+   "title": "Attestation journals: record enough to re-run any session",
+   "category": "autonomy",
+   "source": "witness journals wrapping SDK calls",
+   "lesson": "Journal every mutating verb with tick, actor, argument digest, outcome and state deltas (bounded rotation like saves). A journal line plus session seed reproduces behavior - attestation IS replay with provenance, which is what makes autonomous agents accountable.",
+   "tags": [
+    "audit",
+    "agents",
+    "accountability"
+   ]
+  },
+  {
+   "id": "L017",
+   "title": "LLM agents code against SDK surfaces under rights, not raw APIs",
+   "category": "autonomy",
+   "source": "strategic agent loop",
+   "lesson": "Give code-generating agents a constrained SDK, orient-decide-act loop scaffolding, error-feedback self-debugging, persisted loop state (history/best/last_error) for resume, and scoring signals. Rights profiles bound what generated code may attempt; the witness journal bounds what it can deny having done.",
+   "tags": [
+    "llm",
+    "agents",
+    "codegen"
+   ]
+  },
+  {
+   "id": "L018",
+   "title": "Single-writer mutable state; parallelism only for reads",
+   "category": "architecture",
+   "source": "engine server doctrine (distilled from classic server lineages)",
+   "lesson": "Serialize ALL cross-entity mutations on one server lock; reserve parallelism for read-only work (snapshots, pathing queries). Cached immutable per-tick state blocks let readers work lock-free. Add bounded queues everywhere, a slow-handler watchdog, and atomic off-hot-path saves. Simplicity is the performance feature.",
+   "tags": [
+    "concurrency",
+    "servers",
+    "performance"
+   ]
+  },
+  {
+   "id": "L019",
+   "title": "Bounded buffers everywhere things can grow",
+   "category": "reliability",
+   "source": "chat feeds, event deques, timeline trims",
+   "lesson": "Chat history, event rings, timelines and logs get maxlen/caps at creation (deque(maxlen), slice-on-save). Unbounded appendables eventually eat memory or make saves quadratic; caps belong in the data structure, not in caller discipline.",
+   "tags": [
+    "memory",
+    "buffers"
+   ]
+  },
+  {
+   "id": "L020",
+   "title": "Same-named modules on sys.path collide via cache",
+   "category": "testing",
+   "source": "realm-registry cross-check false failure",
+   "lesson": "Importing two different engines' content.py by inserting paths sequentially returns the FIRST cached module for both - comparisons silently compare a module to itself. Pop sys.modules['name'] and invalidate_caches() between imports, or load by importlib spec with unique names.",
+   "tags": [
+    "python",
+    "imports",
+    "gotchas"
+   ]
+  },
+  {
+   "id": "L021",
+   "title": "Retire features completely in the same commit",
+   "category": "process",
+   "source": "updater retirement incident",
+   "lesson": "Removing a subsystem means removing its runner menu flows, doc references, CI jobs, scheduled tasks, verify expectations AND its task-registration scripts together. Half-retirements leave ghosts that fail gates days later. Grep for the name across the repo before declaring retirement done.",
+   "tags": [
+    "process",
+    "hygiene",
+    "retirement"
+   ]
+  },
+  {
+   "id": "L022",
+   "title": "Watchdogs watch processes, kernels watch concepts",
+   "category": "architecture",
+   "source": "zeus vs sentinel split",
+   "lesson": "Separate generic process supervision (alive? runaway CPU? port squatting?) from domain protection (integrity baselines, seals, policy). Generic layers stay reusable across products; domain layers encode policy. Both report through the same bus topics so operators have one inbox.",
+   "tags": [
+    "supervision",
+    "layering"
+   ]
+  },
+  {
+   "id": "L023",
+   "title": "Operator-supplied snapshots beat shipped fetchers",
+   "category": "process",
+   "source": "live-data pipeline retirement",
+   "lesson": "Shipping code that scrapes external services couples the repo to their uptime, ToS and schema drift. Prefer defining a snapshot directory contract (file names, freshness ages, schema gates) that the operator populates by any means; engines read snapshots read-only and degrade gracefully (stale -> None) rather than failing.",
+   "tags": [
+    "offline-first",
+    "legal",
+    "pipelines"
+   ]
+  },
+  {
+   "id": "L024",
+   "title": "Trademark hygiene early: rename product surfaces, keep internal identifiers",
+   "category": "process",
+   "source": "brand-hygiene pass",
+   "lesson": "Public-facing names must avoid third-party marks; add non-affiliation and nominative-use disclaimers while the codebase is small. Internal import paths are descriptive identifiers and can stay - renaming those is churn without legal value.",
+   "tags": [
+    "legal",
+    "naming"
+   ]
+  },
+  {
+   "id": "L025",
+   "title": "Parallel agents need lane discipline",
+   "category": "process",
+   "source": "dual-session purge collision",
+   "lesson": "Two agents editing one repo concurrently will interleave edits inside single functions, shadow duplicate function definitions, and stage conflicting deletions. Assign disjoint file lanes, commit small and often, re-read files immediately before editing (never trust earlier reads), and reconcile duplicates by merging coverage rather than deleting wholesale.",
+   "tags": [
+    "agents",
+    "coordination",
+    "git"
+   ]
+  },
+  {
+   "id": "L026",
+   "title": "Log rotation must not reset sequence identity",
+   "category": "data-integrity",
+   "source": "ratatosk rotating topics",
+   "lesson": "Deriving record ids from line position breaks the moment a log rotates: segments reshuffle and every consumer cursor silently points at the wrong place. Allocate identity from a persistent counter file under the same exclusive lock as the append (counter written temp+replace), stamp the explicit seq into each record, and make tail/since sort and compare on that field - then segments are an implementation detail cursors can ignore. Seed the counter lazily from max(existing seqs, total lines) so pre-counter files migrate without collision.",
+   "tags": [
+    "rotation",
+    "sequences",
+    "cursors",
+    "append-only"
+   ]
+  },
+  {
+   "id": "L027",
+   "title": "Concurrent automators need isolated worktrees and PR-only integration",
+   "category": "autonomy",
+   "source": "three-way main-branch collision during the ptah kernel landing",
+   "lesson": "Two agents sharing one checkout lose updates even when both act in good faith: resets sweep staged files, commits land on moved HEADs, and force-pushes orphan whole lineages mid-task. Give every writer its own git worktree (independent index + HEAD, immune to foreign resets), a private auto/<name> branch, and exactly one route to main: push branch, open PR, squash-merge, fast-forward the mirror. Delta-based assertions and re-reading files immediately before editing are load-bearing complements - shared state always races.",
+   "tags": [
+    "agents",
+    "git",
+    "worktrees",
+    "pull-request",
+    "coordination"
+   ]
+  },
+  {
+   "id": "L028",
+   "title": "Commit through a private index in shared checkouts",
+   "category": "autonomy",
+   "source": "safeguards kit - staging races in the shared OneDrive checkout",
+   "lesson": "In a checkout several writers touch, the shared .git index is the race surface: one agent's git add stages another agent's half-edited files, and a sweep commit ships work nobody reviewed. Stage through an isolated GIT_INDEX_FILE containing only your declared paths, run mechanical gates on exactly those paths - syntax compile, duplicate top-level def scan, JSON validity (safeguards/check.py) - and only then commit. Wire check.py as the pre-commit hook too, so the gate fires even for writers who bypass the safe-commit wrapper.",
+   "tags": [
+    "agents",
+    "git",
+    "index",
+    "hooks",
+    "coordination"
+   ]
+  },
+  {
+   "id": "L029",
+   "title": "Declare satellites on arrival",
+   "category": "process",
+   "source": "heart/ audit 2026-08-24 - desk companion invisible to fleet since commit 2fec27e",
+   "lesson": "Any product directory that joins the workspace - nested repo, untracked folder, satellite - gets its declaration in the same cycle it appears: registry row (port protection), doc-table entry, and a gate hook (even informational). heart/ shipped v0.1.0 and v0.2.0 while invisible to realms/registry.json, DESIGN.md and every tier table; its port 4767 had no squatter protection and its npm test surface was aggregated by nothing, because doctor/sentinel hardcode their port lists instead of deriving them from the registry. Undeclared means unprotected: visibility debt compounds silently exactly like the hardcoded-endpoints rot L003 already paid for.",
+   "tags": [
+    "registry",
+    "satellites",
+    "onboarding",
+    "gates"
+   ]
+  },
+  {
+   "id": "L030",
+   "title": "Failure output is part of the gate",
+   "category": "testing",
+   "source": "2026-08-24 CI hunt - daedalus red on main for 7+ runs while culprit check name was truncated away by safeguards/gate.py 3-line tail",
+   "lesson": "A gate that detects failure but discards the failing output converts every diagnosis into archaeology. safeguards/gate.py kept only the last 3 lines of a failed suite, so CI showed [FAIL] daedalus with the last line being an unrelated PASS - the actual assertion, check name and traceback never left the runner. Gates must persist full per-suite output (artifact or data/ log keyed by run id) and surface the FAIL block inline; a green-last-line-plus-nonzero-exit should be reported as suspected harness crash, not as the last test result. Detection without attributable evidence fails guarantee 5 in spirit: you cannot honestly claim to know what is unhealthy.",
+   "tags": [
+    "gates",
+    "observability",
+    "ci",
+    "diagnosis"
+   ]
+  },
+  {
+   "id": "L031",
+   "title": "Verify which branch HEAD rides before committing, then verify the push moved",
+   "category": "process",
+   "source": "hermes lane incident 2026-08-24: worktree HEAD attached to a foreign branch name; wiring commit landed off-lane, push of the named ref was a silent no-op, and an empty PR merged",
+   "lesson": "In multi-writer worktree fleets, never assume a checkout's HEAD is attached to your own lane branch - another session may have repurposed the directory. Before committing, check `git symbolic-ref HEAD`; if it is not yours, switch or fix refs first. After pushing, confirm the remote actually advanced (`git fetch` + compare `rev-parse origin/<branch>`): pushing a *named ref* pushes that ref, not HEAD, and a no-op push still exits 0. Gate any PR merge on `gh pr diff` listing exactly the files you intended to change.",
+   "tags": [
+    "git",
+    "worktrees",
+    "multi-agent",
+    "verification",
+    "lanes"
+   ]
+  },
+  {
+   "id": "L032",
+   "title": "Probe og:image and pin Referer before mass-downloading from media aggregators",
+   "category": "reliability",
+   "source": "ingest/media_ingest.py build cycle 2026-08-24: i-cdn.dbnaked.com returned 403 to naive HEAD checks; full-size scheme only discoverable via gallery og:image plus thumb-count derivation",
+   "lesson": "Media aggregator CDNs enforce hotlink protection: full-size asset URLs are tokenized or Referer-gated, so a scraper that guesses URL shapes gets silent 403/404s at scale. Derive the real scheme from the page og:image (or embedded JS arrays), pin the Referer of the serving HTML host on every CDN request, HEAD-check one candidate before enumerating thousands, and write downloads to *.part with atomic os.replace so killed runs resume without keeping truncated files. Verify parsers offline against captured-shape fixtures (zero-network suite) before any live crawl.",
+   "tags": [
+    "scraping",
+    "http",
+    "cdn",
+    "resumability",
+    "verification"
+   ]
+  },
+  {
+   "id": "L033",
+   "title": "One localside repo home: D:\\ - enforce it at the clone door",
+   "category": "process",
+   "source": "operator directive 2026-08-24 + olympos split-brain incident: same remote checked out in both OneDrive Documents\\Default Project and D:\\THOTH; copies sat on different mains, lane branch auto/hermes carried squash-duplicates of already-merged PRs (#72 residue), origin refs were locked by stale .lock files, and a concurrent writer was found editing inside the hermes worktree",
+   "lesson": "A repository may exist in exactly ONE localside home - D:\\ on this machine, per operator policy - because every second checkout of a remote eventually becomes a divergence: unpushed commits strand on whichever copy is forgotten, squash-merged branches leave patch-duplicate residue that poisons cherry/rebase decisions, and agents reading 'the repo' disagree about disk truth. Policy without teeth decays, so enforcement is mechanical at the mint point: safeguards/repo_home_profile.ps1 intercepts git clone/init/worktree-add/submodule-add in the shell and refuses any destination outside D:\\, with safeguards/repo_home_guard.py as the canonical authority (check CLI for paths, audit CLI as an operator-only scanner - never a CI gate, since live-machine audits would pin gates red until legacy checkouts retire) and verify_repo_home.py gating the logic itself. Revocation is deliberately cheap: edit REPO_HOME or delete the profile line - policy changes belong to the operator, not to env drift.",
+   "tags": [
+    "git",
+    "worktrees",
+    "multi-agent",
+    "safeguards",
+    "policy"
+   ]
+  },
+  {
+   "id": "L034",
+   "title": "Repair git trees mechanically - locks, phantom indexes, stale disks, duplicate lanes",
+   "category": "process",
+   "source": "hermes completion sweep 2026-08-24/25: stale ref locks blocked fetches, a killed pull left index past HEAD, ~70 tracked files missing from a worktree disk, 13 auto/* branches carried squash-duplicates of merged PRs, and one live writer shared another lane worktree",
+   "lesson": "Multi-writer fleets accumulate five recurring tree injuries - stale .lock files, interrupted operations, stale-index-after-ref-move, disk-behind-ref drift, and patch-duplicate lane branches - and each one costs a debugging session if repaired by hand under pressure. Centralize them behind one mechanical tool (safeguards/tree_repair.py) whose repairs are bounded by three guards: no removal without a lock age grace AND zero live git processes, no restore of paths in directories showing recent sibling writes (the deletion itself bumps dir mtime - sibling mtimes are the live-writer signal), and judgment-call states like MERGE_HEAD are reported, never auto-fixed. Every action lands in a per-root hash-chained ledger so a later audit can trust prior repairs; fixture-gate the tool itself (verify_tree_repair.py) including the refusal cases - a repair tool tested only on damage it should fix will learn to pass by being dangerous.",
+   "tags": [
+    "git",
+    "worktrees",
+    "multi-agent",
+    "safeguards",
+    "repair",
+    "gates"
+   ]
+  },
+  {
+   "id": "L035",
+   "title": "Inherited lane dirt may already be shipped - diff against fresh main before committing it",
+   "category": "process",
+   "source": "hermes session 2026-08-25: two posture-aware boundary/ptah fixture edits sat uncommitted in the auto/hermes worktree from a prior session; while hermes verified them green, another lane shipped the same content as PR #91, so hermes PR #92 carried a byte-similar duplicate through squash merge",
+   "lesson": "Uncommitted changes found in your worktree are not automatically yours to land - they are evidence of an interrupted session whose owner may have re-run elsewhere. Before committing inherited dirt: fetch origin, scan recent merged PRs (git log --oneline origin/main plus subject match) for the same content, and diff your tree against fresh main first. If the work already landed, drop or reset your copy instead of re-shipping; if it is genuinely unlanded, commit it as its own labeled unit with the affected gates run, never swept into unrelated paper changes. Duplicate squash merges are usually harmless but they burn review trust and can silently fork helper functions when hunks land at different offsets.",
+   "tags": [
+    "git",
+    "worktrees",
+    "multi-agent",
+    "hygiene",
+    "verification"
+   ]
+  },
+  {
+   "id": "L036",
+   "title": "Registry loaders must reject or coalesce duplicate realm names",
+   "category": "data-integrity",
+   "source": "fleet muster 2026-08-25 (metis + argus merged): artemis row duplicated verbatim in realms/registry.json:21-50; sentinel double-ran the 'artemis suite' every patrol (incidents.jsonl:331,371) and every downstream membership count was wrong; all_realms() consumes rows raw with no dedupe (realms/__init__.py:28-29)",
+   "lesson": "Duplicate names in a declarative registry are corrupt input, not extra members: validate at LOAD time - reject the file outright, or coalesce identical duplicates and refuse conflicting ones loudly. One organ means one gate run and one alert stream; anything that consumes membership must never see the same name twice. Count claims derived from an unvalidated registry are wrong by construction.",
+   "tags": [
+    "registry",
+    "validation",
+    "dedupe",
+    "sentinel"
+   ]
+  },
+  {
+   "id": "L037",
+   "title": "Refuse realm admissions whose verifier is null",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (metis): aphrodite is the only realm with \"verify\": null (realms/registry.json:455) and no aphrodite gate ever appears in a patrol summary (incidents.jsonl:408)",
+   "lesson": "A declaration without a runnable verifier is visibility theater: it cannot go red, so its green is meaningless and guarantee 5 dies quietly. Registry admission requires a verify command - if a member is genuinely ungated, force an explicit UNPROTECTED state that patrols report as such, never a silent null.",
+   "tags": [
+    "registry",
+    "gates",
+    "admission"
+   ]
+  },
+  {
+   "id": "L038",
+   "title": "Impossible coverage readings mean broken measurement - re-run clean before believing",
+   "category": "testing",
+   "source": "fleet muster 2026-08-25 (metis): coverage gates failed llmlog.py 0% (0/82) while verify_buskit.py:153 imports it under registered tests; captured detail carried sysconfig env-noise (incidents.jsonl:386,405)",
+   "lesson": "When a metric reports something impossible - 0% coverage on a module the tests demonstrably import - the instrument is lying, not the code: sanitize child env of noise vars, assert import-under-trace actually fires, re-run in a clean environment, and only then trust the number. Never record an impossible reading as a real failure without one verification pass.",
+   "tags": [
+    "coverage",
+    "measurement",
+    "flaky-gates"
+   ]
+  },
+  {
+   "id": "L039",
+   "title": "Incident records need structured failure attribution, not output tails",
+   "category": "reliability",
+   "source": "fleet muster 2026-08-25 (metis): three unattributable gate FAILs across both ledger eras - free-text tails with no failing-check field (incidents.jsonl:10,30,318)",
+   "lesson": "Every FAIL record carries structured fields - failing check name, exit code, full-log reference - with free text allowed only in addition. A ledger you cannot group by cause is not evidence, it is sediment; attribution work should be a query, not archaeology.",
+   "tags": [
+    "incidents",
+    "observability",
+    "schema"
+   ]
+  },
+  {
+   "id": "L040",
+   "title": "An organ absent from disk is not a member - mark proposed-only and date-stamp it",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (argus): codex heart watchlist claimed a v0.2.0 desk companion on port 4767 while heart/ is an empty dir in both roots with zero tracked files (h0a cycle log:41-47 vs git ls-files)",
+   "lesson": "Codex entries describing organs with no tree on disk must carry an explicit proposed-only/unbound marker plus a last-verified date - never prose that reads as deployed reality. Before citing any organ in a design, Test-Path its home; absence downgrades it to an open decision (restore or retire), not a fact.",
+   "tags": [
+    "codex",
+    "drift",
+    "membership"
+   ]
+  },
+  {
+   "id": "L041",
+   "title": "Correction and still-missing lists expire on landing - re-derive from disk each revision",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (argus): INTEGRATION.md:5-7 'pending restoration' and the :304-308 still-missing list stayed false since the 2026-08-24 restoration landed; line 26 still cited retired ports 43590/43591",
+   "lesson": "Any doc section that lists what is missing or broken is a snapshot with a shelf life: when the underlying work lands, the list silently becomes a lie that sends planners re-restoring live organs. Re-derive such lists from disk truth at every revision of the document and stamp them with the audit date - stale truth is worse than missing truth.",
+   "tags": [
+    "codex",
+    "drift",
+    "documentation"
+   ]
+  },
+  {
+   "id": "L042",
+   "title": "Every gated organ gets an ecosystem-table row on arrival - document or retire within one cycle",
+   "category": "process",
+   "source": "fleet muster 2026-08-25 (argus): haven (:43910, sqlite-fts5) and ares (vault-cipher, T1) are gated on disk with registry rows but absent from DESIGN.md table, INTEGRATION topology, and codex watchlist (registry.json:488-517 vs DESIGN.md:9-20)",
+   "lesson": "Declaration without documentation creates orphan organs: gated, ported, real - yet invisible to every planner reading the model of record. New registry rows must land with their ecosystem-table row in the same cycle; if a row should not exist, retire it explicitly instead of letting it linger undocumented.",
+   "tags": [
+    "registry",
+    "documentation",
+    "onboarding"
+   ]
+  },
+  {
+   "id": "L043",
+   "title": "Resolve an organ's current home before working on it",
+   "category": "process",
+   "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1042,h0a,1300,1310}.md - organs relocated between workspace/nested-repo/standalone mid-cycle and stale-home work was orphaned; PR #61 withdrawn at 1310:25",
+   "lesson": "Before expanding, registering, or reviewing an organ, resolve its CURRENT home mechanically: git log --all --grep <organ>, registry read, Test-Path. Organs migrate between homes mid-cycle; on discovery of a move, withdraw in-flight surface and redo against the new home. Distinct from declare-on-arrival (L029) and one-home policy (L033): this is the per-session check that the home you remember is the home that exists.",
+   "tags": [
+    "organs",
+    "multi-home",
+    "verification"
+   ]
+  },
+  {
+   "id": "L044",
+   "title": "Doc-sourced claims are hypotheses: verify against disk before acting",
+   "category": "process",
+   "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{0959,1042,1112,1138}.md - doc-trusted claims produced false review findings and burned two full review rounds",
+   "lesson": "Every claim read from codex, DESIGN, INTEGRATION, or a roadmap surface is a hypothesis until checked on disk (Test-Path, registry count, port probe). Disk wins ties. The codex itself says this (rule 1); the failure mode is not ignorance of the rule but skipping the check under time pressure - make the check the first action, not a later audit step.",
+   "tags": [
+    "codex",
+    "verification",
+    "drift"
+   ]
+  },
+  {
+   "id": "L045",
+   "title": "Mirrors converge on commit; audit a mirror before executing from it",
+   "category": "reliability",
+   "source": "logia synthesis 2026-08-25, >=3 corroborations: docs/plans/cycles/2026-08-24-{1112,1146,wiring}.md - mirrors drifted behind the workspace (stale kernels, VERSION, blocking dirt); fixed by commits df0a85b,04e9130,d79e3ef",
+   "lesson": "Execution mirrors are caches, not sources: convergence happens through mirror_sync on commit, and before executing or reading truth from any mirror run mirror_sync.py --audit --strict first. Convergence failures escalate to the operator - never force-resolve by mixing foreign work into a diverged copy. CI wiring of the audit is deliberately left to the operator (respects rule against live-machine gates, L033).",
+   "tags": [
+    "mirrors",
+    "sync",
+    "execution"
+   ]
+  },
+  {
+   "title": "Automated merges wait for required checks to finish green",
+   "category": "autonomy",
+   "source": "cycle logs 2026-08-24-1112/1146 - PR #45 and #49 squash-merged ahead of check completion while main's ecosystem job was red 7+ runs",
+   "lesson": "No automated merge path may execute until every required check on the target branch has completed green - poll check status and hold, or depend on branch protection that enforces it; never invoke a merge command that ignores check state. Merging on pending or failing checks lands broken commits on main and stamps provenance claiming health the fleet cannot honor (guarantee 5). A post-merge verify-and-remediate loop mitigates damage but does not license the merge.",
+   "tags": [
+    "git",
+    "ci",
+    "merges",
+    "agents"
+   ],
+   "id": "L046"
+  },
+  {
+   "title": "A clean ledger proves nothing unless the watcher provably ran",
+   "category": "reliability",
+   "source": "soak baseline 2026-08-26 (talos): Olympos sentinel ledgers wrote zero lines during the V5 soak window at both homes while auto-arm certification reads 'zero cross-fleet incidents in either ledger'",
+   "lesson": "Every 'zero incidents' claim over a time window must ride with positive liveness evidence - heartbeat entries, last-write timestamp freshness, or an explicit armed-watch assertion evaluated at window open. A ledger silent since before the window started means the instrument was down and its silence certifies nothing: mark it AMBER, arm the watch, and restart the clock rather than counting the dead interval as a clean pass. Absence of writer is absence of evidence.",
+   "tags": [
+    "monitoring",
+    "evidence",
+    "certification",
+    "liveness"
+   ],
+   "id": "L047"
+  },
+  {
+   "title": "Verify claimed ports by process identity, not port number or name match",
+   "category": "security",
+   "source": "port-trust incidents 2026-08-24/26: unregistered :43906 listener (PID 26824, no registry row) and Aphrodite.exe (pid 18368) holding registered :43904 with a non-atlas command line",
+   "lesson": "Port liveness checks decide ownership by matching the occupying process's image path and command line against the registry row - port number alone proves nothing and a process-name collision proves less. A claimed port held by a binary whose name matches the realm but whose invocation does not match the registered launch command is a squatter suspect: report it, escalate to the operator, and never credit the realm as healthy merely because something is LISTENING on its port.",
+   "tags": [
+    "ports",
+    "squatter",
+    "process-identity",
+    "liveness"
+   ],
+   "id": "L048"
+  },
+  {
+   "title": "Amend historical records only by dated annotation or disclosed recreation - never silent rewrite",
+   "category": "process",
+   "source": "logia synthesis",
+   "lesson": "Historical records (cycle logs, ADRs, decision papers, ledgers) are corrected only by dated bracket annotations or disclosed recreation. When a duplicate forces a removal or rename, update cross-references AND leave bracket notes in every older record citing the old name. When a file is lost, recreate it marked as a recovered record with content unchanged and timestamp preserved. A reader must always be able to distinguish what was true when written from what was corrected later.",
+   "tags": [
+    "pattern",
+    "synthesis"
+   ],
+   "id": "L049"
+  },
+  {
+   "title": "Reconcile monotonic identifiers against merged history before allocating them",
+   "category": "data-integrity",
+   "source": "fleet muster 2026-08-26 (metis): vault next_id raced upstream L034 (0052), ADR numbers duplicated (volt-comm drift #3, W0 dedupe), roadmap phase ranges collide",
+   "lesson": "Before allocating any monotonic identifier - lesson IDs, ADR numbers, phase numbers, release numbers - fetch and scan the authoritative merged history for existing use; a counter read from a local copy is a hypothesis whenever copies can diverge. On collision, renumber with documented cross-reference updates (bracket notes, annotated log entries), never silent rewrite; when two copies already assigned one ID to different content, treat reconciliation as a data-integrity incident, not a formatting chore.",
+   "tags": [
+    "identifiers",
+    "counters",
+    "collision",
+    "multi-home"
+   ],
+   "id": "L050"
+  },
+  {
+   "title": "Pin interpreters by absolute path in gates, hooks and scheduled tasks",
+   "category": "reliability",
+   "source": "stabilization cycle 2026-08-25-0200: interpreters mutated live mid-session by a concurrent provisioning lane; lesson was queued as 'mint L035' but silently lost to ID-slot collision - reminted 2026-08-26",
+   "lesson": "Automation surfaces - pre-commit hooks, gates, scheduled tasks, CI steps - must resolve their interpreter by absolute path or a sys.executable-derived fallback, never a bare PATH lookup: provisioning lanes mutate PATH and install or remove interpreters while sessions run, so 'python' can silently switch between Store stub and real build between two invocations. When interpreter resolution fails in automation, fail loud naming the resolved path so the next session sees which interpreter was expected.",
+   "tags": [
+    "python",
+    "path",
+    "ci",
+    "hooks",
+    "reprovisioning"
+   ],
+   "id": "L051"
+  },
+  {
+   "title": "Unlock construction waves only on provably green preconditions - paper precedes metal",
+   "category": "process",
+   "source": "logia synthesis",
+   "lesson": "A construction wave starts only when its declared preconditions are provably green on cited evidence: countersigned papers, completed certification clocks with ledger paths, and gate runs executed rather than asserted. Papers (orders, ADRs, specs, baselines) precede metal (code). An absent certification report means the condition is FAILED, not presumed satisfied. Lanes stop at red or unproven preconditions and escalate to the operator; no precondition is skipped, weakened, or waived for schedule.",
+   "tags": [
+    "pattern",
+    "synthesis"
+   ],
+   "id": "L052"
+  },
+  {
+   "title": "Finders report and route - detection lanes never repair inline",
+   "category": "process",
+   "source": "logia synthesis",
+   "lesson": "A lane whose job is detection (patrols, drift audits, reviews, health sweeps) records findings with cited command output and routes each to a named repair owner. It never repairs inline, never deletes evidence, and leaves pre-existing dirty state untouched. Repairs belong to designated owners: repair lanes or bounded mechanical tools. Mixing repair into detection destroys the independence that makes a finding trustworthy.",
+   "tags": [
+    "pattern",
+    "synthesis"
+   ],
+   "id": "L053"
+  },
+  {
+   "title": "INTEGRATION.md sec6 catalogue missing live fleet.plan kind on the daedalus lane",
+   "category": "architecture",
+   "source": "argus drift audit",
+   "lesson": "Every KIND_* constant with a live publisher gets a section-6 catalogue entry in the same revision it lands, filed under the topic buskit actually whitelists - not the topic that seems convenient. fleet.plan is published by daedalus/planning.py onto the raw-bus daedalus lane and whitelisted only in TOPICS['daedalus'] (buskit/envelope.py:58), so the fix is to add fleet.plan to the sec6 as-built daedalus lane row ('workshop build outcomes + planning-station transitions'); listing it under updates would itself be catalogue drift because validate() checks kinds against TOPICS[topic].",
+   "tags": [
+    "drift"
+   ],
+   "id": "L054"
+  },
+  {
+   "title": "athena-codex SKILL.md sec2 self-contradiction: 21 vs 32 members",
+   "category": "data-integrity",
+   "source": "argus drift audit",
+   "lesson": "Codex facts must carry exactly one date-stamped value each; two counts of the same fact in one document is drift by definition. Delete the stale '(21 realm members)' parenthetical at SKILL.md:69-70 or replace with 32 (re-counted 2026-08-26) to match SKILL.md:75-76 and disk.",
+   "tags": [
+    "drift"
+   ],
+   "id": "L055"
+  },
+  {
+   "title": "DESIGN.md night-entry cites apollo/kinema-host/riley-engine rows and ratatosk command-plane block absent from this checkout",
+   "category": "process",
+   "source": "argus drift audit",
+   "lesson": "Decision-log entries describing other roots or lineages must name the root explicitly and be re-derived from the audited disk at citation time; a log entry asserting registry or catalogue state that the checked-out tree does not contain is ghost truth. Qualify DESIGN.md:311-312 with 'on the D:\\ execution-mirror lineage' or re-sync and re-verify against this tree.",
+   "tags": [
+    "drift"
+   ],
+   "id": "L056"
+  }
+ ]
 }

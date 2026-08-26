@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "proposed_by": "logia",
+  "proposed_ts": "2026-08-26T01:55:44",
+  "evidence": [
+    "docs/plans/cycles/2026-08-25-0052.md:61",
+    "docs/plans/cycles/2026-08-25-volt-comm.md:44-45",
+    "docs/plans/cycles/2026-08-26-thoth-metal-w0.md:78",
+    "docs/plans/cycles/2026-08-26-full-comm-phase0.md:26"
+  ],
+  "rationale": "Four distinct cycles gated execution on proof instead of schedule: 0052 D5 no-code paper-first with W phases after W0 green; volt-comm opened the soak clock only on Phases 1+2 green and gated kernel skeleton creation on soak completion; THOTH-METAL W0 armed the auto-arm law requiring a certified zero-cross-fleet week and wrote no metal code anywhere; FULL-COMM Phase 4 unlocked per signed-off authority. Shape: wave N proceeds to N+1 only through a preconditions-green edge, else STOP and escalate. Complements playbook 9 bound-autonomy (which caps what agents may do) by sequencing when waves may run; soak-baseline supplies the evidence half - stand up certification evidence now so later proof is fill-in, not archaeology.",
+  "lesson": {
+    "title": "Unlock construction waves only on provably green preconditions - paper precedes metal",
+    "category": "process",
+    "source": "logia synthesis",
+    "lesson": "A construction wave starts only when its declared preconditions are provably green on cited evidence: countersigned papers, completed certification clocks with ledger paths, and gate runs executed rather than asserted. Papers (orders, ADRs, specs, baselines) precede metal (code). An absent certification report means the condition is FAILED, not presumed satisfied. Lanes stop at red or unproven preconditions and escalate to the operator; no precondition is skipped, weakened, or waived for schedule.",
+    "tags": [
+      "pattern",
+      "synthesis"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L052",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

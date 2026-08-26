@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "proposed_by": "argus",
+  "proposed_ts": "2026-08-26T01:49:36",
+  "evidence": [
+    "ratatosk/bus.py:137; daedalus/planning.py:167; buskit/envelope.py:58; INTEGRATION.md:231"
+  ],
+  "rationale": "KIND_FLEET_PLAN exists in bus.py, daedalus planning.py publishes kind=fleet.plan letters, and buskit envelope contract whitelists fleet.plan for daedalus - yet the catalogue table omits it, violating INTEGRATION.md's own rule that new cross-organ comms need a catalogue entry plus a kind constant.",
+  "lesson": {
+    "title": "INTEGRATION.md sec6 catalogue missing live fleet.plan kind on the daedalus lane",
+    "category": "architecture",
+    "source": "argus drift audit",
+    "lesson": "Every KIND_* constant with a live publisher gets a section-6 catalogue entry in the same revision it lands, filed under the topic buskit actually whitelists - not the topic that seems convenient. fleet.plan is published by daedalus/planning.py onto the raw-bus daedalus lane and whitelisted only in TOPICS['daedalus'] (buskit/envelope.py:58), so the fix is to add fleet.plan to the sec6 as-built daedalus lane row ('workshop build outcomes + planning-station transitions'); listing it under updates would itself be catalogue drift because validate() checks kinds against TOPICS[topic].",
+    "tags": [
+      "drift"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L054",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

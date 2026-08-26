@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "proposed_by": "metis",
+  "proposed_ts": "2026-08-26T01:39:15",
+  "evidence": [
+    "docs/plans/cycles/2026-08-25-0052.md:21",
+    "docs/plans/cycles/2026-08-25-volt-comm.md:64-67",
+    "knowledge/lessons.json:440"
+  ],
+  "rationale": "Three identifier spaces hit the same race in three days: lesson IDs nearly double-allocated (local next_id:L034 vs upstream-landed L034), ADR numbers duplicated (two 0002s, two 0003s, two 0005s), and Track A/B phase ranges overlap; the wiring-era L035-L038 mints were superseded by different content under the same IDs after fork reconciliation, proving the race bit rather than merely threatened.",
+  "lesson": {
+    "title": "Reconcile monotonic identifiers against merged history before allocating them",
+    "category": "data-integrity",
+    "source": "fleet muster 2026-08-26 (metis): vault next_id raced upstream L034 (0052), ADR numbers duplicated (volt-comm drift #3, W0 dedupe), roadmap phase ranges collide",
+    "lesson": "Before allocating any monotonic identifier - lesson IDs, ADR numbers, phase numbers, release numbers - fetch and scan the authoritative merged history for existing use; a counter read from a local copy is a hypothesis whenever copies can diverge. On collision, renumber with documented cross-reference updates (bracket notes, annotated log entries), never silent rewrite; when two copies already assigned one ID to different content, treat reconciliation as a data-integrity incident, not a formatting chore.",
+    "tags": [
+      "identifiers",
+      "counters",
+      "collision",
+      "multi-home"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L050",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}
