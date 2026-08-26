@@ -67,3 +67,7 @@ godot-knowledge-db/*.db*
 
 # --- kronos runtime strays ---
 kronos/heartbeat.json
+
+# --- olympus orchestrator runtime state ---
+orchestrator/logs/
+orchestrator/status.json
