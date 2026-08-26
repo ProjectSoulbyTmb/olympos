@@ -64,3 +64,6 @@ deskmate/
 
 # --- godot-knowledge-db local build artifact ---
 godot-knowledge-db/*.db*
+
+# --- kronos runtime strays ---
+kronos/heartbeat.json
