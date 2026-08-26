@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "proposed_by": "metis",
+  "proposed_ts": "2026-08-26T01:39:37",
+  "evidence": [
+    "docs/plans/cycles/2026-08-25-0200.md:39",
+    "docs/plans/cycles/2026-08-25-0200.md:75"
+  ],
+  "rationale": "Bare 'python' in the safeguards hook broke twice on 2026-08-25 when D:\\\\Python312 landed and PATH flipped mid-session (Store-stub vs real alternating, py launcher losing registrations); this exact lesson was queued for minting that cycle but the L035 slot was taken by an unrelated lesson, so it never entered the vault until now.",
+  "lesson": {
+    "title": "Pin interpreters by absolute path in gates, hooks and scheduled tasks",
+    "category": "reliability",
+    "source": "stabilization cycle 2026-08-25-0200: interpreters mutated live mid-session by a concurrent provisioning lane; lesson was queued as 'mint L035' but silently lost to ID-slot collision - reminted 2026-08-26",
+    "lesson": "Automation surfaces - pre-commit hooks, gates, scheduled tasks, CI steps - must resolve their interpreter by absolute path or a sys.executable-derived fallback, never a bare PATH lookup: provisioning lanes mutate PATH and install or remove interpreters while sessions run, so 'python' can silently switch between Store stub and real build between two invocations. When interpreter resolution fails in automation, fail loud naming the resolved path so the next session sees which interpreter was expected.",
+    "tags": [
+      "python",
+      "path",
+      "ci",
+      "hooks",
+      "reprovisioning"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L051",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

@@ -1,0 +1,27 @@
+{
+  "v": 1,
+  "proposed_by": "metis",
+  "proposed_ts": "2026-08-26T01:40:10",
+  "evidence": [
+    "docs/plans/cycles/2026-08-26-soak-baseline.md:164",
+    "docs/plans/cycles/2026-08-24-1138.md:13"
+  ],
+  "rationale": "Two days apart, patrols met both halves of the same hole: an unknown listener on an unclaimed port (no row to check against) and a name-matching foreign binary on a claimed port (row exists, identity does not) - port-number or name matching alone cannot distinguish organ from impostor, and the :43904 case remains an open operator escalation.",
+  "lesson": {
+    "title": "Verify claimed ports by process identity, not port number or name match",
+    "category": "security",
+    "source": "port-trust incidents 2026-08-24/26: unregistered :43906 listener (PID 26824, no registry row) and Aphrodite.exe (pid 18368) holding registered :43904 with a non-atlas command line",
+    "lesson": "Port liveness checks decide ownership by matching the occupying process's image path and command line against the registry row - port number alone proves nothing and a process-name collision proves less. A claimed port held by a binary whose name matches the realm but whose invocation does not match the registered launch command is a squatter suspect: report it, escalate to the operator, and never credit the realm as healthy merely because something is LISTENING on its port.",
+    "tags": [
+      "ports",
+      "squatter",
+      "process-identity",
+      "liveness"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L048",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

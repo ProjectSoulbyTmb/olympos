@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "proposed_by": "argus",
+  "proposed_ts": "2026-08-26T01:50:21",
+  "evidence": [
+    "DESIGN.md:311-312; realms/registry.json (0 of 32 rows match apollo|kinema-host|riley-engine); ratatosk/bus.py:108-137 (grep command|COMMAND: zero hits)"
+  ],
+  "rationale": "Entry 2026-08-25-night claims registry carries apollo/kinema-host/riley-engine rows and ratatosk gained a command-plane catalogue block. This checkout has neither (verified twice: full registry read + programmatic name filter; TOPIC_ grep + command grep). Either the frozen OneDrive checkout lags the D:\\ mirror or the entry overstates - both readings require the entry to carry lineage context per L041 re-derivation doctrine.",
+  "lesson": {
+    "title": "DESIGN.md night-entry cites apollo/kinema-host/riley-engine rows and ratatosk command-plane block absent from this checkout",
+    "category": "process",
+    "source": "argus drift audit",
+    "lesson": "Decision-log entries describing other roots or lineages must name the root explicitly and be re-derived from the audited disk at citation time; a log entry asserting registry or catalogue state that the checked-out tree does not contain is ghost truth. Qualify DESIGN.md:311-312 with 'on the D:\\ execution-mirror lineage' or re-sync and re-verify against this tree.",
+    "tags": [
+      "drift"
+    ],
+    "id": "L046"
+  },
+  "status": "promoted",
+  "promoted_id": "L056",
+  "promoted_ts": "2026-08-26T02:43:12",
+  "validation_ref": "docs/plans/learning/2026-08-26-0233-athena-validation.md"
+}

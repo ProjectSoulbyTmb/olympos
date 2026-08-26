@@ -35,6 +35,8 @@ PATTERNS = [
 ALLOW = {
     "verify_scope.py": "self: pattern definitions live here",
     "INTEGRATION.md": "section 9 reconciliation manifest names retired paths",
+    "suite.py": "fleet-ops doctor excludes retired-scope scheduled "
+                "tasks by name - mention filters them out",
 }
 
 _RX = re.compile("|".join(PATTERNS), re.IGNORECASE)
