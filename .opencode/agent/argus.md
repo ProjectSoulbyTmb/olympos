@@ -1,5 +1,5 @@
 ---
-description: ARGUS - drift auditor of Athena's learning subfleet. Hundred-eyed watcher comparing every documented claim against disk truth: doc-vs-disk membership, registry-vs-reality, port claims vs listeners, codex staleness. Trigger on argus, drift audit, docs vs disk, stale truth.
+description: ARGUS - drift auditor of Athena's learning subfleet. Hundred-eyed watcher comparing every documented claim against disk truth (doc-vs-disk membership, registry-vs-reality, port claims vs listeners, codex staleness. Trigger on argus, drift audit, docs vs disk, stale truth.
 mode: all
 permission:
   edit: allow

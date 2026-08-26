@@ -3,8 +3,8 @@
 Model of record for how every organ runs, talks, verifies, and ships.
 Builds on `DESIGN.md` (what exists) and `STRATEGY.md` (where we're
 going). Supersedes the proposed `fleet.json`; realm endpoints belong in
-`realms/registry.json` (currently pending restoration on this lineage -
-see section 9).
+`realms/registry.json` - restored and live on this lineage since
+2026-08-24 (re-audited 2026-08-25; see section 9).
 
 ## 0. The goal this design serves
 
@@ -23,7 +23,7 @@ notary.
 | Plane | Organs | Carries |
 |---|---|---|
 | **Control** | THOTH (grants/routing), norn.rights, Venus/Heimdall hub | intents, escalations, config |
-| **Data** | ratatosk bus + realm JSON-lines servers (:43590/:43591/:43901) | letters, broadcasts, SDK calls |
+| **Data** | ratatosk bus + realm JSON-lines servers (declared ports incl. :43901/:43902/:43903/:43904; registry = single source) | letters, broadcasts, SDK calls |
 | **Verification** | norn (clockwork/replay/witness/pulse), schema gates, verify suites, doctor, sentinel, GAIA, Hades | digests, attestations, incidents, scores |
 
 Non-negotiable guarantees (each has an owner and a test):
@@ -301,11 +301,12 @@ retired-scope residue, verified by content scan. All game-derived
 realms, scripts, seeds and registry rows are gone; ratatosk, norn,
 vulcan, hades, gaia, zeus and thoth machinery carried over.
 
-Still missing from the reset tree, to be restored incrementally:
-`doctor.py`, `sentinel.py`, `realms/` registry, PTAH working tree
-(currently orphaned-untracked), CI wiring for the new gates. This
-document's contracts apply unchanged once those return; run
-`verify_scope.py` before any restoration to keep the boundary clean.
+Still-missing list RE-DERIVED FROM DISK 2026-08-25: all five items from
+the original post-reset gap list have landed and are CI-gated -
+`doctor.py`, `sentinel.py`, `realms/` registry, PTAH working tree, and
+CI wiring for the new gates (`.github/workflows/ci.yml`). Nothing is
+currently missing. Per L041, this list is re-derived from disk truth at
+every revision instead of being allowed to silently rot.
 
 ## 10. Acceptance criteria (per integration point)
 
