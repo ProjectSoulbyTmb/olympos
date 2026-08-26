@@ -294,9 +294,12 @@ tag-driven releases).
   V6 commissioned.** Operator granted full authorization; the
   blueprint stack crossed via organ/incoming + two new pump orders
   (P1 promote-with-digest-proof, P2 commission-apollo with live
-  :44120 bind probe). APOLLO's gate is green AT THE SOVEREIGN ROOT;
-  registry carries apollo/kinema-host/riley-engine rows; ratatosk
-  gained the command-plane catalogue block; muse ships conforming to
+   :44120 bind probe). APOLLO's gate is green AT THE SOVEREIGN ROOT;
+   registry carries apollo/kinema-host/riley-engine rows; ratatosk
+   gained the command-plane catalogue block [2026-08-26 annotation,
+   re-derived: those rows and that catalogue block exist only on the
+   sovereign-root lineage - this tree's registry has 0 matching rows
+   of 32 and bus.py has 0 command constants]; muse ships conforming to
   the knowledge organ's REAL law (7 mandatory entry keys, MUSE-###
   ids, https sources, titled prose doc) — the organ itself was
   seeded alongside, verify 7/7. Sentinel: 13/13 gates green at root.
@@ -426,9 +429,12 @@ tag-driven releases).
   V6 commissioned.** Operator granted full authorization; the
   blueprint stack crossed via organ/incoming + two new pump orders
   (P1 promote-with-digest-proof, P2 commission-apollo with live
-  :44120 bind probe). APOLLO's gate is green AT THE SOVEREIGN ROOT;
-  registry carries apollo/kinema-host/riley-engine rows; ratatosk
-  gained the command-plane catalogue block; muse ships conforming to
+   :44120 bind probe). APOLLO's gate is green AT THE SOVEREIGN ROOT;
+   registry carries apollo/kinema-host/riley-engine rows; ratatosk
+   gained the command-plane catalogue block [2026-08-26 annotation,
+   re-derived: those rows and that catalogue block exist only on the
+   sovereign-root lineage - this tree's registry has 0 matching rows
+   of 32 and bus.py has 0 command constants]; muse ships conforming to
   the knowledge organ's REAL law (7 mandatory entry keys, MUSE-###
   ids, https sources, titled prose doc) — the organ itself was
   seeded alongside, verify 7/7. Sentinel: 13/13 gates green at root.

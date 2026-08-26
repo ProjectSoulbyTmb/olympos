@@ -6,7 +6,8 @@ Runs both halves of the fleet and reports a single verdict:
   Phase authoring : every registered DAEDALUS blueprint weaves +
                     passes its self-test gate (clean; breakers are
                     proven separately via tools/muster_launch.py).
-  Phase sovereign : the D:\VOLTAGE coordinator replays its manifest -
+  Phase sovereign : the sovereign coordinator (root declared by
+                    boundary.py foreign-root) replays its manifest -
                     idempotent orders advance only on green, choke
                     halts cleanly.
 
@@ -60,23 +61,33 @@ if (-not $SovereignOnly) {
 
 # ------------------------------------------------ phase 2: sovereign
 if (-not $SkipSovereign) {
-    if (Test-Path 'D:\VOLTAGE\ops\coordinator.py') {
-        Push-Location D:\VOLTAGE
-        try {
-            if ($Quick) {
-                $out = python ops\coordinator.py --dry-run 2>&1
-                $ok = ($LASTEXITCODE -eq 0)
-                Record 'sovereign' 'coordinator(dry)' $ok `
-                    ([string]($out | Select-Object -First 1))
-            } else {
-                $out = python ops\coordinator.py 2>&1
-                $ok = ($LASTEXITCODE -eq 0)
-                $tail = ([string](($out | Select-Object -Last 2) -join ' | '))
-                Record 'sovereign' 'manifest-pump' $ok $tail
-            }
-        } finally { Pop-Location }
+    # Drain fully before reading $LASTEXITCODE (Select-Object -First
+    # cancels upstream and poisons the native exit code).
+    $vraw = & python (Join-Path $here 'boundary.py') foreign-root
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace("$vraw")) {
+        Record 'sovereign' 'boundary' $false `
+            ('foreign-root unresolved (boundary.py exit {0})' -f `
+                $LASTEXITCODE)
     } else {
-        Record 'sovereign' 'coordinator' $false 'D:\VOLTAGE missing'
+        $vroot = @($vraw)[0].ToString().Trim()
+        if (Test-Path (Join-Path $vroot 'ops\coordinator.py')) {
+            Push-Location $vroot
+            try {
+                if ($Quick) {
+                    $out = python ops\coordinator.py --dry-run 2>&1
+                    $ok = ($LASTEXITCODE -eq 0)
+                    Record 'sovereign' 'coordinator(dry)' $ok `
+                        ([string]($out | Select-Object -First 1))
+                } else {
+                    $out = python ops\coordinator.py 2>&1
+                    $ok = ($LASTEXITCODE -eq 0)
+                    $tail = ([string](($out | Select-Object -Last 2) -join ' | '))
+                    Record 'sovereign' 'manifest-pump' $ok $tail
+                }
+            } finally { Pop-Location }
+        } else {
+            Record 'sovereign' 'coordinator' $false "$vroot missing"
+        }
     }
 }
 
