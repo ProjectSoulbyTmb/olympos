@@ -6,13 +6,23 @@ Crawls the main site pages, the blog (recent articles), and extracts:
   - pages        : every page fetched (url, title, description, category)
   - sections     : structured content blocks (heading -> body text) per page
   - articles     : full blog articles (title, date, author, tags, excerpt, body)
-  - links        : outbound links per page
+  - links        : outbound links per page and per article
   - releases     : engine release announcements extracted from articles
   - sponsors     : sponsor names + tiers scraped from the homepage
   - meta         : crawl statistics
 Plus an FTS5 index for full-text search across everything.
+
+The .db artifact is a local build product (gitignored); only the tooling
+ships through git. Rebuild any time:
+
+    python godot-knowledge-db/build_godot_db.py
+
+Optional third-party deps (declared in requirements.txt):
+    requests, beautifulsoup4
 """
 
+import argparse
+import os
 import re
 import sqlite3
 import sys
@@ -24,12 +34,10 @@ from bs4 import BeautifulSoup
 
 BASE = "https://godotengine.org"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; GodotKnowledgeBuilder/1.0; +local research tool)"
+    "User-Agent": "Mozilla/5.0 (compatible; GodotKnowledgeBuilder/1.1; +local research tool)"
 }
-DELAY = 0.35          # polite delay between requests
-ARTICLE_LIMIT = 60    # max blog articles to fetch
 
-DB_PATH = "godot_knowledge.db"
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
 # HTTP helpers
@@ -100,13 +108,9 @@ def extract_sections(main: BeautifulSoup) -> list[tuple[int, str, str]]:
             cur_head = clean(el.get_text())
         elif name in ("p", "li", "blockquote"):
             txt = clean(el.get_text())
-            # skip list-item duplicates when parent ul already captured? keep simple: take all
             if txt:
                 buf.append(txt)
-        elif name == "td":
-            pass  # tables get noisy; skip cells
 
-    # capture any table text blocks coarsely
     flush()
     return [s for s in sections if s[2] or s[1]]
 
@@ -136,13 +140,30 @@ def parse_article(url: str, html: str) -> dict | None:
     if h1:
         title = clean(h1.get_text())
 
-    date = author = ""
-    t = art.find("time")
-    if t:
-        date = t.get("datetime") or clean(t.get_text())
+    # Date: site markup has moved before - probe several conventional
+    # carriers in order (data-post-date span, itemprop, <time>, og meta)
+    # so one redesign does not blank every published column again.
+    date = ""
+    el = art.find(attrs={"data-post-date": True}) \
+        or art.find(attrs={"itemprop": "datePublished"}) \
+        or art.find("time")
+    if el:
+        date = el.get("data-post-date") or el.get("datetime") \
+            or el.get("content") or clean(el.get_text())
+    if not date:
+        mtag = soup.find("meta", attrs={"property": "article:published_time"})
+        if mtag and mtag.get("content"):
+            date = mtag["content"]
+
+    # Author: prefer the byline span/avatar alt over the raw block text
+    author = ""
     auth_el = art.find(attrs={"class": re.compile("author", re.I)})
     if auth_el:
-        author = clean(auth_el.get_text())
+        by = auth_el.find(attrs={"class": re.compile(r"\bby\b")})
+        avatar = auth_el.find("img", alt=True)
+        author = clean(by.get_text()) if by else (
+            clean(avatar["alt"]) if avatar else clean(auth_el.get_text()))
+        author = re.sub(r"^By:\s*", "", author, flags=re.I)
 
     tags = []
     tag_wrap = art.find(attrs={"class": re.compile("tags|category", re.I)})
@@ -183,7 +204,7 @@ def parse_article(url: str, html: str) -> dict | None:
 # Special scrapers
 # ---------------------------------------------------------------------------
 
-def scrape_blog_urls(limit_pages=6) -> list[str]:
+def scrape_blog_urls(limit_pages=6, delay=0.35) -> list[str]:
     urls, seen = [], set()
     page_url = f"{BASE}/blog/"
     for _ in range(limit_pages):
@@ -206,17 +227,16 @@ def scrape_blog_urls(limit_pages=6) -> list[str]:
             page_url = nxt["href"]
             if not page_url.startswith("http"):
                 page_url = BASE + page_url
-            time.sleep(DELAY)
+            time.sleep(delay)
         elif found:
-            # try /blog/page/2/ style pagination manually
-            n = len([u for u in urls])  # noqa: F841
+            # try /blog/page/N/ style pagination manually
             m = re.search(r"/blog/page/(\d+)/", page_url)
             nxt_num = (int(m.group(1)) if m else 1) + 1
             cand = f"{BASE}/blog/page/{nxt_num}/"
             probe = get(cand)
             if probe:
                 page_url = cand
-                time.sleep(DELAY)
+                time.sleep(delay)
                 continue
             break
         else:
@@ -224,48 +244,49 @@ def scrape_blog_urls(limit_pages=6) -> list[str]:
     return urls
 
 
-def scrape_sponsors(home_soup: BeautifulSoup) -> list[tuple[str, str]]:
+def scrape_sponsors(home_soup: BeautifulSoup) -> list[tuple[str, str, str]]:
+    """Sponsor logos under tier headings: (name, tier, url)."""
     sponsors = []
-    tier_headers = {}
-    for h in home_soup.find_all(["h3", "h4"]):
-        tier_headers[h] = clean(h.get_text()).lower()
-
     current_tier = ""
     for el in home_soup.find_all():
         if el.name in ("h3", "h4"):
             current_tier = clean(el.get_text())
         elif el.name == "img" and current_tier:
             alt = clean(el.get("alt") or "")
-            if alt and "logo" not in alt.lower() or True:
+            if alt:
                 parent_a = el.find_parent("a")
                 href = parent_a["href"] if parent_a and parent_a.get("href") else ""
-                if alt:
-                    sponsors.append((alt, current_tier, href))
+                sponsors.append((alt, current_tier, href))
     return sponsors
 
 
-RELEASE_PAT = re.compile(
-    r"(?i)\b(maintenance release|dev snapshot|release candidate|stable|beta|rc)\b.*godot\s*(\d+\.\d+(?:\.\d+)?)"
-    r"|godot\s*(\d+\.\d+(?:\.\d+)?)(?:\s*(dev|beta|rc)\s*(\d+)|\s*—?\s*(stable|maintenance release))?"
-)
+KIND_PATTERNS = [
+    ("maintenance", r"maintenance release"),
+    ("dev snapshot", r"dev snapshot"),
+    ("release candidate", r"release candidate"),
+    ("beta", r"\bbeta\b"),
+    ("feature", r"(major release|is here|released!)"),
+]
+
+
+def classify_release(title: str) -> str:
+    t = title.lower()
+    for kind, pat in KIND_PATTERNS:
+        if re.search(pat, t):
+            return kind
+    return "other"
+
+
+VERSION_PAT = re.compile(r"Godot\s+(\d+\.\d+(?:\.\d+)?)(?:\s+(dev|beta|RC)\s*(\d+))?", re.I)
 
 
 def extract_release(title: str, url: str, date: str) -> tuple | None:
-    t = title
-    kind = (
-        "maintenance" if "aintenance release" in t
-        else "dev snapshot" if "ev snapshot" in t
-        else "release candidate" if "elease candidate" in t
-        else "beta" if "eta" in t.lower()
-        else "feature" if any(k in t.lower() for k in ("major release", "is here", "released!"))
-        else "other"
-    )
-    m = re.search(r"Godot\s+(\d+\.\d+(?:\.\d+)?)(?:\s+(dev|beta|RC)\s*(\d+))?", t, re.I)
+    m = VERSION_PAT.search(title)
     if not m:
         return None
     version = m.group(1)
     suffix = f"{m.group(2)} {m.group(3)}".strip() if m.group(2) else ""
-    return (version, suffix, kind, title.strip(), url, date)
+    return (version, suffix, classify_release(title), title.strip(), url, date)
 
 
 # ---------------------------------------------------------------------------
@@ -351,48 +372,49 @@ def index_row(cur, stype, stitle, surl, heading, body):
     )
 
 
-def main():
+CORE_PAGES = [
+    ("/", "home"),
+    ("/features/", "features"),
+    ("/consoles/", "consoles"),
+    ("/priorities/", "project"),
+    ("/showcase/", "showcase"),
+    ("/community/", "community"),
+    ("/events/", "community"),
+    ("/code-of-conduct/", "project"),
+    ("/governance/", "project"),
+    ("/press/", "resources"),
+    ("/education/", "resources"),
+    ("/license/", "legal"),
+    ("/privacy-policy/", "legal"),
+    ("/contact/", "project"),
+    ("/download/windows/", "download"),
+    ("/download/macos/", "download"),
+    ("/download/linux/", "download"),
+    ("/download/android/", "download"),
+    ("/download/web/", "download"),
+    ("/download/archive/", "download"),
+    ("/releases/", "releases"),
+]
+
+
+def crawl(db_path: str, delay: float, article_limit: int, blog_pages: int) -> dict:
     now = lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")  # noqa: E731
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(db_path)
     con.executescript(SCHEMA)
     cur = con.cursor()
-    cur.execute("DELETE FROM pages"); cur.execute("DELETE FROM sections")
-    cur.execute("DELETE FROM articles"); cur.execute("DELETE FROM links")
-    cur.execute("DELETE FROM releases"); cur.execute("DELETE FROM sponsors")
-    cur.execute("DELETE FROM meta"); cur.execute("DELETE FROM knowledge_fts")
+    # Full rebuild semantics: every run produces fresh, complete truth.
+    for tbl in ("pages", "sections", "articles", "links",
+                "releases", "sponsors", "meta", "knowledge_fts"):
+        cur.execute(f"DELETE FROM {tbl}")
 
     stats = {"pages": 0, "articles": 0, "sections": 0, "links": 0}
 
     # --- 1. Core site pages -------------------------------------------------
-    core_pages = [
-        ("/", "home"),
-        ("/features/", "features"),
-        ("/consoles/", "consoles"),
-        ("/priorities/", "project"),
-        ("/showcase/", "showcase"),
-        ("/community/", "community"),
-        ("/events/", "community"),
-        ("/code-of-conduct/", "project"),
-        ("/governance/", "project"),
-        ("/press/", "resources"),
-        ("/education/", "resources"),
-        ("/license/", "legal"),
-        ("/privacy-policy/", "legal"),
-        ("/contact/", "project"),
-        ("/download/windows/", "download"),
-        ("/download/macos/", "download"),
-        ("/download/linux/", "download"),
-        ("/download/android/", "download"),
-        ("/download/web/", "download"),
-        ("/download/archive/", "download"),
-        ("/releases/", "releases"),
-    ]
-
     home_soup = None
-    for path, cat in core_pages:
+    for path, cat in CORE_PAGES:
         print(f"[page] {path}")
         html = get(BASE + path)
-        time.sleep(DELAY)
+        time.sleep(delay)
         if path == "/" and html:
             home_soup = soup_of(html)
         if not html:
@@ -416,9 +438,10 @@ def main():
             )
             index_row(cur, "page_section", title, BASE + path, head, body[:20000])
         stats["sections"] += len(secs)
-        for text, href in extract_links(s):
+        page_links = extract_links(s)
+        for text, href in page_links:
             cur.execute("INSERT INTO links (page_id,text,href) VALUES (?,?,?)", (pid, text, href))
-            stats["links"] += 1
+        stats["links"] += len(page_links)
 
     # --- 2. Sponsors ---------------------------------------------------------
     if home_soup:
@@ -432,13 +455,13 @@ def main():
 
     # --- 3. Blog articles -----------------------------------------------------
     print("[blog] collecting article URLs...")
-    art_urls = scrape_blog_urls()[:ARTICLE_LIMIT]
+    art_urls = scrape_blog_urls(limit_pages=blog_pages, delay=delay)[:article_limit]
     print(f"[blog] {len(art_urls)} article URLs found")
 
     for u in art_urls:
         print(f"[article] {u}")
         html = get(u)
-        time.sleep(DELAY)
+        time.sleep(delay)
         if not html:
             continue
         art = parse_article(u, html)
@@ -457,8 +480,10 @@ def main():
         aid = cur.lastrowid
         stats["articles"] += 1
         index_row(cur, "article", art["title"], art["url"], "", art["body"][:200000])
-        for text, href in extract_links(soup_of(html)):
+        art_links = extract_links(soup_of(html))
+        for text, href in art_links:
             cur.execute("INSERT INTO links (article_id,text,href) VALUES (?,?,?)", (aid, text, href))
+        stats["links"] += len(art_links)  # count ALL link rows, not just page ones
 
         rel = extract_release(art["title"], art["url"], art["date"])
         if rel:
@@ -482,13 +507,33 @@ def main():
     cur.execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES ('optimize')")
     con.commit()
 
-    # quick report
+    # quick report - counts come from the tables themselves, never from
+    # loop counters, so meta can never drift from stored reality
+    report = {}
     for tbl in ("pages", "sections", "articles", "links", "releases", "sponsors"):
-        n = cur.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+        n = cur.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]  # noqa: S608
+        report[tbl] = n
         print(f"  {tbl:>10}: {n}")
     con.close()
-    print(f"DONE -> {DB_PATH}")
+    print(f"DONE -> {db_path}")
+    return report
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Build the godotengine.org knowledge database")
+    ap.add_argument("--db", default=os.path.join(HERE, "godot_knowledge.db"),
+                    help="output db path (default: alongside this script)")
+    ap.add_argument("--delay", type=float, default=0.35, help="polite per-request delay (s)")
+    ap.add_argument("--article-limit", type=int, default=60, help="max blog articles")
+    ap.add_argument("--blog-pages", type=int, default=6, help="max blog listing pages to walk")
+    args = ap.parse_args()
+
+    report = crawl(args.db, args.delay, args.article_limit, args.blog_pages)
+    if report.get("pages", 0) == 0:
+        print("FATAL: zero pages crawled - network down or site unreachable?", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

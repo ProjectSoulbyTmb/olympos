@@ -67,12 +67,13 @@ Non-negotiable guarantees (each has an owner and a test):
 |---|---|---|---|---|
 | vulcan | building-sandbox | 43901 | VulcanSDK | `vulcan/host.py` |
 
-The registry now carries 28 members (2026-08-24 wiring pass): all
-in-repo organs plus tier-3 satellites declared on arrival —
-persephone (guardian), riley `:43907` (`D:/riley`), aphrodite
-`:43904` (`D:/Aphrodite`) — and harmonia re-based to `:43908` after a
-port collision with riley. Satellite rows without in-repo verifiers
-carry `"verify": null`; sentinel skips them.
+The registry carries 32 members (re-counted 2026-08-26): all
+in-repo organs plus tier-3 satellites declared on arrival -
+riley `:43907` (`D:/riley`), aphrodite `:43904` (`D:/Aphrodite`) -
+and harmonia re-based to `:43908` after a port collision with riley.
+Persephone is a tier-2 row (`realms/registry.json`), not a satellite.
+Satellite rows without in-repo verifiers carry `"verify": null`;
+sentinel skips them.
 
 Retired registry entries (ports 43590/43591 and their engines) are
 deleted during reconciliation (§9); the registry ships with vulcan
