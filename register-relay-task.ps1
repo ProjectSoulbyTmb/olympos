@@ -33,8 +33,9 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
     -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
     -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-# No RunLevel Highest: the bridge owns no elevated surface.
+# Operator order 2026-08-25: run at highest levels.
 Register-ScheduledTask -TaskName $taskName -Action $action `
-    -Trigger $trigger -Settings $settings -Force | Out-Null
-Write-Output "registered '$taskName': python -m relay watch --every $Every"
+    -Trigger $trigger -Settings $settings -RunLevel Highest `
+    -Force | Out-Null
+Write-Output "registered '$taskName' (RunLevel Highest): python -m relay watch --every $Every"
 Write-Output "run 'Start-ScheduledTask -TaskName $taskName' to start streaming now"
