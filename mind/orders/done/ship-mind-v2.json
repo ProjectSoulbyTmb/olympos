@@ -1,0 +1,8 @@
+{
+ "id": "ship-mind-v2",
+ "title": "Ship MIND v2",
+ "note": "1) commit this repo (git -C D:\\olympos\\mind add -A + commit). 2) Parent extraction: cd D:\\olympos then git rm -r --cached mind AND add 'mind/' line to D:\\olympos\\.gitignore (leave uncommitted until you say). 3) Decide fate of D:\\olympos\\verify_mind.py (old monorepo gate): delete or replace with shim calling py D:\\olympos\\mind\\verify.py.",
+ "payload": {},
+ "created": "2026-08-25T06:28:16.524181+00:00",
+ "released": "2026-08-25T06:28:29.901406+00:00"
+}

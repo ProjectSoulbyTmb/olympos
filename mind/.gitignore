@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+data/
+mind.config.json
+.venv/
+*.log
+HANDOFF.md

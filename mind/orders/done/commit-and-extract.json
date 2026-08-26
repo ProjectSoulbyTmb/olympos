@@ -1,0 +1,8 @@
+{
+ "id": "commit-and-extract",
+ "title": "Commit MIND v2 repo + extract from parent monorepo",
+ "note": "1) git -C D:\\olympos\\mind add -A; commit initial v2. 2) In D:\\olympos: git rm -r --cached mind, add 'mind/' to D:\\olympos\\.gitignore, leave uncommitted until you say. 3) Decide fate of old D:\\olympos\\verify_mind.py (delete or shim to py D:\\olympos\\mind\\verify.py). Full context in D:\\olympos\\mind\\HANDOFF.md",
+ "payload": {},
+ "created": "2026-08-25T06:29:07.377222+00:00",
+ "released": "2026-08-25T06:31:50.822924+00:00"
+}
