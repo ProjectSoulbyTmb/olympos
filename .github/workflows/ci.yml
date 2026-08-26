@@ -10,21 +10,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Self-hosted (earth949-d, D:\actions-runner): zero billed minutes.
+  # GitHub-hosted jobs were blocked by account billing; local-first is
+  # house doctrine anyway (STRATEGY non-goals). Revert to windows-latest
+  # only after billing is settled AND the ubuntu portability PR lands.
   assistant:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
     # assistant/ is a nested repo that stays out of this checkout; the
     # detect step skips the suite when the directory is absent.
     steps:
       - uses: actions/checkout@v4
       - name: Detect assistant workspace
         id: detect
-        shell: bash
+        # cmd, not bash: bash resolution proved flaky on the self-hosted
+        # host; cmd is native and needs nothing from PATH.
+        shell: cmd
         run: |
-          if [ -f assistant/package.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
+          if exist assistant\package.json (echo present=true>> "%GITHUB_OUTPUT%") else (echo present=false>> "%GITHUB_OUTPUT%")
       - name: Syntax sweep (lib, plugins, tests, scripts)
         if: steps.detect.outputs.present == 'true'
         working-directory: assistant
@@ -37,15 +39,13 @@ jobs:
         run: npm test
 
   ecosystem:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
+    # System toolchain (local-first doctrine): python 3.12 + node/npm are
+    # provisioned on the runner host via D:\actions-runner\.env PATH.
+    # Hosted setup-* actions are omitted - setup-python's HKLM registry
+    # cleanup requires admin, which the self-hosted account does not have.
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
       - name: Static gates (syntax, dupdefs, JSON, merge markers, secrets)
         run: python safeguards/check.py --all --strict
       - name: GAIA kernel tests
@@ -77,6 +77,8 @@ jobs:
         run: python verify_buskit.py
       - name: Scope guard gate
         run: python verify_scope.py
+      - name: Boundary isolation gate
+        run: python verify_boundary.py
       - name: Sindri sandbox-forge gate
         run: python verify_sindri.py
       - name: Forseti arbitration gate

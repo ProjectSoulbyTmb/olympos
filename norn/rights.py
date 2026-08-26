@@ -38,10 +38,15 @@ VULCAN_DEFAULT_PROFILE = "operator"
 
 # Daedalus realm: the workshop. Reading blueprints/history is open to
 # watchers; submitting builds and draining lanes is operator work.
+# "admin" marks the sovereign-workshop standing tier (ADR-0002, operator
+# confirmed 2026-08-25): same full verb surface as operator today - the
+# elevation is declarative standing, NOT the core-ladder `grant` right,
+# which ADR-0002 explicitly keeps out of reach.
 DAEDALUS_INFO = frozenset({"status", "builds", "blueprints", "close"})
 DAEDALUS_PROFILES = {
     "operator": None,
     "watcher": DAEDALUS_INFO,
+    "admin": None,
 }
 DAEDALUS_DEFAULT_PROFILE = "operator"
 

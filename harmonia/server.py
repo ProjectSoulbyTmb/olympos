@@ -23,7 +23,7 @@ Design contract (mirrors aphrodite/server.py):
   * JSON CONTRACT   -- {"ok": bool, "error": str|null, "data": ...}.
   * CONTENT-BLIND   -- every media file listed; no content filtering.
 
-Port: 43907 (ptah=43903, aphrodite=43904, daedalus=43905; :43906 is the
+Port: 43908 (ptah=43903, aphrodite=43904, daedalus=43905; :43906 is the
 known rogue listener). Registry row pending operator approval.
 """
 
@@ -49,7 +49,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 APP = "HARMONIA"
 VERSION = "0.1.0"
-DEFAULT_PORT = 43907
+DEFAULT_PORT = 43908
 DEFAULT_HOST = "127.0.0.1"
 ALL_CAP_DEFAULT = 20000
 CHUNK = 64 * 1024

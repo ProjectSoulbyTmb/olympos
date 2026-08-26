@@ -41,6 +41,52 @@ import uuid
 
 VERSION = 1
 
+
+# ------------------------------------------------- boundary guard seam
+# ADR-0002 isolation contract (V1): every dispatched path passes the
+# repo-root boundary guard. On Olympos (jail unarmed) this refuses the
+# foreign voltage root; inside VOLTAGE (armed via $VOLTAGE_ROOT) it
+# refuses everything leaving the jail. Inert otherwise - zero behavior
+# change for ordinary lanes.
+
+_BOUNDARY = None                     # loaded once, cached
+_BOUNDARY_SEEN = False
+
+
+def _boundary():
+    """Load repo-root boundary.py under a unique module name (L020).
+
+    None on hosts that do not ship it (nested/partial checkouts); a
+    set VOLTAGE_ROOT without the module is a broken install and fails
+    loud at the seam rather than silently dropping the jail.
+    """
+    global _BOUNDARY, _BOUNDARY_SEEN
+    if not _BOUNDARY_SEEN:
+        _BOUNDARY_SEEN = True
+        path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "boundary.py")
+        if os.path.exists(path):
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "_ratatosk_boundary", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _BOUNDARY = mod
+    return _BOUNDARY
+
+
+def _guard(path):
+    """Refuse cross-boundary paths before any disk touch happens."""
+    mod = _boundary()
+    if mod is None:
+        if os.environ.get("VOLTAGE_ROOT", "").strip():
+            raise RuntimeError(
+                "VOLTAGE_ROOT is set but boundary.py is missing - "
+                "the path jail cannot arm on this checkout")
+        return                       # unguarded host: jail can't arm here
+    mod.guard_dispatch(path)
+
 LOCK_STALE_S = 10.0
 LOCK_RETRIES = 150
 LOCK_SLEEP_S = 0.02
@@ -52,6 +98,50 @@ FLOOD_UNREAD = 1000                     # unread above this == flooded
 
 ROTATE_BYTES = 5 * 1024 * 1024      # topic live-segment size cap
 KEEP_SEGMENTS = 3                   # rotated archives kept per topic
+
+# ------------------------------------------------- topic catalogue
+# Single source for cross-organ wiring (INTEGRATION.md §6): every new
+# lane declares its topic + kind here and in the catalogue table.
+# Pre-catalogue lanes that already flow on this bus keep their literal
+# names; constants below cover the catalogue contract itself.
+
+TOPIC_INCIDENTS = "incidents"       # sentinel/pulse/zeus -> gaia/hub
+TOPIC_VITALS = "vitals"             # gaia vitals samples (payload.organ)
+TOPIC_GRANTS = "grants"             # thoth grants (alias seen: rights)
+TOPIC_BUILD_REQUEST = "build.request"
+TOPIC_BUILD_STAGE = "build.stage"
+TOPIC_ARTIFACTS_SEALED = "artifacts.sealed"
+TOPIC_POLICY_UPDATE = "policy.update"
+TOPIC_LLM = "llm"
+TOPIC_UPDATES = "updates"           # relay fleet.* outcomes -> hub/operator
+
+KIND_INCIDENT = "incident"
+KIND_VITAL = "vital"
+KIND_GRANT = "grant.grant"
+KIND_GRANT_REVOKE = "grant.revoke"
+KIND_GRANT_ESCALATE = "grant.escalate"
+KIND_BUILD_DESCRIBE = "build.describe"
+KIND_BUILD_DESIGN = "build.design"
+KIND_BUILD_CODE = "build.code"
+KIND_BUILD_VERIFY = "build.verify"
+KIND_BUILD_ITERATE = "build.iterate"
+KIND_PROVENANCE_SEAL = "provenance.seal"
+KIND_POLICY_RELOAD = "policy.reload"
+KIND_LLM_CALL = "llm.call"
+KIND_LLM_ERROR = "llm.error"
+KIND_FLEET_TICK = "fleet.tick"
+KIND_FLEET_BUILD = "fleet.build"
+KIND_FLEET_REPAIR = "fleet.repair"
+KIND_FLEET_RENDER = "fleet.render"
+KIND_FLEET_RENDER_DONE = "fleet.render-done"
+KIND_FLEET_PLAN = "fleet.plan"      # daedalus planning-station transitions
+
+
+def publish_vital(organ, sample, frm=None, root=None):
+    """Convenience: one vitals line per organ on the shared topic."""
+    return broadcast(TOPIC_VITALS, KIND_VITAL, {"organ": organ,
+                                                **sample},
+                     frm=frm or organ, root=root)
 
 
 # ---------------------------------------------------------------- helpers
@@ -187,6 +277,7 @@ class Post:
     def __init__(self, root=None, rotate_bytes=ROTATE_BYTES,
                  keep_segments=KEEP_SEGMENTS, flood_unread=None):
         self.root = root or default_root()
+        _guard(self.root)            # ADR-0002: refuse foreign roots
         self.rotate_bytes = max(int(rotate_bytes), 1)
         self.keep_segments = max(int(keep_segments), 1)
         # per-instance override keeps the flood test off OneDrive-hour
@@ -197,6 +288,7 @@ class Post:
 
     def _dir(self, *parts):
         p = os.path.join(self.root, *map(str, parts))
+        _guard(p)                    # defense in depth vs ".." escapes
         return p
 
     def _ensure_organ(self, name):

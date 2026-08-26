@@ -12,7 +12,23 @@ Run from the workspace root:
     python hades/cli.py audit [--tail N]       validate the hash-chained log
     python hades/cli.py watch --interval 300   live sentinel loop
 
-Exit codes: 0 clean, 1 violations/hits, 2 error.
+Operator override authority (only the enrolled operator can use these):
+
+    python hades/cli.py authorize --confirm    enroll/rotate THIS machine's secret
+    python hades/cli.py mint --op OP [--arg k=v ...] [--ttl 600]
+                                               sign one privileged op -> token
+    python hades/cli.py override --token '{...}'   execute a signed token
+
+Privileged ops:
+    force-seal                        accept current tree as the new baseline
+    exempt  path=REL reason=...       accept a deviation; verify stays green
+    unexempt path=                    revoke an exemption
+    unseal                            retire seal state (backed up)
+    rotate-key                        new signing key + immediate re-seal
+    raw     call=<method> args={json} uncensored grammar: any public kernel
+                                      method, arbitrary arguments
+
+Exit codes: 0 clean, 1 violations/hits, 2 error, 3 DENIED (authority).
 """
 
 import argparse
@@ -24,16 +40,25 @@ import time
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from hades import authority
 from hades.kernel import ROOT, Hades, HadesError, TamperError
+
+
+DENIED = 3                                  # authority refusal exit code
 
 
 def _print_report(rep):
     print("seal: %s (%d files)" % (rep.get("sealed_at"), rep["files"]))
     for v in rep["violations"]:
         print("  [%s] %s" % (v["kind"], v["path"]))
+    for v in rep.get("exempted", []):
+        print("  [exempt/%s] %s - %s" % (v["kind"], v["path"],
+                                         v.get("reason", "")))
     if not rep["violations"]:
         print("  all sealed assets intact")
-    print("status: %s (%d violation(s))" % (rep["status"], len(rep["violations"])))
+    print("status: %s (%d violation(s), %d exempted)"
+          % (rep["status"], len(rep["violations"]),
+             len(rep.get("exempted", []))))
 
 
 def cmd_status(args):
@@ -189,6 +214,110 @@ def _hades(args):
     return Hades(root=args.root)
 
 
+# ---------------- operator override authority ----------------
+
+def cmd_authorize(args):
+    if not args.confirm:
+        print("refusing to change operator authority without --confirm")
+        return 2
+    fp = authority.enroll()
+    authority.write_fingerprint(_hades(args).state_dir, fp)
+    print("operator secret: %s" % authority.secret_path())
+    print("fingerprint    : %s" % fp["fingerprint"])
+    print("enrolled       : %s (policy %d)" % (fp["enrolled_at"],
+                                               fp["policy"]))
+    print("back that file up - it IS the override identity on this machine.")
+    return 0
+
+
+def cmd_mint(args):
+    op_args = {}
+    for kv in (args.arg or []):
+        if "=" not in kv:
+            print("bad --arg (want k=v): %s" % kv, file=sys.stderr)
+            return 2
+        k, v = kv.split("=", 1)
+        op_args[k] = v
+    if args.args_json:
+        try:
+            op_args.update(json.loads(args.args_json))
+        except ValueError as e:
+            print("bad --args-json: %s" % e, file=sys.stderr)
+            return 2
+    try:
+        tok = authority.mint(args.op, op_args, ttl_s=args.ttl)
+    except authority.AuthorityError as e:
+        print("DENIED: %s" % e, file=sys.stderr)
+        return DENIED
+    print(json.dumps(tok, sort_keys=True))
+    return 0
+
+
+def _exec_override(h, token):
+    """Verify + dispatch one signed token. Returns process exit code."""
+    try:
+        tok = json.loads(token)
+    except (ValueError, TypeError) as e:
+        h.audit.append({"kind": "override", "ok": False,
+                        "reason": "malformed token (%s)" % e})
+        print("DENIED: malformed token", file=sys.stderr)
+        return DENIED
+    try:
+        tok = authority.verify_token(h.state_dir, tok)
+    except authority.AuthorityError as e:
+        h.audit.append({"kind": "override",
+                        "op": str(tok.get("op", "?"))
+                        if isinstance(tok, dict) else "?",
+                        "ok": False, "reason": str(e)[:120]})
+        print("DENIED: %s" % e, file=sys.stderr)
+        return DENIED
+    op, a = tok["op"], tok["args"]
+    h.audit.append({"kind": "override", "op": op, "ok": True})
+    if op == "force-seal":
+        counts = h.seal()
+        print("force-seal ok: %s" % json.dumps(counts, sort_keys=True))
+        return 0
+    if op == "exempt":
+        info = h.grant_exemption(a.get("path", ""), a.get("reason", ""))
+        print("exempt %s (%s)" % (a.get("path"), info["granted"]))
+        return 0
+    if op == "unexempt":
+        print("unexempt %s: %s" % (a.get("path"),
+                                   h.revoke_exemption(a.get("path", ""))))
+        return 0
+    if op == "unseal":
+        print("unseal moved: %s" % h.unseal())
+        return 0
+    if op == "rotate-key":
+        counts = h.rotate_seal_key()
+        print("key rotated; re-sealed %d file(s)" % sum(counts.values()))
+        return 0
+    if op == "raw":
+        try:
+            out = authority.raw_call(h, str(a.get("call", "")),
+                                     a.get("args") or {})
+        except authority.AuthorityError as e:
+            print("DENIED: %s" % e, file=sys.stderr)
+            return DENIED
+        except TypeError as e:
+            print("error: bad arguments for %s: %s"
+                  % (a.get("call"), e), file=sys.stderr)
+            return 2
+        print(json.dumps(out, indent=1, sort_keys=True, default=str))
+        return 0
+    print("unknown op %r" % op, file=sys.stderr)
+    return 2
+
+
+def cmd_override(args):
+    h = _hades(args)
+    token = args.token
+    if token and os.path.exists(token):
+        with open(token, "r", encoding="utf-8") as f:
+            token = f.read()
+    return _exec_override(h, token or "")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="hades", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -231,6 +360,28 @@ def build_parser():
     s.add_argument("--interval", type=int, default=300)
     s.set_defaults(fn=cmd_watch)
 
+    # ---- operator override authority ----
+    s = sub.add_parser("authorize",
+                       help="enroll/rotate THIS machine's operator secret")
+    s.add_argument("--confirm", action="store_true")
+    s.set_defaults(fn=cmd_authorize)
+
+    s = sub.add_parser("mint", help="sign one privileged op -> token")
+    s.add_argument("--op", required=True,
+                   help="force-seal | exempt | unexempt | unseal | "
+                        "rotate-key | raw")
+    s.add_argument("--arg", action="append", default=None,
+                   help="k=v argument (repeatable)")
+    s.add_argument("--args-json", default=None,
+                   help="arguments as one JSON object")
+    s.add_argument("--ttl", type=int, default=600, help="token lifetime (s)")
+    s.set_defaults(fn=cmd_mint)
+
+    s = sub.add_parser("override", help="execute a signed token")
+    s.add_argument("--token", required=True,
+                   help="token JSON, or a path to a file holding it")
+    s.set_defaults(fn=cmd_override)
+
     return p
 
 
@@ -247,6 +398,9 @@ def main(argv=None):
     except HadesError as e:
         print("error: %s" % e, file=sys.stderr)
         return 2
+    except authority.AuthorityError as e:
+        print("DENIED: %s" % e, file=sys.stderr)
+        return DENIED
 
 
 if __name__ == "__main__":

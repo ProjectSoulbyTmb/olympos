@@ -179,6 +179,23 @@ def t_llm_attestation():
     return "call + failure journaled with digests"
 
 
+def t_llmlog_validate_rejects():
+    from buskit.llmlog import VERSION, validate
+
+    good = {"v": VERSION, "model": "m", "prompt_digest": "d",
+            "ok": True, "response_digest": "r", "response_chars": 5}
+    assert validate(good) == []
+    assert any("bad version" in p for p in validate(dict(good, v=99)))
+    assert any("missing model" in p for p in validate(dict(good, model="")))
+    assert any("missing prompt_digest" in p
+               for p in validate(dict(good, prompt_digest=None)))
+    assert any("failed call without error" in p
+               for p in validate(dict(good, ok=False)))
+    assert any("digest without length" in p
+               for p in validate(dict(good, response_chars=None)))
+    return "all five contract violations detected"
+
+
 def main():
     print("verify_buskit")
     check("envelope mailbox round-trip", t_mailbox_roundtrip)
@@ -192,6 +209,7 @@ def main():
     check("ledger lint classes", t_ledger_lint_finds_all_classes)
     check("lint exit code on missing file", t_missing_file_exit_two)
     check("llm attestation journal", t_llm_attestation)
+    check("llmlog validate contract", t_llmlog_validate_rejects)
     failed = [r for r in RESULTS if not r[0]]
     print(f"buskit: {len(RESULTS) - len(failed)}/{len(RESULTS)} checks passed")
     return 1 if failed else 0

@@ -21,6 +21,7 @@ from collections import deque
 from atlas.kernel import AtlasError
 from daedalus import blueprints, content, rules as rig
 from daedalus.fleet import SubFleet
+from daedalus.planning import PlanStore
 from daedalus.warden import Warden
 
 try:
@@ -71,6 +72,7 @@ class Workshop:
         self.jobs = {}             # id -> job dict (live)
         self.quarantine_seconds = 120.0
         self.audit = _Chain(content.AUDIT_PATH)
+        self.plans = PlanStore(content.PLANS_DIR, self)
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------- audit --
@@ -312,6 +314,7 @@ class Workshop:
                     if r is None:
                         break
                     worked = True
+                self.fleet.reap_retired()   # finish shrinks promptly
                 if worked:
                     self._wake.set()     # immediately look for more
 
@@ -346,6 +349,11 @@ class Workshop:
                **({"result": result} if result else {})}
         self.history.append(rec)
         self.log("build-done", job=job["id"], ok=ok)
+        try:                     # planning station: close waiting steps
+            if hasattr(self, "plans"):
+                self.plans.notify_build(job["id"], ok, result)
+        except Exception:        # noqa: BLE001 - never fail a build
+            pass
         if ratatosk is not None:
             try:
                 ratatosk.publish(content.ORGAN,
@@ -377,6 +385,7 @@ class Workshop:
                 "queued": len(self.queue),
                 "lanes_busy": self.fleet.busy_count(),
                 "lanes": len(self.fleet.lanes),
+                "planning": self.plans.summary(),
                 "history_ok": sum(1 for h in self.history if h["ok"]),
                 "history_bad": sum(1 for h in self.history
                                    if not h["ok"]),

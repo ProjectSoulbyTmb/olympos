@@ -51,7 +51,11 @@ TOPICS = {
     "artifacts.sealed": {"provenance.seal"},
     "policy.update": {"policy.reload"},
     "llm": {"llm.call", "llm.error"},
-    "updates": {"fleet.tick", "fleet.build", "fleet.repair"},
+    "updates": {"fleet.tick", "fleet.build", "fleet.repair",
+                "fleet.render"},
+    # daedalus raw-bus lane: workshop build outcomes + planning-station
+    # state transitions (pre-catalogue literals kept per contract note)
+    "daedalus": {"build", "build-failed", "fleet.plan"},
 }
 
 KINDS = frozenset(k for kinds in TOPICS.values() for k in kinds)

@@ -19,10 +19,17 @@ WORKSPACE = os.path.dirname(HERE)
 DATA_DIR = os.path.join(HERE, "data")
 AUDIT_PATH = os.path.join(DATA_DIR, "audit.jsonl")
 ARTIFACTS_DIR = os.path.join(DATA_DIR, "artifacts")   # sealed copies
+PLANS_DIR = os.path.join(DATA_DIR, "plans")           # planning station
 
 # ---------- build policy ----------
 
-MAX_CONCURRENT_BUILDS = 4
+# Lane count: 8 by default (2x the founding fleet); DAEDALUS_LANES
+# overrides per machine. Every lane is one ATLAS guest - the pool can
+# never exceed atlas.content.MAX_GUESTS (resize fails loud past it).
+try:
+    MAX_CONCURRENT_BUILDS = max(1, int(os.environ.get("DAEDALUS_LANES") or 8))
+except ValueError:                 # garbage in the env never stops boot
+    MAX_CONCURRENT_BUILDS = 8
 BUILD_ATTEMPTS = 3             # verify-fix-retry ceiling per build
 GATE_TIMEOUT_S = 60.0          # per verify-gate run inside the guest
 EXEC_TIMEOUT_S = 120.0         # absolute per-command ceiling

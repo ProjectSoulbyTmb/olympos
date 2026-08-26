@@ -76,3 +76,15 @@ lesson id in `lessons.json`.
     shared worktrees; after push, compare `origin/<branch>` — a no-op
     push exits 0. Never merge a PR whose `gh pr diff` file list does
     not match the intended change exactly.
+22. **One localside repo home: `D:\`** (L033). Clone, init,
+    worktree-add and submodule-add destinations outside `D:\` are
+    refused mechanically — shell shim `safeguards/repo_home_profile.ps1`
+    plus canonical authority `safeguards/repo_home_guard.py`. A second
+    checkout of one remote is a split brain in incubation; audit for
+    strays with the guard CLI by hand, never as a CI gate.
+23. **Repair trees mechanically, bounded by evidence** (L034): stale
+    locks (age grace + zero live git), missing tracked files (recent
+    sibling writes veto), generated dirt, and patch-duplicate lane
+    branches are fixed by `safeguards/tree_repair.py --fix`, logged to
+    a per-root hash-chained ledger. Merge/rebase-in-progress is always
+    reported, never auto-aborted — aborting destroys intent.

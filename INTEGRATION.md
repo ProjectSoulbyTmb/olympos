@@ -3,8 +3,8 @@
 Model of record for how every organ runs, talks, verifies, and ships.
 Builds on `DESIGN.md` (what exists) and `STRATEGY.md` (where we're
 going). Supersedes the proposed `fleet.json`; realm endpoints belong in
-`realms/registry.json` (currently pending restoration on this lineage -
-see section 9).
+`realms/registry.json` - restored and live on this lineage since
+2026-08-24 (re-audited 2026-08-25; see section 9).
 
 ## 0. The goal this design serves
 
@@ -23,7 +23,7 @@ notary.
 | Plane | Organs | Carries |
 |---|---|---|
 | **Control** | THOTH (grants/routing), norn.rights, Venus/Heimdall hub | intents, escalations, config |
-| **Data** | ratatosk bus + realm JSON-lines servers (:43590/:43591/:43901) | letters, broadcasts, SDK calls |
+| **Data** | ratatosk bus + realm JSON-lines servers (declared ports incl. :43901/:43902/:43903/:43904; registry = single source) | letters, broadcasts, SDK calls |
 | **Verification** | norn (clockwork/replay/witness/pulse), schema gates, verify suites, doctor, sentinel, GAIA, Hades | digests, attestations, incidents, scores |
 
 Non-negotiable guarantees (each has an owner and a test):
@@ -66,6 +66,13 @@ Non-negotiable guarantees (each has an owner and a test):
 | Realm | Engine | Port | SDK | Path |
 |---|---|---|---|---|
 | vulcan | building-sandbox | 43901 | VulcanSDK | `vulcan/host.py` |
+
+The registry now carries 28 members (2026-08-24 wiring pass): all
+in-repo organs plus tier-3 satellites declared on arrival —
+persephone (guardian), riley `:43907` (`D:/riley`), aphrodite
+`:43904` (`D:/Aphrodite`) — and harmonia re-based to `:43908` after a
+port collision with riley. Satellite rows without in-repo verifiers
+carry `"verify": null`; sentinel skips them.
 
 Retired registry entries (ports 43590/43591 and their engines) are
 deleted during reconciliation (§9); the registry ships with vulcan
@@ -209,19 +216,36 @@ all results -> data/sentinel/incidents.jsonl (append-only)
 Organs flush cursors + heartbeats, close journals (witness rotates at
 5 MB, keep 5); bus holds no sockets so shutdown is always clean.
 
-## 6. Topic catalogue (initial)
+## 6. Topic catalogue (as wired 2026-08-24)
 
 | Topic | Publisher | Consumers | Kind |
 |---|---|---|---|
 | `incidents` | sentinel, pulse, ZEUS | GAIA, Venus hub | incident |
-| `vitals.<organ>` | every organ | GAIA | vital sample |
+| `vitals` | GAIA (one line per member, `payload.organ`) | hub, operator | vital |
 | `grants` | THOTH | sentinel (audit), norn.rights cache | grant.grant/revoke/escalate |
 | `build.request` | Venus/operator | builder agent | build.describe |
 | `build.stage` | builder | hub, witness | build.design/code/verify/iterate |
-| `artifacts.sealed` | Hades | hub, releaser | provenance.seal |
+| `artifacts.sealed` | Hades (**live**: every seal broadcasts digest+products) | hub, releaser | provenance.seal |
 | `policy.update` | THOTH | all | policy.reload |
 | `llm` | builder brain (ptah) | hub, witness | llm.call / llm.error |
-| `updates` | relay | Venus hub, GAIA, operator | fleet.tick / fleet.build / fleet.repair |
+| `updates` | relay | Venus hub, GAIA, operator | fleet.tick / fleet.build / fleet.repair / fleet.render / fleet.render-done |
+
+Kind constants live in `ratatosk/bus.py` (`TOPIC_*`, `KIND_*`) as the
+single importable source.
+
+### As-built lanes (pre-catalogue, still authoritative)
+
+These topics predate the catalogue and carry real traffic daily; they
+keep their literal names until a migration ADR renames them:
+
+| Topic | Producer | Notes |
+|---|---|---|
+| `gates` | sentinel/doctor runs | gate verdicts journal |
+| `witness` | norn.witness | mutation journals |
+| `rights` | norn.rights | grants-lane alias of `grants` |
+| `hades-alerts` | Hades tamper alerts | provenance incidents |
+| `zeus-events` | ZEUS kernel | patrol events |
+| `vulcan`, `daedalus`, `hypnos`, `poseidon` | their organs | realm/activity journals |
 
 Rule: new cross-organ communication goes through a catalogue entry in
 this table + a kind constant in `bus.py`; ad-hoc inbox spam is rejected
@@ -277,11 +301,12 @@ retired-scope residue, verified by content scan. All game-derived
 realms, scripts, seeds and registry rows are gone; ratatosk, norn,
 vulcan, hades, gaia, zeus and thoth machinery carried over.
 
-Still missing from the reset tree, to be restored incrementally:
-`doctor.py`, `sentinel.py`, `realms/` registry, PTAH working tree
-(currently orphaned-untracked), CI wiring for the new gates. This
-document's contracts apply unchanged once those return; run
-`verify_scope.py` before any restoration to keep the boundary clean.
+Still-missing list RE-DERIVED FROM DISK 2026-08-25: all five items from
+the original post-reset gap list have landed and are CI-gated -
+`doctor.py`, `sentinel.py`, `realms/` registry, PTAH working tree, and
+CI wiring for the new gates (`.github/workflows/ci.yml`). Nothing is
+currently missing. Per L041, this list is re-derived from disk truth at
+every revision instead of being allowed to silently rot.
 
 ## 10. Acceptance criteria (per integration point)
 
