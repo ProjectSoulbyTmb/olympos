@@ -41,7 +41,8 @@ finally { Pop-Location }
 foreach ($name in @("Olympos ZEUS Guardian",
                     "Olympos ARTEMIS Huntress",
                     "Olympos HYPNOS Dreamworker",
-                    "Olympos GAIA Pulse")) {
+                    "Olympos GAIA Pulse",
+                    "Olympos KRONOS Governor")) {
     try {
         $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
         $running = ($task.State -eq "Running")

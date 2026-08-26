@@ -175,6 +175,7 @@ class Governor:
         trust reality over paper: a claimed-held task found Running
         was never stopped (crash before the stop landed), so it is
         dropped from the hold rather than double-booked."""
+        self._log("boot", pid=os.getpid())
         j = _read_journal(self.paths)
         if j and j.get("holding"):
             claimed = list(j.get("held") or [])
@@ -271,7 +272,10 @@ class Governor:
             if s is not None:
                 row = self.step(s["load_pct"])
                 if row["action"] in ("hold", "release"):
-                    print(json.dumps(row), flush=True)
+                    try:
+                        print(json.dumps(row), flush=True)
+                    except OSError:
+                        pass          # scheduler gave us no stdout
             cycles += 1
             if max_cycles and cycles >= max_cycles:
                 return cycles
