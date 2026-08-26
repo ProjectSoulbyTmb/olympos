@@ -66,8 +66,8 @@ and product DBs **discovered by convention** - any
 top-level `prefix` for compact ids) self-registers; the index
 self-invalidates via engine-versioned corpus signature, so drop-ins
 are searchable with no rebuild. Registry row `knowledge`
-(kind knowledge, verify -> `knowledge/verify_knowledge.py`, 21 realm
-members) puts the organ under sentinel gate derivation.
+(kind knowledge, verify -> `knowledge/verify_knowledge.py`, 32 members;
+re-counted 2026-08-26) puts the organ under sentinel gate derivation.
 `knowledge/verify_knowledge.py` runs 7 generic gates; doctor discovers
 every `knowledge/verify_*.py` automatically. First product DB:
 webstudio/ (25 WS-### entries + 7 topic files).

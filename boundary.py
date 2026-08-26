@@ -26,7 +26,7 @@ mailboxes are wired already); gates call the CLI:
     python boundary.py check <path>...   # judge as an Olympos lane
     python boundary.py jail <path>...    # judge under $VOLTAGE_ROOT
     python boundary.py policy            # print effective posture
-    python boundary.py foreign-root      # print the foreign root constant
+    python boundary.py foreign-root      # print the foreign root
 
 Exit 0 = allowed. Exit 1 = violation / bad invocation.
 
@@ -169,12 +169,15 @@ def main(argv=None):
         print(__doc__)
         return 1
 
-    if argv[0] == "policy":
-        print("\n".join(_policy_lines()))
+    if argv[0] == "foreign-root":
+        # Resolution seam for scripts: the one place allowed to speak
+        # the literal (verify_boundary allowlist) so no other
+        # executable ever has to hard-code it.
+        print(FOREIGN_DEFAULT)
         return 0
 
-    if argv[0] == "foreign-root":
-        print(FOREIGN_DEFAULT)
+    if argv[0] == "policy":
+        print("\n".join(_policy_lines()))
         return 0
 
     mode = argv[0]
