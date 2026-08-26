@@ -149,7 +149,7 @@ BUILD_GATES = [
     {"name": "artemis",
      "argv": ["python", "artemis/verify_artemis.py"],
      "timeout_s": 300},
-    {"name": "mind", "argv": ["python", "mind/verify_mind.py"],
+    {"name": "mind", "argv": ["python", "mind/verify.py"],
      "timeout_s": 300},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this

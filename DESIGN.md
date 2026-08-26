@@ -442,3 +442,16 @@ tag-driven releases).
   doctor SUITES apollo entry (optional beyond sentinel), V5 soak.
 
 
+
+- 2026-08-25 (night): **MIND rechartered - advanced-tech information
+  gainer and teacher for the entire system.** Operator order: MIND is
+  no longer merely an OBS-companion organ; its purpose is to GAIN
+  advanced technical information, curate it, and TEACH it to any organ
+  that asks. The surfaces-first v2 architecture (single-port control
+  plane, routable endpoints, three-ring gate) carries the new duties:
+  acquisition/teaching land as additional surfaces alongside the OBS
+  production duties, which remain the first integrated surface.
+  HYPNOS build-gate repointed at the nested repo's own `mind/verify.py`
+  (v1 `verify_mind.py` retired in the extraction). Registry row and
+  teach/knowledge surfaces are delegated to the muster fleet per hard
+  rule 5 - commissioning order: docs/plans/cycles/2026-08-25-mind-recharter.md.
