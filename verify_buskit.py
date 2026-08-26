@@ -8,6 +8,13 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from buskit.llmlog import LLMJournal
+from buskit.slotgen import RemoteBrain, ScriptedBrain, SlotCaller
+from buskit.slotgen import SlotError, SlotSpec
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -196,6 +203,174 @@ def t_llmlog_validate_rejects():
     return "all five contract violations detected"
 
 
+# ---------------------------------------------------- slotgen (forge)
+def _slot_stub_brain(script):
+    """Socket-free brain stub: pops replies/exceptions in order."""
+    class _Stub:
+        provider = "openai"
+
+        def label(self):
+            return "stub:script"
+
+        def serve(self, spec):
+            item = script.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+    return _Stub()
+
+
+def _slot_spec(**kw):
+    base = dict(kind="function_body", name="buskit_slot",
+                task="suite fixture", seed="b1")
+    base.update(kw)
+    return SlotSpec(**base)
+
+
+def t_slotgen_scripted_render():
+    b = ScriptedBrain()
+    r1 = b.serve(_slot_spec())
+    r2 = b.serve(_slot_spec())
+    assert r1 == r2 and "buskit_slot" in r1
+    cfg = json.loads(b.serve(_slot_spec(kind="config_gen",
+                                        fields={"z": 1, "a": 2})))
+    assert cfg["fields"] == {"a": 2, "z": 1}      # sorted, stable
+    try:
+        _slot_spec(kind="app_scale")              # not a slot kind
+        raise AssertionError("bad kind accepted")
+    except SlotError as exc:
+        assert exc.kind == "bad_request"
+    return "deterministic render, kinds gated"
+
+
+def t_slotgen_fallback_dead_endpoint():
+    import socket
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()                       # closed port -> instant refuse
+    with tempfile.TemporaryDirectory() as tmp:
+        c = SlotCaller(os.path.join(tmp, "j.jsonl"),
+                       [RemoteBrain(f"http://127.0.0.1:{port}/v1", "m",
+                                    timeout_s=1),
+                        ScriptedBrain()],
+                       backoff_base_s=0.01)
+        r = c.generate(_slot_spec(name="offline"))
+        assert r.fell_back and r.brain == "scripted"
+        kinds = {ref["kind"] for ref in r.refusals}
+        assert kinds == {"network"}, kinds
+        from buskit.llmlog import validate as llmlog_validate
+        assert all(llmlog_validate(e) == []
+                   for e in c.journal.entries())
+    return "dead endpoint -> named network refusals -> scripted"
+
+
+def t_slotgen_retry_jitter_reproducible():
+    from buskit.slotgen import TransientError
+    with tempfile.TemporaryDirectory() as tmp_a, \
+            tempfile.TemporaryDirectory() as tmp_b:
+        runs = []
+        for tmp in (tmp_a, tmp_b):
+            c = SlotCaller(os.path.join(tmp, "j.jsonl"),
+                           [_slot_stub_brain([
+                               TransientError("server", "boom"),
+                               TransientError("server", "bam"),
+                               "ok-text"]),
+                            ScriptedBrain()],
+                           backoff_base_s=0.02, max_attempts=3)
+            res = c.generate(_slot_spec(seed="jit"))
+            assert res.text == "ok-text" and res.attempts == 3
+            assert len(c.last_delays) == 2
+            runs.append(list(c.last_delays))
+        assert runs[0] == runs[1], "seeded jitter diverged"
+    return f"retries+jitter reproducible {runs[0]}"
+
+
+def t_slotgen_breaker_lifecycle():
+    br = RemoteBrain("http://127.0.0.1:9/v1", "m", trip_after=2,
+                     cool_down_s=0.15)
+    assert br.state == "closed"
+    br._record(False)
+    assert br.state == "closed"
+    br._record(False)
+    assert br.state == "open"                    # tripped
+    try:
+        br.serve(_slot_spec())                   # short-circuit refusal
+        raise AssertionError("open breaker served")
+    except SlotError as exc:
+        assert exc.kind == "breaker_open"
+    time.sleep(0.17)
+    assert br.state == "half_open"
+    br._record(True)
+    assert br.state == "closed" and br.failures == 0
+    return "closed->open->half_open->closed, visible throughout"
+
+
+def t_slotgen_transport_and_caps():
+    class _H(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):                       # noqa: N802
+            self.rfile.read(int(self.headers.get("content-length", 0)))
+            code, payload = self.server.script.pop(0)
+            body = json.dumps(payload).encode()
+            self.send_response(code)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), _H)
+    srv.script = [
+        (200, completion_remote("remote-wins")),
+        (500, {}), (500, {}), (200, completion_remote("after-retry")),
+        (401, {}),
+        (200, completion_remote("x" * 6000)),
+        (200, {}),
+    ]
+    th = threading.Thread(target=srv.serve_forever, daemon=True)
+    th.start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}/v1"
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            jp = os.path.join(tmp, "j.jsonl")
+
+            def fresh():
+                return SlotCaller(
+                    jp, [RemoteBrain(url, "m", timeout_s=5),
+                         ScriptedBrain()],
+                    backoff_base_s=0.01)
+
+            r1 = fresh().generate(_slot_spec(name="t1"))
+            assert r1.brain.startswith("remote:")
+            r2 = fresh().generate(_slot_spec(name="t2"))
+            assert r2.brain.startswith("remote:") and                 r2.attempts == 3
+            r3 = fresh().generate(_slot_spec(name="t3"))   # 401 fatal
+            assert r3.fell_back and any(
+                ref["kind"] == "auth" for ref in r3.refusals)
+            r4 = fresh().generate(_slot_spec(name="t4",
+                                             max_chars=1000))
+            assert r4.fell_back and any(
+                ref["kind"] == "slot_too_large"
+                for ref in r4.refusals) and len(r4.text) < 1000
+            r5 = fresh().generate(_slot_spec(name="t5"))   # malformed
+            assert r5.fell_back and any(
+                ref["kind"] == "bad_response"
+                for ref in r5.refusals)
+            from buskit.llmlog import validate as llmlog_validate
+            assert all(llmlog_validate(e) == []
+                       for e in LLMJournal(jp).entries())
+        return ("transport classes: ok/retry/auth-fatal/oversize/"
+                "malformed all journaled")
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def completion_remote(text):
+    return {"choices": [{"message": {"content": text}}], "usage": {}}
+
+
 def main():
     print("verify_buskit")
     check("envelope mailbox round-trip", t_mailbox_roundtrip)
@@ -210,6 +385,13 @@ def main():
     check("lint exit code on missing file", t_missing_file_exit_two)
     check("llm attestation journal", t_llm_attestation)
     check("llmlog validate contract", t_llmlog_validate_rejects)
+    check("slotgen scripted render", t_slotgen_scripted_render)
+    check("slotgen dead-endpoint fallback", t_slotgen_fallback_dead_endpoint)
+    check("slotgen retry/jitter reproducible",
+          t_slotgen_retry_jitter_reproducible)
+    check("slotgen breaker lifecycle", t_slotgen_breaker_lifecycle)
+    check("slotgen transport classes + caps",
+          t_slotgen_transport_and_caps)
     failed = [r for r in RESULTS if not r[0]]
     print(f"buskit: {len(RESULTS) - len(failed)}/{len(RESULTS)} checks passed")
     return 1 if failed else 0
