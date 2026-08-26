@@ -17,8 +17,6 @@ platform (see `INTEGRATION.md`).
 | **Ratatosk** | `ratatosk/` | Filesystem communication network: atomic mailboxes (`data/post/`), correlated replies, priority lanes, topics with cursors, heartbeats, corrupt-letter quarantine. Stdlib-only; no ports, no daemons |
 | **NORN** | `norn/` | Accountability machinery: Clockwork determinism seam, replay seeds, capability-rights profiles, witness journals, pulse SLOs |
 | **Hypnos** | `hypnos/` | Silent task organ: letter/drop-in claim-run-retry-resume with audited actions and crash recovery |
-| **Haven** | `haven/` | Local search organ: SQLite FTS5 index on :43910; registry-gated (`verify_haven.py`). Documented 2026-08-25 per L041 - adjudication (keep/retire) still open |
-| **Ares** | `ares/` | Vault cipher: machine-locked `.ares` sealed blobs, Shamir recovery codex (T1); registry-gated (`verify_ares.py`). Documented 2026-08-25 per L041 - adjudication (keep/retire) still open |
 | Toolkit | `image-toolkit/` | Shared image-processing toolkit (Node) |
 
 Infrastructure: `doctor.py` (stabilization gate), `sentinel.py`

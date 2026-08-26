@@ -47,12 +47,17 @@ squash PRs; direct pushes to main are hook-blocked.
 `buskit/`, `hypnos/`, `tools/` verified via their verify suites;
 anything new gets inspected before being cited in a design.
 
-Disk watchlist (audit 2026-08-24): `heart/` is a self-managed nested
-repo (ex-DeskMate), v0.2.0 desk companion on port 4767, zero runtime
-deps — designed under `docs/adr/0001`, registry row pending H0
-sign-off; `hebe/` claimed by its lane (registry row exists). `docs/`
-founded 2026-08-24 (`adr/`, `plans/cycles/`, `contracts/`) holds the
-ATHENA artifact suite.
+Disk watchlist (re-audited 2026-08-25, argus muster): `heart/` tree is
+ABSENT in both roots (empty dir, zero tracked files) - the 2026-08-24
+"v0.2.0 desk companion on port 4767" entry was stale; restoration from
+heart's own remote or retirement of the pending row is an OPEN operator
+decision, :4767 remains proposed-only/unbound. `hebe/` claimed by its
+lane (registry row exists). New since last audit: `haven/` (:43910,
+sqlite-fts5 search organ) and `ares/` (vault cipher, T1) are gated on
+disk with registry rows but were undocumented until the 2026-08-25
+muster added them to DESIGN.md - keep/retire adjudication open.
+`docs/` founded 2026-08-24 (`adr/`, `plans/cycles/`, `contracts/`)
+holds the ATHENA artifact suite.
 
 Knowledge organ (audited 2026-08-24, post auto-wire):
 `knowledge/engine.py` TF-IDF search indexes library docs, lessons.json,
@@ -67,7 +72,10 @@ members) puts the organ under sentinel gate derivation.
 every `knowledge/verify_*.py` automatically. First product DB:
 webstudio/ (25 WS-### entries + 7 topic files).
 
-Wiring pass (2026-08-24 late): registry v2 now carries 29 members -
+Wiring pass (2026-08-24 late; membership re-counted 2026-08-25):
+registry v2 carries 32 members (argus muster found the artemis row
+duplicated verbatim -> 33 raw rows; duplicate deleted and L035 minted
+requiring loader-level dedupe) -
 satellites riley `:43907` (`D:/riley`, gated via portable wrapper
 `verify_riley_satellite.py`: skip-green when undeployed/dark, deep mode
 runs the satellite's own suite) and aphrodite `:43904`
@@ -82,9 +90,13 @@ publishes per-member samples on `vitals`, relay announces
 INTEGRATION §6 documents as-built pre-catalogue lanes (gates, witness,
 rights, hades-alerts, zeus-events, vulcan, daedalus, hypnos, poseidon).
 
-Ports (registry = single source): zeus `:43902`, vulcan `:43901`,
-ptah `:43903`, daedalus `:43905`; heart `:4767` proposed via ADR-0001.
-`43590/43591` are retired; any listener there is a squatter finding.
+Ports (registry = single source, re-audited 2026-08-25): zeus `:43902`,
+vulcan `:43901`, ptah `:43903`, daedalus `:43905`, haven `:43910`,
+aphrodite `:43904` (only live fleet listener at audit time); harmonia
+re-based to `:43908` after colliding with the live RILEY studio; riley
+satellite `:43907`. heart `:4767` proposed via ADR-0001 but UNBOUND -
+tree absent from disk. `43590/43591` are retired; any listener there is
+a squatter finding.
 
 Repo homes (policy 2026-08-24, operator-set, in force until revoked):
 `D:\` is the ONLY localside repository home. Mint-point enforcement:

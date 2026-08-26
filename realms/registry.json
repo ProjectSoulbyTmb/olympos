@@ -34,21 +34,6 @@
       "profile": "watcher"
     },
     {
-      "name": "artemis",
-      "kind": "protection",
-      "engine": "error-hunt-kernel",
-      "port": null,
-      "sdk": null,
-      "path": "artemis/",
-      "tier": 1,
-      "lang": "python",
-      "verify": [
-        "python",
-        "artemis/verify_artemis.py"
-      ],
-      "profile": "watcher"
-    },
-    {
       "name": "vulcan",
       "kind": "automation",
       "engine": "building-sandbox",
@@ -189,7 +174,7 @@
         "python",
         "daedalus/verify_daedalus.py"
       ],
-      "profile": "operator",
+      "profile": "admin",
       "publishes": [
         "daedalus"
       ]
