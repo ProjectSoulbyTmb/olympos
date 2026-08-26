@@ -17,6 +17,7 @@ param(
     [string]$Name,
     [string]$Message,
     [switch]$NoMerge,
+    [switch]$NoWaitChecks,
     [switch]$SkipPostMerge
 )
 
@@ -56,7 +57,38 @@ function Sync-Flow([string]$n) {
     Write-Host "$n synced with origin/main"
 }
 
-function Ship-Flow([string]$n, [string]$msg, [bool]$noMerge) {
+function Wait-Checks([string]$pr) {
+    # L046 law: automated merges wait for required checks to finish
+    # green. Checks must EXIST and PASS. The transient "no checks
+    # reported" window right after gh pr create counts as PENDING,
+    # not pass-through - that race merged PR #101/#104 ahead of runs.
+    # -NoWaitChecks is the operator's deliberate bypass.
+    $deadline = (Get-Date).AddMinutes(20)
+    while ((Get-Date) -lt $deadline) {
+        $out = & gh pr checks $pr 2>&1
+        $code = $LASTEXITCODE
+        $text = "$out"
+        if ($code -eq 0) {
+            if ($text -match '(?i)\b(pending|queued|in_progress)\b') {
+                Start-Sleep -Seconds 20
+                continue
+            }
+            return $true                                  # completed green
+        }
+        if ($text -match "(?m)^\S.*\tfail\t") { return $false }
+        if ($code -eq 8 -or
+            $text -match '(?i)(no checks|not found|yet to start|pending|queued)') {
+            Start-Sleep -Seconds 20                       # registering/pending
+            continue
+        }
+        return $false                                     # explicit failure
+    }
+    Write-Warning "checks poll timed out for PR $pr - refusing to merge"
+    return $false
+}
+
+function Ship-Flow([string]$n, [string]$msg, [bool]$noMerge,
+                   [bool]$noWaitChecks) {
     if (-not $msg) { Die "ship requires -Message" }
     $path = WorktreePath $n
     if (-not (Test-Path $path)) { Die "no such worktree: $path (run start first)" }
@@ -94,6 +126,14 @@ function Ship-Flow([string]$n, [string]$msg, [bool]$noMerge) {
     if ($noMerge) {
         Write-Host "left open for human review: $pr"
         return
+    }
+    if ($noWaitChecks) {
+        Write-Warning "merge proceeding WITHOUT waiting for checks (-NoWaitChecks)"
+    } else {
+        Write-Host "waiting for checks on PR $pr (L046: merges wait) ..."
+        if (-not (Wait-Checks $pr)) {
+            Die "checks not green for PR $pr - left open, fix and re-run ship"
+        }
     }
     & gh pr merge $pr --squash --delete-branch 2>$null
     if ($LASTEXITCODE -ne 0) { Die "PR merge failed for $pr" }
@@ -164,7 +204,7 @@ switch ($Cmd) {
         Sync-Flow $Name
     }
     "ship" {
-        Ship-Flow $Name $Message ([bool]$NoMerge)
+        Ship-Flow $Name $Message ([bool]$NoMerge) ([bool]$NoWaitChecks)
     }
     default {
         Die "unknown command: $Cmd (use list|start|sync|ship|install-hooks)"

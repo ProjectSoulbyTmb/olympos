@@ -151,6 +151,14 @@ BUILD_GATES = [
      "timeout_s": 300},
     {"name": "mind", "argv": ["python", "mind/verify.py"],
      "timeout_s": 300},
+    # Every tracked verify_* suite must appear here (autopilot law
+    # every_suite_is_a_hypnos_build_gate); kronos rode in on the
+    # fleet-ops commit, godot-knowledge-db on the recovered hardening.
+    {"name": "kronos", "argv": ["python", "kronos/verify_kronos.py"],
+     "timeout_s": 300},
+    {"name": "godot-knowledge-db",
+     "argv": ["python", "godot-knowledge-db/verify_godot_knowledge_db.py"],
+     "timeout_s": 300},
 ]
 BUILD_MIN_INTERVAL_S = 900.0   # never more often than this
 BUILD_ON_IDLE = True           # the organism proves itself even quiet
