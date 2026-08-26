@@ -6,7 +6,8 @@ Runs both halves of the fleet and reports a single verdict:
   Phase authoring : every registered DAEDALUS blueprint weaves +
                     passes its self-test gate (clean; breakers are
                     proven separately via tools/muster_launch.py).
-  Phase sovereign : the D:\VOLTAGE coordinator replays its manifest -
+  Phase sovereign : the coordinator at the sovereign root (printed by
+                    `python boundary.py foreign-root`) replays its manifest -
                     idempotent orders advance only on green, choke
                     halts cleanly.
 
@@ -32,6 +33,7 @@ param(
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $here
+$voltage = (python (Join-Path $here 'boundary.py') 'foreign-root')
 $results = [System.Collections.Generic.List[object]]::new()
 
 function Record($phase, $name, $ok, $detail) {
@@ -60,8 +62,8 @@ if (-not $SovereignOnly) {
 
 # ------------------------------------------------ phase 2: sovereign
 if (-not $SkipSovereign) {
-    if (Test-Path 'D:\VOLTAGE\ops\coordinator.py') {
-        Push-Location D:\VOLTAGE
+    if (Test-Path (Join-Path $voltage 'ops\coordinator.py')) {
+        Push-Location $voltage
         try {
             if ($Quick) {
                 $out = python ops\coordinator.py --dry-run 2>&1
@@ -76,7 +78,7 @@ if (-not $SkipSovereign) {
             }
         } finally { Pop-Location }
     } else {
-        Record 'sovereign' 'coordinator' $false 'D:\VOLTAGE missing'
+        Record 'sovereign' 'coordinator' $false "$voltage missing"
     }
 }
 

@@ -22,7 +22,7 @@ param(
 
 $ErrorActionPreference = 'Continue'
 $olympos = Split-Path -Parent $MyInvocation.MyCommand.Path
-$voltage = 'D:\VOLTAGE'
+$voltage = (python (Join-Path $olympos 'boundary.py') 'foreign-root')
 
 $MSG_OLYMPOS = @'
 voltage authoring stack: Creative Control OS blueprints + closure docs
