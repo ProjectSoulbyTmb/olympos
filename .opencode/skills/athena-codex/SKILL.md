@@ -74,7 +74,7 @@ webstudio/ (25 WS-### entries + 7 topic files).
 
 Wiring pass (2026-08-24 late; membership re-counted 2026-08-25):
 registry v2 carries 32 members (argus muster found the artemis row
-duplicated verbatim -> 33 raw rows; duplicate deleted and L035 minted
+duplicated verbatim -> 33 raw rows; duplicate deleted and L036 minted
 requiring loader-level dedupe) -
 satellites riley `:43907` (`D:/riley`, gated via portable wrapper
 `verify_riley_satellite.py`: skip-green when undeployed/dark, deep mode
@@ -124,7 +124,7 @@ the Daedalus workshop lane (@epeios/@icarus/@talos/@perdix/@kourai/
 learning subfleet; primary sessions plan, dispatch, verify, integrate,
 commit - never build organ code inline. No fitting agent = escalate to
 operator. Recorded as DESIGN.md hard rule 5 + root `AGENTS.md`.
-First muster under this doctrine: 2026-08-25 (L035-L044 minted,
+First muster under this doctrine: 2026-08-25 (L036-L045 minted,
 artemis dedupe, drift fixes; log:
 `docs/plans/learning/2026-08-25-muster-decisions.md`).
 

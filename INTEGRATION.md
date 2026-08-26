@@ -305,7 +305,7 @@ Still-missing list RE-DERIVED FROM DISK 2026-08-25: all five items from
 the original post-reset gap list have landed and are CI-gated -
 `doctor.py`, `sentinel.py`, `realms/` registry, PTAH working tree, and
 CI wiring for the new gates (`.github/workflows/ci.yml`). Nothing is
-currently missing. Per L040, this list is re-derived from disk truth at
+currently missing. Per L041, this list is re-derived from disk truth at
 every revision instead of being allowed to silently rot.
 
 ## 10. Acceptance criteria (per integration point)

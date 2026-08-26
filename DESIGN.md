@@ -17,8 +17,8 @@ platform (see `INTEGRATION.md`).
 | **Ratatosk** | `ratatosk/` | Filesystem communication network: atomic mailboxes (`data/post/`), correlated replies, priority lanes, topics with cursors, heartbeats, corrupt-letter quarantine. Stdlib-only; no ports, no daemons |
 | **NORN** | `norn/` | Accountability machinery: Clockwork determinism seam, replay seeds, capability-rights profiles, witness journals, pulse SLOs |
 | **Hypnos** | `hypnos/` | Silent task organ: letter/drop-in claim-run-retry-resume with audited actions and crash recovery |
-| **Haven** | `haven/` | Local search organ: SQLite FTS5 index on :43910; registry-gated (`verify_haven.py`). Documented 2026-08-25 per L041 - adjudication (keep/retire) still open |
-| **Ares** | `ares/` | Vault cipher: machine-locked `.ares` sealed blobs, Shamir recovery codex (T1); registry-gated (`verify_ares.py`). Documented 2026-08-25 per L041 - adjudication (keep/retire) still open |
+| **Haven** | `haven/` | Local search organ: SQLite FTS5 index on :43910; registry-gated (`verify_haven.py`). Documented 2026-08-25 per L042 - adjudication (keep/retire) still open |
+| **Ares** | `ares/` | Vault cipher: machine-locked `.ares` sealed blobs, Shamir recovery codex (T1); registry-gated (`verify_ares.py`). Documented 2026-08-25 per L042 - adjudication (keep/retire) still open |
 | Toolkit | `image-toolkit/` | Shared image-processing toolkit (Node) |
 
 Infrastructure: `doctor.py` (stabilization gate), `sentinel.py`
@@ -73,7 +73,7 @@ tag-driven releases).
   (19 checks, exit-code verdict).
 - 2026-08-25: Operator directive - all building delegated to the
   muster fleet (hard rule 5, root `AGENTS.md`). First exercise: full
-  subfleet muster minting L035-L044, artemis registry dedupe, codex
+  subfleet muster minting L035-L045, artemis registry dedupe, codex
   drift corrections (commit aec1174, ares WIP excluded).
 - 2026-08-23: Trademark-hygiene rebrand: public product names moved to
   the public domain and the ecosystem took the name Olympos. Public
@@ -184,7 +184,7 @@ tag-driven releases).
   no_validation/lost_template exercise gate bite and retry convergence;
   fault injection exposed a stale port.txt race in re-gate passes -
   fixed via pre-boot removal in the woven gate. Root gate
-  `verify_deskmate.py` wired into doctor; auto-discovered by CI.
+  `  verify_deskmate.py` wired into doctor; auto-discovered by CI.
   1964f36 (daedalus: deskmate blueprint - local design-desk service for VENUS (card template/validate/scaffold) + stale-port gate fix)
 
 - 2026-08-25: **ADR-0002 accepted — DAEDELUS sovereign workshop.** Operator
@@ -301,5 +301,20 @@ tag-driven releases).
   derivation strangles them. Remaining for full V6-V9: studio
   engine backends behind their proven seams (binaries/weights),
   doctor SUITES apollo entry (optional beyond sentinel), V5 soak.
+
+- 2026-08-25: **VOLT north star extended; THOTH named the metal
+  kernel (ADR-0003).** The operator ordered PROJECT VOLTAGE to become
+  a fully usable operating system on its own bare-metal kernel, and
+  bound the THOTH name to it: VOLTAGE is the OS, THOTH is the kernel;
+  thoth-private doctrine (grants/safety, knowledge routing, scribe,
+  stabilizer) graduates into kernel subsystems - concepts port, code
+  does not. Eidovara seeds the desktop product surface as design
+  (Electron itself cannot run on early metal; native rebuild ladder).
+  Roadmap gains Track B (V6-V12: paper architecture, hello metal,
+  kernel core, userland genesis, desktop seed, drivers+installer,
+  daily driver); Track A (V1-V5) unchanged and now doubles as the
+  factory/CI for the kernel. Kernel language (Rust recommended),
+  reference hardware, filesystem format and port-strategy details are
+  open items gating V6/V7/V9/V10 respectively.
 
 
