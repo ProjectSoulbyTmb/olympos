@@ -39,22 +39,26 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def ledger(kind, name, detail):
+def ledger(kind, name, detail, severity=None):
     os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
     # v2: every line is a buskit envelope on the 'incidents' topic
     # (INTEGRATION.md 4.1 / acceptance A8). Legacy v1 quadruple lines
     # already on disk stay readable; verify_system lints both.
+    payload = {"gate_kind": str(kind), "name": str(name),
+               "detail": str(detail)[:400]}
+    if severity:
+        payload["severity"] = severity
     try:
         from buskit import envelope
         entry = envelope.make(
-            "incident", "sentinel",
-            {"gate_kind": str(kind), "name": str(name),
-             "detail": str(detail)[:400]},
+            "incident", "sentinel", payload,
             topic="incidents", rights="watcher")
         line = envelope.dump(entry)
     except Exception:                    # noqa: BLE001 - never lose an incident
         entry = {"ts": stamp(), "kind": kind, "name": name,
                  "detail": str(detail)[:400]}
+        if severity:
+            entry["severity"] = severity
         line = json.dumps(entry)
     with open(LEDGER, "a", encoding="utf-8") as fh:
         fh.write(line + "\n")
@@ -62,8 +66,28 @@ def ledger(kind, name, detail):
 
 # ---------------------------------------------------------------- doctor
 
+def _registry_port_tiers():
+    """{port: tier} for every realm declaring one; empty on parse
+    failure so a broken manifest can never blind the probe."""
+    try:
+        import realms
+        out = {}
+        for realm in realms.all_realms():
+            port = realm.get("port")
+            if isinstance(port, int) and port > 0:
+                out[port] = int(realm.get("tier") or 1)
+        return out
+    except Exception:                    # noqa: BLE001 - degrade to defaults
+        return {}
+
+
 def doctor():
-    """Environment checks. Returns (ok, findings)."""
+    """Environment checks. Returns (ok, findings).
+
+    Tier-aware (H0a): a busy T3 satellite/companion port is recorded
+    informationally - a running companion is normal life, not an
+    alarm. T1/T2 owned ports must still be free at rest.
+    """
     findings = []
 
     def need(name, ok, detail="", fix=None):
@@ -74,12 +98,19 @@ def doctor():
          sys.version.split()[0])
     node = shutil.which("node")
     need("node (venus/thoth)", node is not None, node or "not on PATH")
-    for port in (43901, 43903):
+    for port in sorted({43901, 43903} | set(_registry_port_tiers())):
+        tier = _registry_port_tiers().get(port, 1)
         s = socketQuiet()
         busy = s.connect_ex(("127.0.0.1", port)) == 0
         s.close()
-        need(f"port {port} free at rest", not busy,
-             "in use - realm still running?" if busy else "")
+        if not busy:
+            need(f"port {port} free at rest", True)
+        elif tier >= 3:
+            need(f"port {port} (T{tier}) companion running",
+                 True, "informational - satellite is alive")
+        else:
+            need(f"port {port} free at rest", False,
+                 "in use - realm still running?")
 
     ok = all(f[1] for f in findings)
     for name, good, detail, fix in findings:
@@ -115,7 +146,7 @@ REMEDIATORS = [
 
 # ----------------------------------------------------------------- gates
 
-def gate(name, cmd, cwd=None, env_extra=None):
+def gate(name, cmd, cwd=None, env_extra=None, tier=1):
     env = dict(os.environ)
     if env_extra:
         env.update(env_extra)
@@ -127,13 +158,14 @@ def gate(name, cmd, cwd=None, env_extra=None):
         # A missing/unspawnable executable is gate data, not a
         # sentinel crash: record it and keep the sweep alive.
         return {"name": name, "ok": False, "exit": -1,
+                "tier": tier,
                 "secs": round(time.time() - t0, 1),
                 "tail": f"OSError spawning {cmd[0]!r}: {exc}"}
     dt = round(time.time() - t0, 1)
     tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-3:])
     ok = proc.returncode == 0
     return {"name": name, "ok": ok, "exit": proc.returncode,
-            "secs": dt, "tail": tail}
+            "tier": tier, "secs": dt, "tail": tail}
 
 
 def gate_defs():
