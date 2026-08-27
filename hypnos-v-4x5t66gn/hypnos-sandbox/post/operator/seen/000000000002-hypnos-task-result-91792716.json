@@ -1,0 +1,1 @@
+{"v":1,"id":"hypnos-000000000002","from":"hypnos","to":"operator","kind":"task-result","ts":"2026-08-26T18:03:50","epoch":1787785430.165,"payload":{"v":1,"task":"operator-000000000001-operator-000000000001","ok":true,"error":null,"n_actions":8,"attempt":1,"label":"roundtrip"}}

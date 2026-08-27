@@ -1,0 +1,4 @@
+{"t":1787785616.51,"ts":"2026-08-26T18:06:56","tick":1,"kind":"task-start","id":"orphan-1","src":"mail","attempt":2,"label":"died mid-run","n_actions":1}
+{"t":1787785616.855,"ts":"2026-08-26T18:06:56","tick":1,"kind":"action","id":"orphan-1","i":0,"do":"write_file","ok":true}
+{"t":1787785617.043,"ts":"2026-08-26T18:06:57","tick":1,"kind":"task-done","id":"orphan-1","ok":true,"attempt":2,"actions_ran":1,"stopped_early":false}
+{"t":1787785621.231,"ts":"2026-08-26T18:07:01","tick":1,"kind":"tick","dropins":0,"scheduled":0,"letters":0,"claimed":0,"ran":1,"resumed":1,"retries":0,"built":false}
