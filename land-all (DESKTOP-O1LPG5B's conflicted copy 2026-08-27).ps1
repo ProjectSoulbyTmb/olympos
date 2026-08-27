@@ -22,9 +22,17 @@ param(
 
 $ErrorActionPreference = 'Continue'
 $olympos = Split-Path -Parent $MyInvocation.MyCommand.Path
-# foreign root comes from the realms declaration, never a literal (ADR-0002)
-$voltage = (Get-Content (Join-Path $olympos 'realms\voltage.json') -Raw |
-            ConvertFrom-Json).root
+# Foreign root resolves through the boundary authority (ADR-0002 scope
+# rule): one policy constant, resolved live - executables never
+# hard-code it (enforced by verify_boundary.py's content scan).
+# Drain the full pipeline before reading $LASTEXITCODE: Select-Object
+# -First would cancel upstream and poison the exit code.
+$vr = & python (Join-Path $olympos 'boundary.py') foreign-root
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace("$vr")) {
+    throw "boundary.py foreign-root failed (exit $LASTEXITCODE) - " +
+          'cannot determine the sovereign tree'
+}
+$voltage = @($vr)[0].ToString().Trim()
 
 $MSG_OLYMPOS = @'
 voltage authoring stack: Creative Control OS blueprints + closure docs

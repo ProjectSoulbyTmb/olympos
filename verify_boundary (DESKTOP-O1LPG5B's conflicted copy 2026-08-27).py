@@ -330,6 +330,8 @@ def cli_exit_codes_and_policy():
     r = run("policy")
     assert r.returncode == 0 and "OLYMPOS" in r.stdout \
         and FOREIGN in r.stdout, r.stdout
+    r = run("foreign-root")
+    assert r.returncode == 0 and r.stdout.strip() == FOREIGN, r.stdout
     with tempfile.TemporaryDirectory(prefix="boundary-cli-") as jail:
         r = run("policy", jail=jail)
         assert "VOLTAGE" in r.stdout and "ARMED" in r.stdout, r.stdout

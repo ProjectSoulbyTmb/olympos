@@ -5,3 +5,7 @@
 #   anny>=0.5      NAVER parametric body model (Apache-2.0, pulls PyTorch)
 #   trimesh        GLB export
 
+#
+# godot-knowledge-db (optional, manual web crawler, never runs in CI):
+#   requests       HTTP fetch for godotengine.org crawl
+#   beautifulsoup4 HTML parsing for the same

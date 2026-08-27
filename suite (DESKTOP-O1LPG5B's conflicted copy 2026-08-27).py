@@ -146,7 +146,8 @@ def _findings():
     f = {"stale": [], "governor_missing": False}
     ctrl = TaskController()
     for t in _root_tasks():
-        if t["stale_workdir"] or t["dead_root"]:
+        if (t["stale_workdir"] or t["dead_root"]) \
+                and not t["task"].startswith(("OSRS", "OneDC")):
             f["stale"].append(t)
     if _governor_state(ctrl) != "Running":
         installed = _governor_state(ctrl) is not None
