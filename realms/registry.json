@@ -424,7 +424,7 @@
       "lang": "python",
       "verify": [
         "python",
-        "verify_riley_satellite.py"
+        "verify_riley.py"
       ],
       "profile": "watcher"
     },
@@ -499,6 +499,24 @@
         "verify_ares.py"
       ],
       "profile": "operator"
+    },
+    {
+      "name": "kronos",
+      "kind": "automation",
+      "engine": "resource-governor",
+      "port": null,
+      "sdk": null,
+      "path": "kronos/",
+      "tier": 2,
+      "lang": "python",
+      "verify": [
+        "python",
+        "kronos/verify_kronos.py"
+      ],
+      "profile": "operator",
+      "publishes": [
+        "incidents"
+      ]
     }
   ]
 }

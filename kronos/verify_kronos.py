@@ -292,6 +292,36 @@ def event_log_is_jsonl_with_transitions():
 
 
 @check
+def bus_never_blocks_the_governor():
+    """A dead or hostile nervous system must not stop the organ:
+    publish/beat raising still yields clean holds and releases."""
+    fx = Fixture()
+    try:
+        class HostileBus:
+            def publish(self, *a, **kw):
+                raise OSError("bus down")
+
+            class Post:
+                def beat(self, *a, **kw):
+                    raise OSError("bus down")
+
+        real_bus = kernel._bus
+        kernel._bus = lambda: HostileBus()
+        try:
+            g = Governor(controller=FakeController(), root=fx.root)
+            for _ in range(C.HOLD_SAMPLES):
+                row = g.step(C.HOLD_PCT + 1)
+            assert row["action"] == "hold", row
+            for _ in range(C.RELEASE_SAMPLES):
+                row = g.step(5)
+            assert row["action"] == "release", row
+        finally:
+            kernel._bus = real_bus
+    finally:
+        fx.cleanup()
+
+
+@check
 def spawns_are_windowless():
     """Real-mode controller must pass CREATE_NO_WINDOW so the
     governor never flashes consoles at the operator."""

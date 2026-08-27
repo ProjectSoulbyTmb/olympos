@@ -133,6 +133,16 @@ def _read_journal(paths):
         return None
 
 
+def _bus():
+    """The ratatosk bus, or None where it is not installed - the
+    organ must keep breathing even without a nervous system."""
+    try:
+        from ratatosk import bus as _b
+        return _b
+    except Exception:                     # noqa: BLE001 - never fatal
+        return None
+
+
 class Governor:
     """The breathing regulator: watch RAM, hold patrols under strain,
     release them back when the machine has room again."""
@@ -145,6 +155,35 @@ class Governor:
         self.held = []
         self.over_streak = 0
         self.under_streak = 0
+        self._last_beat = 0.0
+
+    # -- nervous system -----------------------------------------------
+
+    def _bus_root(self):
+        """The workspace root these journals belong to - broadcasts
+        follow the same boundary as the journal, so gate fixtures can
+        never shout into the production bus."""
+        return os.path.dirname(os.path.dirname(self.paths["dir"]))
+
+    def _broadcast(self, kind, **kw):
+        """Shout a transition down the bus; the bus never blocks us."""
+        b = _bus()
+        if b is None or not C.BUS_ENABLED:
+            return
+        try:
+            b.publish("incidents", dict(kind="kronos-" + kind, **kw),
+                      frm="kronos", root=self._bus_root())
+        except Exception:                 # noqa: BLE001 - degrade quietly
+            pass
+
+    def _beat(self, note=None):
+        b = _bus()
+        if b is None or not C.BUS_ENABLED:
+            return
+        try:
+            b.Post(root=self._bus_root()).beat("kronos", note=note)
+        except Exception:                 # noqa: BLE001 - degrade quietly
+            pass
 
     # -- journaling ---------------------------------------------------
 
@@ -233,6 +272,7 @@ class Governor:
         self._log("hold", load=load_pct,
                   held=list(stopped),
                   refused=[t for t in planned if t not in stopped])
+        self._broadcast("hold", load=load_pct, held=list(stopped))
         self.over_streak = 0
         return {"action": "hold",
                 "load": load_pct,
@@ -251,6 +291,8 @@ class Governor:
         self._write_journal()
         self._log("release", load=load_pct,
                   resumed=started, missed=missed)
+        self._broadcast("release", load=load_pct,
+                        resumed=started, missed=missed)
         self.under_streak = 0
         return {"action": "release",
                 "load": load_pct,
@@ -276,6 +318,12 @@ class Governor:
                         print(json.dumps(row), flush=True)
                     except OSError:
                         pass          # scheduler gave us no stdout
+            now = time.time()
+            if now - self._last_beat >= C.HEARTBEAT_EVERY_S:
+                self._last_beat = now
+                self._beat(note=json.dumps(
+                    {"holding": self.holding,
+                     "load": s.get("load_pct") if s else None}))
             cycles += 1
             if max_cycles and cycles >= max_cycles:
                 return cycles

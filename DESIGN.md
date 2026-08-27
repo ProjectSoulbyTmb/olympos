@@ -449,7 +449,20 @@ tag-driven releases).
 
 
 
-- 2026-08-25 (night): **MIND rechartered - advanced-tech information
+- 2026-08-25: **Satellite policy - git-ignored, self-owned, non-blocking.**
+  Satellites (Venus at `assistant/`, Eidovara at `project---soul/`) are
+  deliberately gitignored and self-governed. They may register optional
+  gates for informational sentinel checks but never block core CI. T3
+  promotion requires verify suite, grant-class compliance, port registration,
+  DESIGN.md entry, and operator sign-off. Doc drift recurrence is a high-
+  risk non-goal; the DESIGN.md table becomes generated from fleet.json
+  (Phase 1 stretch goal).
+- 2026-08-25: **Site policy - gitignored, CI regenerates on deploy.**
+  The `site/` directory is deliberately gitignored, matching the "auto-generated
+  hub" commit intent. CI regenerates `site/` on deploy rather than tracking it
+  in git. This avoids the `??` noise oscillation between commits and working
+  tree. The generated hub remains a deployment-time artifact.
+- 2026-08-25 (night): **MIND rechartered - advanced-tech information**
   gainer and teacher for the entire system.** Operator order: MIND is
   no longer merely an OBS-companion organ; its purpose is to GAIN
   advanced technical information, curate it, and TEACH it to any organ

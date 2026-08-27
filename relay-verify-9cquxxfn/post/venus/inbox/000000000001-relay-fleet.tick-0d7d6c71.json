@@ -1,1 +1,0 @@
-{"v":1,"id":"relay-000000000001","from":"relay","to":"venus","kind":"fleet.tick","ts":"2026-08-26T17:43:23","epoch":1787784203.891,"payload":{"source":"mind-intent","intent":"k1","type":"knowledge","ok":true,"detail":"Alpha Doctrine [lib:alpha.md] :: The alpha protocol requires a confirmation gate before every destructive act.","at":"2026-08-26T17:43:19"}}

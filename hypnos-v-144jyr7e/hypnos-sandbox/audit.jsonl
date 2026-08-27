@@ -1,5 +1,0 @@
-{"t":1787785624.844,"ts":"2026-08-26T18:07:04","tick":1,"kind":"claim","id":"flaky","src":"mail","n_actions":1,"label":""}
-{"t":1787785625.186,"ts":"2026-08-26T18:07:05","tick":1,"kind":"task-start","id":"flaky","src":"mail","attempt":1,"label":"","n_actions":1}
-{"t":1787785633.154,"ts":"2026-08-26T18:07:13","tick":1,"kind":"action","id":"flaky","i":0,"do":"run","ok":false,"error":""}
-{"t":1787785633.606,"ts":"2026-08-26T18:07:13","tick":1,"kind":"retry","id":"flaky","attempt":1,"next_in_s":20.0}
-{"t":1787785633.654,"ts":"2026-08-26T18:07:13","tick":1,"kind":"tick","dropins":0,"scheduled":0,"letters":1,"claimed":1,"ran":1,"resumed":0,"retries":1,"built":false}

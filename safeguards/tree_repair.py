@@ -343,7 +343,7 @@ def sweep(root, fix=False, protect_minutes=30, include_machine=True):
         if fixed:
             actions.append({"repair": "stale-locks", "count": len(fixed)})
         locks = [l for l in locks if l["path"] not in (fixed or [])]
-        for p in fixed:
+        for p in (fixed or []):
             _ledger_append(root, {"t": time.time(),
                                   "repair": "stale-locks", "path": p})
 
@@ -355,7 +355,7 @@ def sweep(root, fix=False, protect_minutes=30, include_machine=True):
             actions.append({"repair": "missing-tracked",
                             "count": len(fixed)})
         miss = [m for m in miss if m["path"] not in (fixed or [])]
-        for p in fixed:
+        for p in (fixed or []):
             _ledger_append(root, {"t": time.time(),
                                   "repair": "missing-tracked", "path": p})
 
@@ -367,7 +367,7 @@ def sweep(root, fix=False, protect_minutes=30, include_machine=True):
             actions.append({"repair": "generated-dirt",
                             "count": len(fixed)})
         gen = [g for g in gen if g["path"] not in (fixed or [])]
-        for p in fixed:
+        for p in (fixed or []):
             _ledger_append(root, {"t": time.time(),
                                   "repair": "generated-dirt", "path": p})
 
@@ -379,7 +379,7 @@ def sweep(root, fix=False, protect_minutes=30, include_machine=True):
             actions.append({"repair": "duplicate-branch",
                             "count": len(fixed)})
         dups = [d for d in dups if d["branch"] not in (fixed or [])]
-        for b in fixed:
+        for b in (fixed or []):
             _ledger_append(root, {"t": time.time(),
                                   "repair": "duplicate-branch",
                                   "branch": b})

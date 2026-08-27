@@ -1,5 +1,0 @@
-{"t":1787785555.376,"ts":"2026-08-26T18:05:55","tick":1,"kind":"claim","id":"operator-000000000001-operator-000000000001","src":"mail","n_actions":1,"label":""}
-{"t":1787785555.48,"ts":"2026-08-26T18:05:55","tick":1,"kind":"task-start","id":"operator-000000000001-operator-000000000001","src":"mail","attempt":1,"label":"","n_actions":1}
-{"t":1787785555.612,"ts":"2026-08-26T18:05:55","tick":1,"kind":"action","id":"operator-000000000001-operator-000000000001","i":0,"do":"mkdir","ok":true}
-{"t":1787785555.621,"ts":"2026-08-26T18:05:55","tick":1,"kind":"task-done","id":"operator-000000000001-operator-000000000001","ok":true,"attempt":1,"actions_ran":1,"stopped_early":false}
-{"t":1787785556.159,"ts":"2026-08-26T18:05:56","tick":1,"kind":"tick","dropins":0,"scheduled":0,"letters":1,"claimed":1,"ran":1,"resumed":0,"retries":0,"built":false}

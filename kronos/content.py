@@ -22,6 +22,10 @@ RELEASE_SAMPLES = 6    # consecutive calm samples before a release
 
 SAMPLE_S = 10.0        # governor nap between RAM samples
 
+# --- nervous system ---------------------------------------------------
+BUS_ENABLED = True          # liveness beats + incident broadcasts
+HEARTBEAT_EVERY_S = 60.0    # nap between heartbeats while looping
+
 # --- the deferrable fleet (explicit whitelist; never wildcards) -----
 MANAGED_TASKS = (
     "Olympos HYPNOS Dreamworker",

@@ -58,9 +58,30 @@ atlas/data/
 daedalus/data/
 poseidon/data/
 
+# --- worktree artifacts (fleet gate/verify temp dirs) ---
+hebe-gate-*/
+hypnos-v-*/
+poseidon-gate-*/
+norn-vulcan-*/
+norn-zeus-*/
+ptah-agent-*/
+relay-verify-*/
+
 # --- nested repos / apps that manage their own git ---
 heart/
 deskmate/
 
 # --- godot-knowledge-db local build artifact ---
 godot-knowledge-db/*.db*
+
+# --- kronos runtime strays ---
+kronos/heartbeat.json
+
+# --- olympus orchestrator runtime state ---
+orchestrator/logs/
+orchestrator/status.json
+orchestrator/status.json.tmp
+
+# --- fleet runtime ledgers ---
+hebe/records/
+topics/
