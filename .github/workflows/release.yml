@@ -1,0 +1,31 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: [self-hosted, Windows]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release gate (version + changelog + doctor)
+        run: python release_gate.py ${{ github.ref_name }}
+
+      - name: Fingerprint release artifacts
+        if: hashFiles('dist/**') != ''
+        run: |
+          python hades/cli.py artifact dist/* --tag ${{ github.ref_name }} --json > artifact_manifest.json
+          echo "Artifact manifest generated"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*
+            artifact_manifest.json
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

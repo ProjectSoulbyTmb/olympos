@@ -219,12 +219,26 @@ def gate_defs():
          1),
         ("system seam", [PY, "-u", "verify_system.py"], HERE, None, 1),
     ]
+    # Enhanced safety measures (tier 2 - important but not blocking)
+    defs += [
+        ("task health", [PY, "-u", "task_health.py", "--fleet", "voltage"],
+         HERE, None, 2),
+        ("disk watchdog", [PY, "-u", "disk_watchdog.py"], HERE, None, 2),
+        ("fleet health", [PY, "-u", "fleet_health.py"], HERE, None, 2),
+        ("state backup", [PY, "-u", "state_backup.py", "--verify"],
+         HERE, None, 2),
+    ]
     if shutil.which("node") and \
             os.path.exists(os.path.join(HERE, "assistant",
                                         "test-heart.js")):
         defs.append(("venus heart",
                      ["node", os.path.join("assistant", "test-heart.js")],
                      HERE, None, 1))
+    eidovara_dir = os.path.join(HERE, "project-soul")
+    if shutil.which("npm") and os.path.exists(
+            os.path.join(eidovara_dir, "package.json")):
+        defs.append(("eidovara suite",
+                     ["npm", "test"], eidovara_dir, None, 3))
     if os.environ.get("SENTINEL_DRILL_T3"):
         # H0a dry-run drill: a guaranteed-red tier-3 gate proves
         # informational routing without touching any real suite.
