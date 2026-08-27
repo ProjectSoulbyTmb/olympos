@@ -71,6 +71,7 @@ kronos/heartbeat.json
 # --- olympus orchestrator runtime state ---
 orchestrator/logs/
 orchestrator/status.json
+orchestrator/status.json.tmp
 
 # --- fleet runtime ledgers ---
 hebe/records/
