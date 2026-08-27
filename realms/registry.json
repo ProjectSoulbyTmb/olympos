@@ -424,7 +424,7 @@
       "lang": "python",
       "verify": [
         "python",
-        "verify_riley_satellite.py"
+        "verify_riley.py"
       ],
       "profile": "watcher"
     },

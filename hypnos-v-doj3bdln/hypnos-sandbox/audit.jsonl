@@ -1,3 +1,0 @@
-{"t":1787785600.041,"ts":"2026-08-26T18:06:40","tick":1,"kind":"letter-reject","letter":"operator-000000000001"}
-{"t":1787785601.165,"ts":"2026-08-26T18:06:41","tick":1,"kind":"letter-reject","letter":"operator-000000000002"}
-{"t":1787785603.259,"ts":"2026-08-26T18:06:43","tick":1,"kind":"tick","dropins":0,"scheduled":0,"letters":2,"claimed":0,"ran":0,"resumed":0,"retries":0,"built":false}

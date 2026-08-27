@@ -63,7 +63,7 @@
      "verify": ["python", "verify_harmonia.py"],
       "tier": 2, "ports": [43908]},
     {"name": "riley",  "path": "D:/riley",      "lang": "python",
-     "verify": ["python", "verify_riley_satellite.py"],
+     "verify": ["python", "verify_riley.py"],
       "tier": 3, "ports": [43907], "external": true},
     {"name": "aphrodite", "path": "D:/Aphrodite", "lang": "python",
      "verify": null, "tier": 3, "ports": [43904], "external": true},

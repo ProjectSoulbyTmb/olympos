@@ -37,6 +37,8 @@ CORE_REPOS = [
     ROOT,
     os.path.join(D_DRIVE, "olympos"),
     os.path.join(D_DRIVE, "project-soul"),
+    os.path.join(D_DRIVE, "riley"),
+    os.path.join(D_DRIVE, "aphrodite"),
 ]
 
 REQUIRED_FILES = [
@@ -189,6 +191,9 @@ def check_fleet_consistency():
                     verify_file = verify_cmd[-1]
                     if os.path.isabs(verify_file):
                         verify_path = verify_file
+                    elif os.path.isabs(path):
+                        # external repo: verify script relative to repo dir
+                        verify_path = os.path.join(full, verify_file)
                     else:
                         verify_path = os.path.join(ROOT, verify_file)
                     if not os.path.isfile(verify_path):

@@ -1,1 +1,0 @@
-{"v":1,"id":"hypnos-000000000001","from":"hypnos","to":"operator","kind":"task-result","ts":"2026-08-26T18:06:40","epoch":1787785600.608,"payload":{"v":1,"task":"operator-000000000001","ok":false,"error":"invalid task letter","n_actions":0}}

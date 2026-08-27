@@ -1,1 +1,0 @@
-{"v":1,"id":"operator-000000000001","from":"operator","to":"hypnos","kind":"task","ts":"2026-08-26T18:04:27","epoch":1787785467.836,"payload":{"task":"greet","actions":[{"do":"write_file","path":"made.txt","text":"hi"}]}}

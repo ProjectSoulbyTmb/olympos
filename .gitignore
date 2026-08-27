@@ -58,6 +58,15 @@ atlas/data/
 daedalus/data/
 poseidon/data/
 
+# --- worktree artifacts (fleet gate/verify temp dirs) ---
+hebe-gate-*/
+hypnos-v-*/
+poseidon-gate-*/
+norn-vulcan-*/
+norn-zeus-*/
+ptah-agent-*/
+relay-verify-*/
+
 # --- nested repos / apps that manage their own git ---
 heart/
 deskmate/
