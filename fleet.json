@@ -91,6 +91,9 @@
     {"name": "forseti", "path": "forseti/",      "lang": "python",
      "verify": ["python", "verify_forseti.py"],
       "tier": 0},
+    {"name": "kronos",  "path": "kronos/",       "lang": "python",
+     "verify": ["python", "kronos/verify_kronos.py"],
+      "tier": 2},
     {"name": "godot-template", "path": "templates/godot-game/", "lang": "gdscript",
      "verify": ["python", "templates/verify_template.py"],
       "tier": 3}
