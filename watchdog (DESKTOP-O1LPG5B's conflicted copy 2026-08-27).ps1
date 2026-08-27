@@ -42,7 +42,6 @@ foreach ($name in @("Olympos ZEUS Guardian",
                     "Olympos ARTEMIS Huntress",
                     "Olympos HYPNOS Dreamworker",
                     "Olympos GAIA Pulse",
-                    "Olympos RELAY Bridge",
                     "Olympos KRONOS Governor")) {
     try {
         $task = Get-ScheduledTask -TaskName $name -ErrorAction Stop
