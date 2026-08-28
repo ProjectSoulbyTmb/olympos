@@ -12,5 +12,9 @@ Public surface:
 """
 
 from ptah.content import VERSION as __version__  # noqa: F401
+from ptah.backend import BackendRouter, HealthAwareBackendRouter  # noqa: F401
+from ptah.deployment import (deployment_readiness,
+                             validate_deployment)  # noqa: F401
 
-__all__ = ["__version__"]
+__all__ = ["__version__", "BackendRouter", "HealthAwareBackendRouter",
+           "deployment_readiness", "validate_deployment"]

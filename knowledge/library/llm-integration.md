@@ -7,9 +7,16 @@ server worth having (Ollama, vLLM, LM Studio, LiteLLM proxies).
 Anthropic `/v1/messages` differs in shape: `system` is top-level,
 `max_tokens` required, content is a list of blocks, usage splits
 input/output. Keep payload builders and parsers per provider behind one
-`.complete(system, messages) -> Reply{text,usage,model}` surface.
+`.complete(system, messages) -> Reply{text,usage,model}` surface, with
+`.stream(system, messages)` yielding incremental `Reply` values when the
+provider supports server-sent events.
 
 urllib.request is enough. POST JSON, read JSON, honor timeouts.
+
+Normalize provider tool output at the transport boundary to
+`{id, name, arguments}`. OpenAI `tool_calls` (and legacy `function_call`) and
+Anthropic `tool_use` can then share the same audited agent execution path;
+provider-specific tool schemas remain pass-through payload data.
 
 ## Retries that respect providers
 
@@ -47,7 +54,8 @@ costs at display time.
 ## Gateways: become the backend
 
 Expose your agent as an OpenAI-compatible endpoint (`/v1/models`,
-`/v1/chat/completions`, non-streaming). Continuity via a response
+`/v1/chat/completions`; streaming gateway support is a separate concern).
+Continuity via a response
 header carrying your conversation id that clients echo back — the
 OpenAI protocol sends full history every request precisely because it
 assumes stateless backends; you are not one. Accept Bearer auth on the
