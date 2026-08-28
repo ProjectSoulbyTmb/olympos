@@ -20,6 +20,12 @@ platform (see `INTEGRATION.md`).
 | **Haven** | `haven/` | Local search organ: SQLite FTS5 index on :43910; registry-gated (`verify_haven.py`). Documented 2026-08-25 per L042 - adjudication (keep/retire) still open |
 | **Ares** | `ares/` | Vault cipher: machine-locked `.ares` sealed blobs, Shamir recovery codex (T1); registry-gated (`verify_ares.py`). Documented 2026-08-25 per L042 - adjudication (keep/retire) still open |
 | Toolkit | `image-toolkit/` | Shared image-processing toolkit (Node) |
+| **Artemis** | `artemis/` | PR review organ: structured review loop, checklists, PR state machine, rich annotations. Stdlib-only; registry-gated (`verify_artemis.py`) |
+| **Sindri** | `sindri/` | Forge organ: deterministic artifact build/forge with checksums & provenance; registry-gated (`verify_sindri.py`) |
+| **Forseti** | `forseti/` | Judgment/eval organ: deterministic eval harness, scoring, regression gates; registry-gated (`verify_forseti.py`) |
+| **Kronos** | `kronos/` | Temporal/scheduling organ: scheduler, cron-like dispatch, timeline integrity; registry-gated (`verify_kronos.py`) |
+| **Harmonia** | `harmonia/` | Media pipeline organ: ffmpeg-driven transcode/remux/trim; registry-gated (`verify_harmonia.py`); external ffmpeg dependency |
+| **Persephone** | `persephone/` | Season/lifecycle organ: scheduled-task autopilot, duty cycles; registry-gated (`verify_persephone.py`) |
 
 Infrastructure: `doctor.py` (stabilization gate), `sentinel.py`
 (continuous watchdog + incident ledger), `buskit/` + `verify_buskit.py`
