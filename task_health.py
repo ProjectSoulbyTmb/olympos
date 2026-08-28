@@ -143,9 +143,14 @@ def check_task_health(task):
         findings.append(f"{name}: task is disabled")
     
     # Check last result
+    # Benign scheduler states (not failures):
+    #   0x41300 (266752) ready to run at next scheduled time
+    #   0x41301 (267009) currently running
+    #   0x41303 (267011) has not yet run
+    BENIGN_RESULTS = {0x41300, 0x41301, 0x41303}
     try:
         result_code = int(last_result)
-        if result_code != 0:
+        if result_code != 0 and result_code not in BENIGN_RESULTS:
             findings.append(f"{name}: last run failed with code {result_code}")
     except (ValueError, TypeError):
         findings.append(f"{name}: invalid last result code: {last_result}")
