@@ -420,6 +420,7 @@
       "port": 43907,
       "sdk": null,
       "path": "D:/riley/riley_server.py",
+      "workdir": "D:/riley",
       "tier": 3,
       "lang": "python",
       "verify": [
