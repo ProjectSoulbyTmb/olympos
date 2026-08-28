@@ -30,6 +30,11 @@ VOLTAGE_LEDGER = os.path.join("D:\\VOLTAGE", "data", "sentinel", "incidents.json
 # Correlation window (seconds) - incidents within this window are considered related
 CORRELATION_WINDOW_S = 300  # 5 minutes
 
+# Recent window (hours) for the single-fleet failure-rate check. Only failures
+# inside this window count toward "concerning" - resolved historical incidents
+# (e.g. from setup/troubleshooting) must not keep the fleet red indefinitely.
+RECENT_WINDOW_H = 1
+
 
 def load_ledger(path):
     """Load incidents from a ledger file."""
@@ -79,26 +84,36 @@ def correlate_incidents(olympos_incidents, voltage_incidents, window_s=CORRELATI
         o_ts = parse_timestamp(o_inc.get("ts"))
         if not o_ts:
             continue
+        o_payload = o_inc.get("payload", {})
         
         for v_inc in voltage_failures:
             v_ts = parse_timestamp(v_inc.get("ts"))
             if not v_ts:
                 continue
+            v_payload = v_inc.get("payload", {})
             
             delta = abs((o_ts - v_ts).total_seconds())
             if delta <= window_s:
+                o_name = o_payload.get("name")
+                v_name = v_payload.get("name")
+                # Only a same-named gate failing in both fleets is a real
+                # shared-dependency signal. Coincidental different-name
+                # failures (or progress/summary artifacts like "14/14") are
+                # not hardware correlations.
+                if not o_name or not v_name or o_name != v_name:
+                    continue
                 correlations.append({
                     "olympos": {
                         "ts": o_inc.get("ts"),
-                        "kind": o_inc.get("kind"),
-                        "name": o_inc.get("name"),
-                        "detail": o_inc.get("payload", {}).get("detail", "")[:100],
+                        "kind": o_payload.get("gate_kind"),
+                        "name": o_payload.get("name"),
+                        "detail": o_payload.get("detail", "")[:100],
                     },
                     "voltage": {
                         "ts": v_inc.get("ts"),
-                        "kind": v_inc.get("kind"),
-                        "name": v_inc.get("name"),
-                        "detail": v_inc.get("payload", {}).get("detail", "")[:100],
+                        "kind": v_payload.get("gate_kind"),
+                        "name": v_payload.get("name"),
+                        "detail": v_payload.get("detail", "")[:100],
                     },
                     "delta_s": delta,
                 })
@@ -113,13 +128,14 @@ def summarize_fleet(incidents, fleet_name):
     failures = []
     
     for inc in incidents:
-        kind = inc.get("kind", "unknown")
+        payload = inc.get("payload", {})
+        kind = payload.get("gate_kind", "unknown")
         by_kind[kind] += 1
         
         if kind == "gate":
-            name = inc.get("name", "unknown")
+            name = payload.get("name", "unknown")
             by_gate[name] += 1
-            detail = inc.get("payload", {}).get("detail", "")
+            detail = payload.get("detail", "")
             if detail != "pass":
                 failures.append({
                     "ts": inc.get("ts"),
@@ -167,8 +183,21 @@ def main():
     # Determine health status
     concerning = len(correlations) > 0
     if not concerning:
-        # Check for high failure rates
-        if olympos_summary["gate_failures"] > 10 or voltage_summary["gate_failures"] > 10:
+        # Check for high CURRENT failure rates (recent window only, so resolved
+        # historical incidents don't keep this red).
+        recent_cutoff = datetime.now() - timedelta(hours=RECENT_WINDOW_H)
+
+        def _recent_fails(incidents):
+            n = 0
+            for inc in incidents:
+                pl = inc.get("payload", {})
+                if pl.get("gate_kind") == "gate" and pl.get("detail") != "pass":
+                    ts = parse_timestamp(inc.get("ts"))
+                    if ts and ts >= recent_cutoff:
+                        n += 1
+            return n
+
+        if _recent_fails(olympos_incidents) > 10 or _recent_fails(voltage_incidents) > 10:
             concerning = True
     
     if args.json:
