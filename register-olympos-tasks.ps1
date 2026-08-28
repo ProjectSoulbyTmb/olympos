@@ -67,9 +67,9 @@ Install-OrganTask "Olympos GAIA Pulse" $node `
 Install-OrganTask "Olympos RELAY Bridge" $python `
     "-m relay watch --every 60" $here $false
 Install-OrganTask "Olympos POSEIDON Tide" $python `
-    "-m poseidon watch --interval 300" $here $false
+    "-m poseidon --interval 300 watch" $here $false
 Install-OrganTask "Olympos HEBE Scribe" $python `
-    "-m hebe watch --interval 300" $here $false
+    "-m hebe --interval 300 watch" $here $false
 
 if ($Unregister) { exit 0 }
 
