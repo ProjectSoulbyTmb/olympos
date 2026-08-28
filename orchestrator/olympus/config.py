@@ -12,6 +12,12 @@ PY = os.environ.get(
     "OLYMPUS_PYTHON",
     r"C:\Users\Earth949\AppData\Local\Programs\Python\Python312\python.exe",
 )
+# Supervised children are created with CREATE_NO_WINDOW by jobobject.spawn().
+# pythonw.exe descendants can allocate fresh consoles when they later invoke
+# console tools, producing a desktop popup storm. Keep the supervised root on
+# python.exe so the no-console process chain is inherited consistently.
+if os.path.basename(PY).lower() == "pythonw.exe":
+    PY = os.path.join(os.path.dirname(PY), "python.exe")
 NODE = shutil.which("node") or "node"
 CMD = os.environ.get("ComSpec", r"C:\Windows\system32\cmd.exe")
 

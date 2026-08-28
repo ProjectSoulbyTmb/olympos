@@ -305,6 +305,8 @@ def pass_gates():
 
 
 def main():
+    if os.path.exists(os.path.join(HERE, "AUTOMATION_DISABLED_POPUP_STORM")):
+        return 0
     ap = argparse.ArgumentParser(description="Olympos Sentinel")
     ap.add_argument("--watch", type=int, metavar="SECONDS")
     ap.add_argument("--doctor", action="store_true")

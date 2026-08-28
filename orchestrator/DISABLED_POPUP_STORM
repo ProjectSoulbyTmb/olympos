@@ -1,0 +1,3 @@
+Olympus automatic startup disabled on 2026-08-28 after a recurring desktop
+console-window storm. Do not remove this marker until every descendant launch
+path passes a controlled no-visible-window verification.

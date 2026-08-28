@@ -12,6 +12,10 @@ from olympus import supervisor as sup_mod  # noqa: E402
 
 MUTEX_NAME = "OlympusOrchestratorSingleton"
 ERROR_ALREADY_EXISTS = 183
+EMERGENCY_DISABLE_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "DISABLED_POPUP_STORM",
+)
 
 
 def acquire_single_instance():
@@ -117,6 +121,10 @@ class App:
 
 
 def main():
+    # Fail closed before creating the job object or spawning any worker. This
+    # marker is the recovery circuit breaker for task/login process storms.
+    if os.path.exists(EMERGENCY_DISABLE_FILE):
+        return
     if not acquire_single_instance():
         sys.exit(0)
     app = App()
