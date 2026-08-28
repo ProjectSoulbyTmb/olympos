@@ -155,17 +155,18 @@ def check_task_health(task):
     except (ValueError, TypeError):
         findings.append(f"{name}: invalid last result code: {last_result}")
     
-    # Check staleness
-    last_run_dt = parse_datetime(last_run)
-    if last_run_dt:
-        age_hours = (datetime.now() - last_run_dt).total_seconds() / 3600
-        max_age = MAX_TASK_AGE_HOURS.get(name, 24)  # default 24h
-        if age_hours > max_age:
-            findings.append(f"{name}: stale (last run {age_hours:.1f}h ago, max {max_age}h)")
-    else:
-        # Never run or unknown
-        if name in MAX_TASK_AGE_HOURS:
-            findings.append(f"{name}: never run or last run time unknown")
+    # Check staleness (skip tasks currently running - they are active by definition)
+    if status != "Running":
+        last_run_dt = parse_datetime(last_run)
+        if last_run_dt:
+            age_hours = (datetime.now() - last_run_dt).total_seconds() / 3600
+            max_age = MAX_TASK_AGE_HOURS.get(name, 24)  # default 24h
+            if age_hours > max_age:
+                findings.append(f"{name}: stale (last run {age_hours:.1f}h ago, max {max_age}h)")
+        else:
+            # Never run or unknown
+            if name in MAX_TASK_AGE_HOURS:
+                findings.append(f"{name}: never run or last run time unknown")
     
     ok = len(findings) == 0
     return ok, findings
