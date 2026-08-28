@@ -185,6 +185,10 @@ def gate_defs():
         if parts and parts[0] in ("npm", "npx"):
             found = shutil.which(parts[0])
             if found:
+                if os.path.splitext(found)[1] in ("", ".exe"):
+                    cmd = found + ".cmd"
+                    if os.path.exists(cmd):
+                        found = cmd
                 return [found] + parts[1:]
         return parts
 
@@ -235,8 +239,9 @@ def gate_defs():
                      ["node", os.path.join("assistant", "test-heart.js")],
                      HERE, None, 1))
     eidovara_dir = os.path.join(HERE, "project-soul")
-    if shutil.which("npm") and os.path.exists(
-            os.path.join(eidovara_dir, "package.json")):
+    if (shutil.which("npm") and
+            os.path.exists(os.path.join(eidovara_dir, "package.json")) and
+            os.path.exists(os.path.join(eidovara_dir, "node_modules"))):
         defs.append(("eidovara suite",
                      ["npm", "test"], eidovara_dir, None, 3))
     if os.environ.get("SENTINEL_DRILL_T3"):
