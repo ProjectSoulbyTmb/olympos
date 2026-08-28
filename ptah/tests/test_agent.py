@@ -6,7 +6,7 @@ from ptah.agent import Agent, ProtocolError, RunResult, extract_json, \
     parse_reply
 from ptah.conversation import Conversation
 from ptah.events import FinishedEvent
-from ptah.llm import ScriptedLLM
+from ptah.llm import Reply, ScriptedLLM
 from ptah.security import ConfirmationPolicy
 from ptah.tools import ToolRegistry, TerminalTool, FileEditorTool, \
     TaskTrackerTool
@@ -65,6 +65,26 @@ class TestParsing(unittest.TestCase):
 
 
 class TestHappyPath(unittest.TestCase):
+    def test_native_tool_call_uses_legacy_audit_and_security_path(self):
+        h = AgentHarness([
+            Reply("", tool_calls=[{"id": "c1", "name": "file_editor",
+                                   "arguments": {"op": "create",
+                                                 "path": "native.txt",
+                                                 "content": "native"}}]),
+            json.dumps({"answer": "native call completed"}),
+        ])
+        try:
+            result = h.run("use the native tool interface")
+            self.assertEqual(result.reason, "answered")
+            self.assertEqual(h.ws.read_file("native.txt"), "native")
+            thought = next(e for e in h.conv.events
+                           if e.TYPE == "agent_thought")
+            self.assertEqual(thought.tool_calls[0]["name"], "file_editor")
+            self.assertEqual(len([e for e in h.conv.events
+                                  if e.TYPE == "action"]), 1)
+        finally:
+            h.cleanup()
+
     def test_creates_file_then_answers(self):
         h = AgentHarness([
             json_action("task_tracker", op="add", title="write note"),
@@ -87,13 +107,17 @@ class TestHappyPath(unittest.TestCase):
             h.cleanup()
 
     def test_iteration_counting_and_usage_recorded(self):
-        h = AgentHarness([json.dumps({"answer": "straight away"})])
+        h = AgentHarness([Reply(json.dumps({"answer": "straight away"}),
+                                usage={"input": 4, "output": 2})])
         try:
             result = h.run("hello?")
             self.assertEqual(result.iterations, 1)
             thought = next(e for e in h.conv.events
                            if e.TYPE == "agent_thought")
             self.assertIn('"answer"', thought.text)
+            self.assertEqual(thought.usage, {"input": 4, "output": 2})
+            self.assertIsInstance(thought.latency_s, float)
+            self.assertEqual(thought.model, "scripted")
         finally:
             h.cleanup()
 

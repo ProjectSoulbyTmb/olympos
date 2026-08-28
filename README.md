@@ -25,7 +25,7 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 | `gaia/` | Ops kernel watching the whole organism: git sync state, CI verdicts, patrol loops (`node gaia.mjs`) |
 | `poseidon/` | **Tide kernel**: fully autonomous commit-and-push workflow - sweeps uncommitted drift into snapshot commits via a throwaway index (root tree never touched mid-cycle), carries them through the FLOW.md lane (`auto/poseidon` -> push -> PR -> squash merge) under FORSETI's push-lane lock, then settles the mirror. Quarantine breaker after repeated failures; JSONL tide ledger. Verify: `python poseidon/verify_poseidon.py` - arm: `python -m poseidon watch --interval 300` |
 | `hebe/` | **Legal & Document Scribe**: full dictation privileges over the workspace (refuses only `.git`, `.worktrees` and credential carriers), codified legal knowledge corpus (licenses with canonical texts, copyright/trade-secret/NDA/trademark/DMCA playbooks), append-only oath + IP-register ledgers that ship with the repo, LICENSE seeding on first boot, and her own scoped auto-commit/push lane (`auto/hebe`, throwaway index, FORSETI lock, PR squash). Standing L2 grant, no confirmation gate; quarantine breaker. Verify: `python hebe/verify_hebe.py` - arm: `python -m hebe watch --interval 300` |
-| `ptah/` | Software-engineering agent kernel: event-sourced reasoning-action loop over audited tools (terminal, file editor, grep, task tracker, verify-gate runner, memory), risk-classified actions with human confirmation gating, keyword-triggered skills, provider-agnostic LLM brain (OpenAI-compatible/Anthropic) or offline scripted brain, REST control plane on `127.0.0.1:43903`. Verify: `python ptah/verify_ptah.py` - nightly self-check: `python -m ptah selfcheck` |
+| `ptah/` | Software-engineering agent kernel: event-sourced reasoning-action loop over audited tools (terminal, file editor, grep, task tracker, verify-gate runner, memory), risk-classified actions with human confirmation gating, keyword-triggered skills, one OpenAI-compatible LLM transport (including local aliases) plus native Anthropic or offline scripted brains, REST control plane on `127.0.0.1:43903`. Verify: `python ptah/verify_ptah.py` - nightly self-check: `python -m ptah selfcheck` |
 | `atlas/` | **Hypervisor**: hosts jailed guest workspaces for builder agents - per-guest directory confinement, argv-only execution with hard timeouts + tree-kill, capped output capture, scrubbed environments, hash-chained audit, NORN rights on the wire (watchers observe; operators rent compute) on `127.0.0.1:43904`. Verify: `python atlas/verify_atlas.py` |
 | `daedalus/` | **Workshop**: autonomous server builder over its ATLAS subfleet - blueprint designs woven into guest worlds, self-test gates run inside the jail, fault-injected builds converge via fix passes (verify-fix-retry), VULCAN-style schema gates + policy rules + warden self-healing (stuck lanes, failure storms quarantined), sealed+hashed artifacts on `127.0.0.1:43905`. Verify: `python daedalus/verify_daedalus.py` |
 | `relay/` | **Bridge**: stable daedalus<->venus relays over the ratatosk bus - workshop build outcomes forwarded exactly-once to the venus mailbox + `updates` topic (persistent cursors survive restarts and rotation), Venus intents (build / repair / status) claimed from `assistant/data/relay/to-fleet/`, MIND lanes mirrored: from-mind intents (build / repair / status / knowledge) claimed from assistant/data/relay/from-mind/ with correlated fleet.reply answers into the mind mailbox, repair sweeps run doctor's check+fix pass with published proof, constant fleet update stream + heartbeat (`python -m relay watch`). Verify: `python relay/verify_relay.py` - deploy: `register-relay-task.ps1` |
@@ -45,6 +45,7 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 ## Quick start
 
 ```powershell
+
 # arm the full autopilot: ZEUS guardian + HYPNOS dreamworker + GAIA pulse
 # (idempotent; ZEUS asks for one elevated run so it may bolt processes)
 powershell -ExecutionPolicy Bypass -File register-olympos-tasks.ps1
@@ -87,6 +88,52 @@ python -m hebe advise licenses
 python -m hebe once --dry-run
 python -m hebe watch --interval 300
 ```
+
+### PTAH model backends
+
+`ptah.llm` exposes a small `complete(system, messages) -> Reply` and
+incremental `stream(system, messages) -> Iterator[Reply]` surface. `openai`
+and the local aliases `ollama`, `vllm`, `lmstudio`,
+`llama.cpp`, and `litellm` all send the OpenAI-compatible
+`/chat/completions` request. Select an alias with `PTAH_LLM_PROVIDER`;
+configure `PTAH_BASE_URL` (or `PTAH_LLM_ENDPOINT`) and
+`PTAH_LLM_MODEL`, or use `PTAH_<BACKEND>_URL` and
+`PTAH_<BACKEND>_MODEL` (canonical values win).
+Loopback local endpoints do not need `PTAH_API_KEY`. `Reply.usage` always
+contains `input`/`output`, and `Reply.latency_s` is populated for both real
+and scripted brains.
+
+These adapters normalize streaming deltas and tool/function calls, but do not
+claim proprietary Copilot feature parity (tool orchestration, safety systems,
+and model quality remain backend-specific). Anthropic's native Messages
+behavior is unchanged. See
+[`docs/ptah-llm.md`](docs/ptah-llm.md) for defaults and limitations.
+
+For safe failover, configure repeatable `--fallback-provider
+provider[=model][@base_url]` flags on `run`/`serve`, or set
+`PTAH_LLM_FALLBACKS` to a comma-separated list. `BackendRouter` keeps
+per-backend availability, error, in-flight, and latency counters; transient
+failures open a circuit and route to the next backend, while auth and bad
+request failures remain fail-fast. `serve` exposes `/readyz` and JSON
+`/metrics` (plus `/api/v1/backends/metrics`). Health probes are opt-in:
+`serve --health-interval 30` starts the existing local probe loop. Constructing
+the router or starting the server never dials a backend.
+
+Run `python -m ptah benchmark --backend
+provider[=model][@base_url] --runs 3 --json` for a repeatable multi-backend
+compatibility report. It records per-backend availability/error state,
+latency, byte throughput, streaming, tool-call, and model-inventory results;
+unavailable backends do not hide reachable ones. `python -m ptah deploy-check`
+validates safe server exposure. Non-loopback binds require a bearer token and
+an explicitly declared external TLS terminator because PTAH itself serves HTTP
+only (use `--allow-insecure` only as an intentional override).
+
+Server responses now include `X-Request-ID` and a matching additive
+`request_id` JSON field. Send a safe incoming `X-Request-ID` to preserve your
+trace ID; otherwise PTAH generates one and propagates it to backend LLM calls.
+For operations, `serve --metrics-path <file.json>` enables atomic JSON
+export/load of router counters across restarts, and `--max-active-runs` applies
+an admission cap for overload control.
 
 ## Infrastructure
 
