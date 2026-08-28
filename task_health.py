@@ -141,22 +141,25 @@ def check_task_health(task):
     # Check status
     if status == "Disabled":
         findings.append(f"{name}: task is disabled")
-    
-    # Check last result
-    # Benign scheduler states (not failures):
-    #   0x41300 (266752) ready to run at next scheduled time
-    #   0x41301 (267009) currently running
-    #   0x41303 (267011) has not yet run
-    BENIGN_RESULTS = {0x41300, 0x41301, 0x41303}
-    try:
-        result_code = int(last_result)
-        if result_code != 0 and result_code not in BENIGN_RESULTS:
-            findings.append(f"{name}: last run failed with code {result_code}")
-    except (ValueError, TypeError):
-        findings.append(f"{name}: invalid last result code: {last_result}")
-    
-    # Check staleness (skip tasks currently running - they are active by definition)
+
+    # A currently-running task is active by definition: do not flag its
+    # transient/running last-result code (e.g. a daemon's live "running"
+    # code) or staleness.
     if status != "Running":
+        # Check last result
+        # Benign scheduler states (not failures):
+        #   0x41300 (266752) ready to run at next scheduled time
+        #   0x41301 (267009) currently running
+        #   0x41303 (267011) has not yet run
+        BENIGN_RESULTS = {0x41300, 0x41301, 0x41303}
+        try:
+            result_code = int(last_result)
+            if result_code != 0 and result_code not in BENIGN_RESULTS:
+                findings.append(f"{name}: last run failed with code {result_code}")
+        except (ValueError, TypeError):
+            findings.append(f"{name}: invalid last result code: {last_result}")
+
+        # Check staleness
         last_run_dt = parse_datetime(last_run)
         if last_run_dt:
             age_hours = (datetime.now() - last_run_dt).total_seconds() / 3600
