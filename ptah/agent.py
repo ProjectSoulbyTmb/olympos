@@ -52,6 +52,16 @@ def redact(text, secrets=None):
     return text
 
 
+def _redact_tool_calls(tool_calls, secrets):
+    """Redact native call arguments before they enter the event log."""
+    try:
+        return json.loads(redact(json.dumps(tool_calls), secrets))
+    except (TypeError, ValueError):
+        # Malformed provider data is rejected by the protocol path; keep the
+        # audit event serializable without allowing an exception to mask it.
+        return []
+
+
 def extract_json(text):
     """Return the first balanced JSON object embedded in `text`."""
     start = text.find("{")
@@ -309,9 +319,33 @@ class Agent:
                 return RunResult(conversation.ERROR, "error", iterations)
             conversation.append(events.AgentThought(
                 text=redact(reply.text, self.secrets),
-                usage=getattr(reply, "usage", {})))
+                usage=getattr(reply, "usage", {}),
+                latency_s=getattr(reply, "latency_s", 0.0),
+                model=getattr(reply, "model", ""),
+                tool_calls=_redact_tool_calls(
+                    getattr(reply, "tool_calls", []) or [], self.secrets)))
+            tool_calls = getattr(reply, "tool_calls", []) or []
             try:
-                parsed = parse_reply(reply.text)
+                if tool_calls:
+                    # Native provider calls use the same audited execution
+                    # path as PTAH's historical JSON action envelope.
+                    call = tool_calls[0]
+                    if not isinstance(call, dict) or \
+                            not isinstance(call.get("name"), str) or \
+                            not call["name"].strip():
+                        raise ProtocolError("tool call has no name")
+                    args = call.get("arguments", {})
+                    if not isinstance(args, dict):
+                        raise ProtocolError("tool call arguments must be an "
+                                            "object")
+                    parsed = ("action", call["name"], args)
+                    if len(tool_calls) > 1:
+                        conversation.append(events.UserMessage(
+                            text="[protocol] Execute one tool call per turn; "
+                                 "continue with the remaining calls after "
+                                 "this action."))
+                else:
+                    parsed = parse_reply(reply.text)
             except ProtocolError as exc:
                 if corrective < 1:
                     corrective += 1

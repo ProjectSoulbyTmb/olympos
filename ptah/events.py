@@ -67,7 +67,7 @@ class SystemPrompt(Event):
 class AgentThought(Event):
     """Raw model reply before parsing (kept verbatim for audit)."""
     TYPE = "agent_thought"
-    FIELDS = ("text", "usage")
+    FIELDS = ("text", "usage", "latency_s", "model", "tool_calls")
 
 
 class AgentMessage(Event):

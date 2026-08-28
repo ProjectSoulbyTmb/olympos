@@ -47,22 +47,34 @@ class TestSkillsParsing(unittest.TestCase):
 
 
 class ApiHarness:
-    def __init__(self, replies=None, token=None):
+    def __init__(self, replies=None, token=None, run_delay=0.0,
+                 max_active_runs=None, llm=None,
+                 handler_max_active_runs=None, server_max_active_runs=None):
         self.tmp = tempfile.TemporaryDirectory(prefix="ptah-api-")
         self.store = Store(root=self.tmp.name)
         replies = replies or [json.dumps({"answer": "done"})]
+        self.llm = llm or ScriptedLLM(replies)
+        if handler_max_active_runs is None:
+            handler_max_active_runs = max_active_runs
+        if server_max_active_runs is None:
+            server_max_active_runs = max_active_runs
 
         def runner(conv, text, confirm):
+            if run_delay:
+                time.sleep(run_delay)
             ws = LocalWorkspace(conv.meta.get("workspace") or ".")
             registry = ToolRegistry([TerminalTool(), FileEditorTool()])
-            agent = Agent(llm=ScriptedLLM(replies), registry=registry,
+            agent = Agent(llm=self.llm, registry=registry,
                           policy=ConfirmationPolicy("confirm-risky"),
                           max_iterations=6)
             return agent.run(conv, text, confirm=confirm, workspace=ws)
 
         self.server = ApiServer(("127.0.0.1", 0),
                                 make_handler(self.store, runner,
-                                             token=token))
+                                            token=token,
+                                            max_active_runs=
+                                            handler_max_active_runs),
+                                max_active_runs=server_max_active_runs)
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever,
                                        daemon=True)

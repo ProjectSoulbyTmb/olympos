@@ -206,7 +206,9 @@ class _Stub(BaseHTTPRequestHandler):
     def do_POST(self):                     # noqa: N802
         self.stats["hits"] += 1
         n = int(self.headers.get("content-length", 0))
-        self.rfile.read(n)
+        self.stats["path"] = self.path
+        self.stats["payload"] = json.loads(self.rfile.read(n).decode())
+        self.stats["authorization"] = self.headers.get("authorization")
         ok = self.stats["hits"] >= 2       # fail exactly once
         payload = {
             "model": "stub",
@@ -236,14 +238,33 @@ def check_llm_retry():
             return f"bad reply: {reply.text!r}"
         if _Stub.stats["hits"] < 2:
             return "no retry observed"
+        if _Stub.stats["path"] != "/v1/chat/completions":
+            return f"wrong endpoint: {_Stub.stats['path']}"
+        if _Stub.stats["payload"]["model"] != "stub":
+            return "model missing from payload"
+        if reply.usage != {"input": 5, "output": 2} or \
+                not isinstance(reply.latency_s, float):
+            return f"reply metadata drifted: {reply.usage}/{reply.latency_s}"
         return True
     finally:
         srv.shutdown()
         srv.server_close()
 
 
-_ENV_KEYS = ("PTAH_BASE_URL", "PTAH_LLM_MODEL", "PTAH_LMSTUDIO_URL",
-             "PTAH_LMSTUDIO_MODEL", "PTAH_LLM_PROVIDER")
+_ENV_KEYS = (
+    "PTAH_BASE_URL", "PTAH_LLM_ENDPOINT", "PTAH_LLM_MODEL",
+    "PTAH_LLM_PROVIDER",
+    "PTAH_API_KEY", "PTAH_LMSTUDIO_URL", "PTAH_LMSTUDIO_ENDPOINT",
+    "PTAH_LMSTUDIO_MODEL",
+    "PTAH_LMSTUDIO_API_KEY", "PTAH_OLLAMA_URL", "PTAH_OLLAMA_MODEL",
+    "PTAH_OLLAMA_BASE_URL", "PTAH_OLLAMA_ENDPOINT",
+    "PTAH_VLLM_URL", "PTAH_VLLM_MODEL", "PTAH_VLLM_BASE_URL",
+    "PTAH_VLLM_ENDPOINT", "PTAH_LLAMA_CPP_URL",
+    "PTAH_LLAMA_CPP_MODEL", "PTAH_LLAMA_CPP_BASE_URL",
+    "PTAH_LLAMA_CPP_ENDPOINT", "PTAH_LITELLM_URL",
+    "PTAH_LITELLM_MODEL", "PTAH_LITELLM_BASE_URL",
+    "PTAH_LITELLM_ENDPOINT",
+)
 
 
 class _EnvScope:
@@ -271,9 +292,7 @@ class _EnvScope:
 
 
 def check_lmstudio_seam():
-    """LM Studio seam: env-driven, precedence explicit > alias >
-    default; config time never dials the network; scripted boot is
-    unchanged with dead endpoints."""
+    """Local provider aliases share one offline-safe config/transport."""
     # 1. alias-only configuration resolves onto the standard seam
     with _EnvScope(PTAH_LMSTUDIO_URL="http://127.0.0.1:1234/v1",
                    PTAH_LMSTUDIO_MODEL="qwen2.5-7b-instruct"):
@@ -290,6 +309,29 @@ def check_lmstudio_seam():
         cfg = LLMConfig.from_env()
     if cfg.base_url != "http://127.0.0.1:9999/v1" or cfg.model != "canon":
         return f"precedence broken: {cfg.base_url!r}/{cfg.model!r}"
+
+    # 2b. every supported local name resolves without a credential or dial.
+    for provider, tag in (("ollama", "OLLAMA"), ("vllm", "VLLM"),
+                          ("lmstudio", "LMSTUDIO"),
+                          ("llama.cpp", "LLAMA_CPP"),
+                          ("litellm", "LITELLM")):
+        with _EnvScope(**{
+                "PTAH_LLM_PROVIDER": provider,
+                f"PTAH_{tag}_URL": "http://127.0.0.1:9998/v1",
+                f"PTAH_{tag}_MODEL": "alias-model",
+                "PTAH_BASE_URL": None, "PTAH_LLM_MODEL": None}):
+            cfg = LLMConfig.from_env()
+            brain = LLM(cfg)
+        if brain.config.provider not in ("ollama", "vllm", "lmstudio",
+                                         "llamacpp", "litellm"):
+            return f"provider alias not normalized: {provider}"
+        if cfg.base_url != "http://127.0.0.1:9998/v1" or \
+                cfg.model != "alias-model":
+            return f"backend alias not honored: {provider}"
+        try:
+            brain._headers()
+        except Exception as exc:
+            return f"local key unexpectedly required: {provider}: {exc}"
 
     # 3. clean env -> provider defaults, empty base_url
     with _EnvScope(**{k: None for k in _ENV_KEYS}):
@@ -494,7 +536,7 @@ CHECKS = [
     ("builtin knowledge cards", lambda: check_skills_builtin()),
     ("condenser budget + determinism", lambda: check_condenser()),
     ("llm transient retry transport", lambda: check_llm_retry()),
-    ("lm studio env seam offline-safe", lambda: check_lmstudio_seam()),
+    ("local provider aliases + env seam", lambda: check_lmstudio_seam()),
     ("end-to-end scripted solve", lambda: check_end_to_end_solve()),
     ("confirmation pause/resume cycle",
      lambda: check_confirmation_cycle()),
