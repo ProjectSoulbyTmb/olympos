@@ -426,6 +426,36 @@ def check_realms_expansion(h, base):
     return True
 
 
+def check_artifact_fingerprinting(h, base):
+    """Artifact seal + verify + tamper detection."""
+    from hades.artifacts import seal_artifacts, verify_artifacts
+    artifact_path = os.path.join(base, "dist", "test_installer.bin")
+    os.makedirs(os.path.dirname(artifact_path), exist_ok=True)
+    with open(artifact_path, "wb") as f:
+        f.write(b"fake installer payload " * 100)
+    manifest = seal_artifacts([artifact_path], tag="v9.9.9-test")
+    if manifest["tag"] != "v9.9.9-test":
+        return "tag not recorded: %r" % manifest["tag"]
+    if len(manifest["artifacts"]) != 1:
+        return "expected 1 artifact, got %d" % len(manifest["artifacts"])
+    if not manifest["artifacts"][0]["sha256"]:
+        return "no sha256 recorded"
+    if not manifest.get("hmac"):
+        return "no HMAC on manifest"
+    ok, report = verify_artifacts()
+    if not ok:
+        return "clean artifact failed verification: %r" % report
+    with open(artifact_path, "ab") as f:
+        f.write(b"# tampered byte\n")
+    ok2, report2 = verify_artifacts()
+    if ok2:
+        return "tampered artifact passed verification"
+    statuses = [a["status"] for a in report2.get("artifacts", [])]
+    if "MODIFIED" not in statuses:
+        return "tamper not detected as MODIFIED: %r" % statuses
+    return True
+
+
 CHECKS = [
     ("seal counts + key birth", lambda h, b: check_seal_counts(h)),
     ("clean verify", lambda h, b: check_clean_verify(h)),
@@ -440,6 +470,7 @@ CHECKS = [
     ("fail-closed guard", check_guard),
     ("operator authority gate", check_authority_gate),
     ("realm expansion + worktree exclusion", check_realms_expansion),
+    ("artifact fingerprinting", check_artifact_fingerprinting),
 ]
 
 

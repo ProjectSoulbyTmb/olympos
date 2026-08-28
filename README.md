@@ -32,6 +32,15 @@ shipped scrapers - data arrives as operator-supplied snapshot files.
 | `kinema/` | **Offline video studio**: FFmpeg-driven mp4 production engine (slideshows with xfade dissolves, concat/trim/scale/crop/fades/watermarks/timed text/speed ramps/GIFs/frame extraction via JSON job specs), enhanced analysis (perceptual hashes, scene-cut detection, motion scoring), resumable folder-fed learning catalog with style profiles, watch-loop ingest, optional loopback-only ComfyUI AI tier. Setup: `powershell -File kinema\setup_kinema_stack.ps1` - Verify: `python verify_kinema.py` |
 | `thoth-private/` | Operator kernel doctrines: federation, stabilization points, knowledge entries, repair contracts |
 | `knowledge/` | Distilled lessons database + architecture playbook + engineering rules extracted from everything built here |
+| `hypnos/` | **Silent task organ**: letter/drop-in claim-run-retry-resume with audited actions and crash recovery |
+| `ares/` | **Vault cipher**: machine-locked `.ares` sealed blobs, Shamir recovery codex (T1); registry-gated (`verify_ares.py`) |
+| `artemis/` | **Error-hunt kernel**: signatures + bounded repairs + escalation; nymph-led hunts proven via Daedalus (`verify_artemis.py`) |
+| `sindri/` | **Forge**: fences generated code in a sandboxed jail (taskkill tree-kill default, Job-Object fence opt-in) |
+| `forseti/` | **Lane arbitrator**: serialises shared lanes (e.g. the git push lane) via crash-tolerant stale-reclaiming locks |
+| `kronos/` | **RAM governor**: holds/releases deferrable patrol tasks under physical memory strain; journaled recovery |
+| `harmonia/` | **Normalized studio viewer**: presents library media in standard formats (JPG/PNG/MP4/WebM) over loopback `:43908` |
+| `haven/` | **Shared knowledge base**: SQLite FTS5 curriculum for Venus/Aphrodite/Riley; loopback `:43910`, capability-token gated |
+| `persephone/` | **Guardian**: stabilisation + protection daemon for Aphrodite/RILEY and the `D:\` volume |
 
 ## Quick start
 

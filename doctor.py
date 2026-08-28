@@ -81,28 +81,56 @@ def _knowledge_suites():
     return found
 
 
-SUITES = [
-    ("zeus", os.path.join("zeus", "verify_zeus.py")),
-    ("vulcan", os.path.join("vulcan", "verify_vulcan.py")),
-    ("hades", os.path.join("hades", "verify_hades.py")),
-] + _knowledge_suites() + [
-    ("ptah", os.path.join("ptah", "verify_ptah.py")),
-    ("ratatosk", os.path.join("ratatosk", "verify_ratatosk.py")),
-    ("norn", os.path.join("norn", "verify_norn.py")),
-    ("hypnos", os.path.join("hypnos", "verify_hypnos.py")),
-    ("buskit", "verify_buskit.py"),
-    ("scope", "verify_scope.py"),
-    ("sindri", "verify_sindri.py"),
-    ("forseti", "verify_forseti.py"),
-    ("secrets", "verify_secrets.py"),
-    ("coverage", "verify_coverage.py"),
-    ("template", os.path.join("templates", "verify_template.py")),
-    ("system", "verify_system.py"),
-    ("relay", os.path.join("relay", "verify_relay.py")),
-    ("learning", "verify_learning.py"),
-    ("godot-blueprint", "verify_godot_blueprint.py"),
-    ("deskmate", "verify_deskmate.py"),
-]
+def _registry_suites():
+    """Derive verify suites from realms/registry.json.
+
+    Single source of membership (STRATEGY.md 3.2): adding a realm =
+    one manifest entry plus its verifier, no edits here. Returns
+    [(name, path)] for every realm with a verify command."""
+    try:
+        import realms
+        suites = []
+        for realm in realms.all_realms():
+            raw = realm.get("verify")
+            if not raw:
+                continue
+            name = realm.get("name", "unknown")
+            path = raw[-1] if raw else None
+            if path and os.path.exists(os.path.join(HERE, path)):
+                suites.append((name, path))
+        return suites
+    except Exception:
+        return []
+
+
+def _build_suites():
+    """Combine registry-derived, knowledge auto-discovery, and root-level
+    extras. Deduplicate by path (registry wins over auto-discovery)."""
+    seen_paths = set()
+    suites = []
+    for name, path in _registry_suites():
+        norm = os.path.normpath(path)
+        if norm not in seen_paths:
+            seen_paths.add(norm)
+            suites.append((name, path))
+    for name, path in _knowledge_suites():
+        norm = os.path.normpath(path)
+        if norm not in seen_paths:
+            seen_paths.add(norm)
+            suites.append((name, path))
+    for name, path in [
+        ("system", "verify_system.py"),
+        ("godot-blueprint", "verify_godot_blueprint.py"),
+        ("deskmate", "verify_deskmate.py"),
+    ]:
+        norm = os.path.normpath(path)
+        if norm not in seen_paths:
+            seen_paths.add(norm)
+            suites.append((name, path))
+    return suites
+
+
+SUITES = _build_suites()
 REQUIREMENTS_IMPORTS = {}
 ENSURE_DIRS = [
     os.path.join("zeus", "data"),

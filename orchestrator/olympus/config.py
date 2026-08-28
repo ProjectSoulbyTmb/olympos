@@ -76,13 +76,6 @@ SINGLETON_JOBS = [
 
 ONESHOT_JOBS = [
     {
-        "name": "voltage-sentinel",
-        "args": [PY, "sentinel.py"],
-        "cwd": r"D:\VOLTAGE",
-        "interval": 1200,
-        "timeout": 900,
-    },
-    {
         "name": "vulcan-auto",
         "args": [
             r"C:\Program Files\nodejs\node.exe",
@@ -91,13 +84,6 @@ ONESHOT_JOBS = [
         "cwd": r"D:\olympos\project---soul",
         "interval": 1800,
         "timeout": 1500,
-    },
-    {
-        "name": "voltage-zeus",
-        "args": [PY, r"zeus\cli.py"],
-        "cwd": r"D:\VOLTAGE",
-        "interval": 1800,
-        "timeout": 600,
     },
     {
         "name": "persephone-guardian",

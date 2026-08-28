@@ -11,6 +11,8 @@ Run from the workspace root:
     python hades/cli.py detect [PATH]          find and authenticate Hades marks
     python hades/cli.py audit [--tail N]       validate the hash-chained log
     python hades/cli.py watch --interval 300   live sentinel loop
+    python hades/cli.py artifact FILE [...]    fingerprint release artifacts
+    python hades/cli.py artifact --verify      verify artifacts against manifest
 
 Operator override authority (only the enrolled operator can use these):
 
@@ -318,6 +320,48 @@ def cmd_override(args):
     return _exec_override(h, token or "")
 
 
+def cmd_artifact(args):
+    from hades.artifacts import seal_artifacts, verify_artifacts, export_manifest
+    if args.verify:
+        ok, report = verify_artifacts(args.manifest)
+        if args.json:
+            print(json.dumps({"ok": ok, **report}, indent=2))
+        else:
+            print("artifact verification: %s" % ("PASS" if ok else "FAIL"))
+            for a in report.get("artifacts", []):
+                status = a.get("status", "?")
+                name = a.get("name", "?")
+                if status == "OK":
+                    print("  OK   %s" % name)
+                elif status == "MISSING":
+                    print("  MISS %s  (%s)" % (name, a.get("detail", "")))
+                elif status == "MODIFIED":
+                    print("  MOD  %s  (digest mismatch)" % name)
+            if report.get("error"):
+                print("  error: %s" % report["error"])
+        return 0 if ok else 1
+    if args.export:
+        dest = export_manifest(args.manifest, args.export)
+        print("exported manifest -> %s" % dest)
+        return 0
+    paths = args.files
+    if not paths:
+        print("usage: artifact FILE [FILE...] [--tag TAG] [--verify] [--export DEST]",
+              file=sys.stderr)
+        return 2
+    manifest = seal_artifacts(paths, tag=args.tag)
+    if args.json:
+        print(json.dumps(manifest, indent=2))
+    else:
+        print("sealed %d artifact(s) for tag=%s:" %
+              (len(manifest["artifacts"]), manifest["tag"]))
+        for a in manifest["artifacts"]:
+            print("  %s  sha256=%s  size=%d" %
+                  (a["name"], a["sha256"][:16] + "...", a["size"]))
+        print("manifest: hades/state/artifacts/artifact_manifest.json")
+    return 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="hades", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -381,6 +425,19 @@ def build_parser():
     s.add_argument("--token", required=True,
                    help="token JSON, or a path to a file holding it")
     s.set_defaults(fn=cmd_override)
+
+    s = sub.add_parser("artifact",
+                       help="fingerprint release artifacts (installers, archives)")
+    s.add_argument("files", nargs="*", help="artifact file paths to seal")
+    s.add_argument("--tag", default=None, help="release tag (e.g. v1.2.3)")
+    s.add_argument("--verify", action="store_true",
+                   help="verify artifacts against existing manifest")
+    s.add_argument("--manifest", default=None,
+                   help="manifest path (default: hades/state/artifacts/)")
+    s.add_argument("--export", default=None,
+                   help="export manifest to this path for release shipping")
+    s.add_argument("--json", action="store_true", help="machine-readable output")
+    s.set_defaults(fn=cmd_artifact)
 
     return p
 
