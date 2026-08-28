@@ -231,4 +231,10 @@ def main():
         if all_ok:
             print("  All tasks healthy")
         else:
-            for finding 
+            for finding in all_findings:
+                print(f"  - {finding}")
+    sys.exit(0 if all_ok else 1)
+
+
+if __name__ == "__main__":
+    main() 
