@@ -37,7 +37,10 @@ function Install-OrganTask {
     }
     $action = New-ScheduledTaskAction -Execute $Exe -Argument $ArgList `
         -WorkingDirectory $WorkDir
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date)
+    $trigger = @(
+        (New-ScheduledTaskTrigger -AtStartup),
+        (New-ScheduledTaskTrigger -Once -At (Get-Date))
+    )
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
         -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
         -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `

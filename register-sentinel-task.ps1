@@ -25,12 +25,15 @@ if ($Unregister) {
 $action = New-ScheduledTaskAction -Execute $python `
     -Argument "-u `"(Join-Path $here 'sentinel.py')`"" `
     -WorkingDirectory $here
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-    -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) `
-    -RepetitionDuration (New-TimeSpan -Days 3650)
+$trigger = @(
+    (New-ScheduledTaskTrigger -AtStartup),
+    (New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) `
+        -RepetitionDuration (New-TimeSpan -Days 3650))
+)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -StartWhenAvailable `
-    -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 25)
+    -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 Register-ScheduledTask -TaskName $taskName -Action $action `
     -Trigger $trigger -Settings $settings -RunLevel Highest -Force | Out-Null
 Write-Host "sentinel registered: every $IntervalMinutes min, ledger at data\sentinel\incidents.jsonl"

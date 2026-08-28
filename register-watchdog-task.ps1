@@ -23,12 +23,15 @@ if ($Unregister) {
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$here\watchdog.ps1`"" `
     -WorkingDirectory $here
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-    -RepetitionInterval (New-TimeSpan -Minutes 5)
+$trigger = @(
+    (New-ScheduledTaskTrigger -AtStartup),
+    (New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Minutes 5))
+)
 # PS 5.1 rejects TimeSpan.Zero as "never stop"; an explicit long ISO
 # duration is the accepted way to keep the sweep effectively endless
-$trigger.Repetition.Duration = "P3650D"
-$trigger.Repetition.StopAtDurationEnd = $false
+$trigger[1].Repetition.Duration = "P3650D"
+$trigger[1].Repetition.StopAtDurationEnd = $false
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
     -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `

@@ -26,7 +26,10 @@ if ($Unregister) {
 $action = New-ScheduledTaskAction -Execute $python `
     -Argument "-u `"$kernel`"" `
     -WorkingDirectory (Join-Path $here "vulcan")
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$trigger = @(
+    (New-ScheduledTaskTrigger -AtStartup),
+    (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME)
+)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -StartWhenAvailable `
     -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 0) `
