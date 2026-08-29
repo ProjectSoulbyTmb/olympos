@@ -81,6 +81,11 @@ kronos/heartbeat.json
 orchestrator/logs/
 orchestrator/status.json
 orchestrator/status.json.tmp
+orchestrator/DISABLED_POPUP_STORM
+orchestrator/*.tmp
+
+# --- kronos runtime temp strays ---
+kronos/*.tmp
 
 # --- fleet runtime ledgers ---
 hebe/records/
