@@ -51,7 +51,7 @@ def git(root, *args, check=True):
     env.update(GIT_ENV)
     proc = subprocess.run(["git", "-C", root] + list(args),
                           capture_output=True, text=True,
-                          timeout=120, env=env)
+                          timeout=120, env=env, creationflags=subprocess.CREATE_NO_WINDOW)
     if check and proc.returncode != 0:
         raise RuntimeError("git %s: %s" % (" ".join(args),
                                            proc.stderr.strip()[:300]))
