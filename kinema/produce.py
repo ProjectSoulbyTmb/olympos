@@ -20,6 +20,8 @@ def pick_encoder():
     if not exe:
         return None
     _rc, out, _ = run([exe, "-hide_banner", "-encoders"], timeout=30)
+    if "h264_nvenc" in out:
+        return "h264_nvenc"
     if "libx264" in out:
         return "libx264"
     if " mpeg4 " in out or " mpeg4\n" in out:
@@ -32,6 +34,9 @@ def _enc_args(encoder=None):
     args = ["-c:v", encoder, "-pix_fmt", "yuv420p"]
     if encoder == "libx264":
         args += ["-preset", "veryfast", "-crf", "20",
+                 "-movflags", "+faststart"]
+    elif encoder == "h264_nvenc":
+        args += ["-preset", "p5", "-cq", "20",
                  "-movflags", "+faststart"]
     else:
         args += ["-q:v", "5"]
