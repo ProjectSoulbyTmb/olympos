@@ -286,6 +286,8 @@ class BuildingServer:
 
 
 def main():
+    if os.path.exists(os.path.join(_ROOT, "AUTOMATION_DISABLED_POPUP_STORM")):
+        return 0
     server = BuildingServer(auto_tick=True)
     server.start_async()
     actual = server.port
