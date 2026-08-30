@@ -69,6 +69,22 @@ SECRET_PATTERNS = [
         r"-----BEGIN (RSA |OPENSSH |EC |PGP )?PRIVATE KEY-----")),
 ]
 
+# Runtime circuit-breaker markers and operational state that must NEVER be
+# committed. These are runtime state, not source. Incident: DISABLED_POPUP_
+# STORM and AUTOMATION_DISABLED_POPUP_STORM markers were committed and
+# disabled the fleet (orchestrator/sentinel/vulcan fail closed on them).
+# Any staged path matching one of these patterns is a hard error.
+FORBIDDEN_RUNTIME = (
+    re.compile(r"DISABLED_POPUP_STORM"),
+    re.compile(r"AUTOMATION_DISABLED"),
+    re.compile(r"(^|/)status\.json$"),
+    re.compile(r"(^|/)witness\.jsonl$"),
+    re.compile(r"(^|/)heartbeat\.json$"),
+    re.compile(r"(^|/)\.seq$"),
+    re.compile(r"\.tmp$"),
+    re.compile(r"\.lock$"),
+)
+
 
 def conflict_markers(path):
     """Unresolved merge markers - the interleaved-lane classic."""
@@ -97,6 +113,14 @@ def secrets(path):
     except OSError:
         pass
     return hits
+
+
+def runtime_state(path):
+    """Runtime operational state that must never be committed."""
+    for rx in FORBIDDEN_RUNTIME:
+        if rx.search(path):
+            return f"runtime-state {path}: forbidden operational-state pattern {rx.pattern}"
+    return None
 
 
 def oversize(path):
@@ -199,6 +223,9 @@ def run(paths, strict=False):
         w = oversize(ap)
         if w:
             warnings.append(w)
+        rs = runtime_state(p)
+        if rs:
+            errors.append(rs)
         if p in mixed:
             warnings.append(f"mixed-state: {p} has staged AND unstaged "
                             "edits (interleaved-lane risk)")
