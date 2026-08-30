@@ -116,7 +116,9 @@ class Kernel:
         self.quarantine = bolt_mod.Quarantine()
         self.sentinel = sentinel_mod.Sentinel()
         self.breakers = {name: Breaker(name)
-                         for name in ("sentinel", "oracle", "integrity")}
+                 for name in ("sentinel", "oracle", "integrity",
+                              "grants_safety", "knowledge_routing",
+                              "scribe", "stabilizer")}
         self.events = deque(maxlen=content.EVENTS_MAX)
         self.repairs = deque(maxlen=content.REPAIRS_MAX)
         self.tick_count = 0
@@ -308,7 +310,18 @@ class Kernel:
                             f"{verify['missing']['count']} missing",
                 })
 
-        findings = list(s_finds) + list(o_finds) + i_findings
+        # THUTH OS subsystem patrols
+        g_finds = self.breakers["grants_safety"].run(
+            self._grants_safety_patrol, self) or []
+        k_finds = self.breakers["knowledge_routing"].run(
+            self._knowledge_routing_patrol, self) or []
+        scribe_finds = self.breakers["scribe"].run(
+            self._scribe_patrol, self) or []
+        stabilizer_finds = self.breakers["stabilizer"].run(
+            self._stabilizer_patrol, self) or []
+
+        findings = list(s_finds) + list(o_finds) + i_findings \
+            + g_finds + k_finds + scribe_finds + stabilizer_finds
         for f in findings:
             payload = {k: v for k, v in f.items()
                        if k not in ("type", "severity", "text", "entry")}
@@ -348,6 +361,52 @@ class Kernel:
                 self.record_repair(
                     "churn", f"burst contained in {f['dir']} - "
                     f"watching; raise policy to quarantine to act")
+
+    # ---------- THUTH OS subsystem patrols ----------
+
+    def _grants_safety_patrol(self, kernel):
+        """Patrol for grants/safety subsystem - capability/permission enforcement.
+        
+        Checks for unauthorized capability escalations, permission drift,
+        and enforces least-privilege boundaries per the THUTH OS kernel
+        grant classes (L0 read-only, L1 standing, L2 elevated).
+        """
+        # Placeholder: in V6+ this would check grant class boundaries,
+        # capability tables, and permission drift against the norn rights model
+        return []
+
+    def _knowledge_routing_patrol(self, kernel):
+        """Patrol for knowledge routing subsystem - IPC/message routing.
+        
+        Validates message envelope integrity, checks for routing errors,
+        ensures bus delivery uses atomic os.replace, and monitors for
+        corrupt letter quarantine events per the ratatosk bus contracts.
+        """
+        # Placeholder: in V6+ this would validate message envelopes,
+        # check bus delivery integrity, and monitor topic journal health
+        return []
+
+    def _scribe_patrol(self, kernel):
+        """Patrol for scribe subsystem - journalling & provenance.
+        
+        Verifies journal append-only integrity, checks witness journal
+        consistency, ensures every mutation has an attested witness line,
+        and monitors seal health from the hades sealing layer.
+        """
+        # Placeholder: in V6+ this would verify audit chain integrity,
+        # check witness journal consistency, and monitor hades seal status
+        return []
+
+    def _stabilizer_patrol(self, kernel):
+        """Patrol for stabilizer subsystem - fault recovery / supervised restart.
+        
+        Monitors for repeated subsystem failures, checks circuit breaker
+        cooldown periods, verifies auto-revival logic, and ensures fault
+        recovery follows supervised restart patterns per THUTH OS doctrine.
+        """
+        # Placeholder: in V6+ this would monitor breaker cool-downs,
+        # verify revival logic, and track fault recovery statistics
+        return []
 
     # ---------- reporting ----------
 
