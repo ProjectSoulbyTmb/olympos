@@ -128,13 +128,13 @@ def socketQuiet():
 
 def remediate_tracked_artifacts():
     """git rm --cached anything matching our artifact patterns."""
-    out = subprocess.run(["git", "ls-files"], cwd=HERE,
+    out = subprocess.run(["git", "ls-files"], cwd=HERE, creationflags=subprocess.CREATE_NO_WINDOW,
                          capture_output=True, text=True).stdout
     bad = [p for p in out.splitlines() if p.endswith(".pyc")]
     fixed = 0
     for p in bad:
         subprocess.run(["git", "rm", "-r", "--cached", "--quiet", p],
-                       cwd=HERE)
+                       cwd=HERE, creationflags=subprocess.CREATE_NO_WINDOW)
         fixed += 1
     return fixed, f"untracked {fixed} artifact file(s)"
 
@@ -152,7 +152,7 @@ def gate(name, cmd, cwd=None, env_extra=None, tier=1):
         env.update(env_extra)
     t0 = time.time()
     try:
-        proc = subprocess.run(cmd, cwd=cwd or HERE, capture_output=True,
+        proc = subprocess.run(cmd, cwd=cwd or HERE, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW,
                               text=True, env=env)
     except OSError as exc:
         # A missing/unspawnable executable is gate data, not a
